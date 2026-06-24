@@ -1,0 +1,34 @@
+package com.MyAnimaLog.Veterinary.infrastructure.adapters;
+
+import com.MyAnimaLog.Veterinary.application.ports.out.VeterinaryRepositoryPort;
+import com.MyAnimaLog.Veterinary.domain.model.Veterinary;
+import com.MyAnimaLog.Veterinary.infrastructure.entity.VeterinaryEntity;
+import com.MyAnimaLog.Veterinary.infrastructure.mapper.VeterinaryMapper;
+import com.MyAnimaLog.Veterinary.infrastructure.repositories.VeterinaryJpaRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+
+@Component
+@RequiredArgsConstructor
+public class VeterinaryRepositoryAdapter implements VeterinaryRepositoryPort {
+
+    private final VeterinaryJpaRepository jpaRepository;
+    private final VeterinaryMapper mapper;
+
+    @Override
+    public Veterinary save(Veterinary veterinary) {
+        VeterinaryEntity entity = mapper.toEntity(veterinary);
+        VeterinaryEntity saved = jpaRepository.save(entity);
+        return mapper.toDomain(saved);
+    }
+
+    @Override
+    public boolean existsByEmail(String email) {
+        return jpaRepository.existsByEmail(email);
+    }
+
+    @Override
+    public boolean existsByName(String name) {
+        return jpaRepository.existsByName(name);
+    }
+}

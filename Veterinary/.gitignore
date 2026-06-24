@@ -13,11 +13,21 @@ target/
 .springBeans
 .sts4-cache
 
+# Maven
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+
 ### IntelliJ IDEA ###
 .idea
 *.iws
 *.iml
 *.ipr
+out/
 
 ### NetBeans ###
 /nbproject/private/
@@ -31,3 +41,15 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Spring Boot
+*.log
+logs/
+
+# Variables de entorno
+.env
+*.env
+
+# Application properties con secretos
+src/main/resources/application-local.yml
+src/main/resources/application-dev.yml
