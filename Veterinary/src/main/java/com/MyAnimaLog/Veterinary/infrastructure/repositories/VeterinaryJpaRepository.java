@@ -8,4 +8,5 @@ import java.util.UUID;
 public interface VeterinaryJpaRepository extends JpaRepository<VeterinaryEntity, UUID> {
     boolean existsByEmail(String email);
     boolean existsByName(String name);
+    boolean existsByInviteCode(String inviteCode);
 }

@@ -8,6 +8,9 @@ import com.MyAnimaLog.Veterinary.infrastructure.repositories.VeterinaryJpaReposi
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
+import java.util.UUID;
+
 @Component
 @RequiredArgsConstructor
 public class VeterinaryRepositoryAdapter implements VeterinaryRepositoryPort {
@@ -30,5 +33,15 @@ public class VeterinaryRepositoryAdapter implements VeterinaryRepositoryPort {
     @Override
     public boolean existsByName(String name) {
         return jpaRepository.existsByName(name);
+    }
+
+    @Override
+    public Optional<Veterinary> findById(UUID id) {
+        return jpaRepository.findById(id).map(mapper::toDomain);
+    }
+
+    @Override
+    public boolean existsByInviteCode(String inviteCode) {
+        return jpaRepository.existsByInviteCode(inviteCode);
     }
 }

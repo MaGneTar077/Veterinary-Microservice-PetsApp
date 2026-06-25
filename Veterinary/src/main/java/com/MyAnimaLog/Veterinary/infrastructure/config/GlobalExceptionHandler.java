@@ -45,4 +45,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleGeneric(Exception ex) {
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error: " + ex.getMessage());
     }
+
+    @ExceptionHandler(VeterinaryNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNotFound(VeterinaryNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
 }

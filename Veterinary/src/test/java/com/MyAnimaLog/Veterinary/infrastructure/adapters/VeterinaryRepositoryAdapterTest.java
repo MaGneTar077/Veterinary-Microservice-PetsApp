@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -141,6 +142,46 @@ class VeterinaryRepositoryAdapterTest {
         when(jpaRepository.existsByName("Otra Clínica")).thenReturn(false);
 
         boolean result = veterinaryRepositoryAdapter.existsByName("Otra Clínica");
+
+        assertThat(result).isFalse();
+    }
+
+    @Test
+    void findById_shouldReturnDomain_whenEntityExists() {
+        when(jpaRepository.findById(domain.getId())).thenReturn(Optional.of(entity));
+        when(mapper.toDomain(any(VeterinaryEntity.class))).thenReturn(domain);
+
+        Optional<Veterinary> result = veterinaryRepositoryAdapter.findById(domain.getId());
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getName()).isEqualTo("Clínica El Bosque");
+        verify(jpaRepository, times(1)).findById(domain.getId());
+    }
+
+    @Test
+    void findById_shouldReturnEmpty_whenEntityDoesNotExist() {
+        when(jpaRepository.findById(any(UUID.class))).thenReturn(Optional.empty());
+
+        Optional<Veterinary> result = veterinaryRepositoryAdapter.findById(UUID.randomUUID());
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void existsByInviteCode_shouldReturnTrue_whenCodeExists() {
+        when(jpaRepository.existsByInviteCode("VET-A3X9K2B7")).thenReturn(true);
+
+        boolean result = veterinaryRepositoryAdapter.existsByInviteCode("VET-A3X9K2B7");
+
+        assertThat(result).isTrue();
+        verify(jpaRepository, times(1)).existsByInviteCode("VET-A3X9K2B7");
+    }
+
+    @Test
+    void existsByInviteCode_shouldReturnFalse_whenCodeDoesNotExist() {
+        when(jpaRepository.existsByInviteCode("VET-XXXXXXXX")).thenReturn(false);
+
+        boolean result = veterinaryRepositoryAdapter.existsByInviteCode("VET-XXXXXXXX");
 
         assertThat(result).isFalse();
     }

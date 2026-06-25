@@ -39,3 +39,6 @@ jwt:
 supabase:
   url: ${SUPABASE_URL}
   key: ${SUPABASE_KEY}
+
+app:
+  base-url: ${APP_BASE_URL}
