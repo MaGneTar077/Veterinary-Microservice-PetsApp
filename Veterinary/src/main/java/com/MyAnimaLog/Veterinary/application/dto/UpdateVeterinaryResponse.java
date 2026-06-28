@@ -1,4 +1,4 @@
-package com.MyAnimaLog.Veterinary.domain.model;
+package com.MyAnimaLog.Veterinary.application.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,19 +9,14 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Data
+@Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@Builder(toBuilder = true)
-public class Veterinary {
+public class UpdateVeterinaryResponse {
     private UUID id;
     private String name;
     private String city;
     private String phone;
     private String email;
-    private String inviteCode;
-    private String inviteLink;
-    private String tenantId;
-    private Boolean active;
-    private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

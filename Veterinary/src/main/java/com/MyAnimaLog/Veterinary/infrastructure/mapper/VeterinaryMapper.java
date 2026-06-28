@@ -18,6 +18,7 @@ public class VeterinaryMapper {
                 .tenantId(domain.getTenantId())
                 .active(domain.getActive())
                 .createdAt(domain.getCreatedAt())
+                .updatedAt(domain.getUpdatedAt())
                 .build();
     }
 
@@ -33,6 +34,7 @@ public class VeterinaryMapper {
                 .tenantId(entity.getTenantId())
                 .active(entity.getActive())
                 .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
                 .build();
     }
 }
