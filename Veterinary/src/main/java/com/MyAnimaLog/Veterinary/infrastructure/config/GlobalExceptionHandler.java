@@ -50,4 +50,19 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleNotFound(VeterinaryNotFoundException ex) {
         return build(HttpStatus.NOT_FOUND, ex.getMessage());
     }
+
+    @ExceptionHandler(EmployeeAlreadyExistsException.class)
+    public ResponseEntity<Map<String, Object>> handleEmployeeAlreadyExists(EmployeeAlreadyExistsException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidEmployeeRoleException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidRole(InvalidEmployeeRoleException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(VeterinaryNotActiveException.class)
+    public ResponseEntity<Map<String, Object>> handleNotActive(VeterinaryNotActiveException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage());
+    }
 }
