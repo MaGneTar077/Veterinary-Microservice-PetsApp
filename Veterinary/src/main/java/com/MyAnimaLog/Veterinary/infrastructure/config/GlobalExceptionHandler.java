@@ -65,4 +65,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleNotActive(VeterinaryNotActiveException ex) {
         return build(HttpStatus.CONFLICT, ex.getMessage());
     }
+
+    @ExceptionHandler(EmployeeNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleEmployeeNotFound(EmployeeNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
 }

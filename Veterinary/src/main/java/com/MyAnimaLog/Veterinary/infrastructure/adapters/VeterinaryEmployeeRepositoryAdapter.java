@@ -7,6 +7,7 @@ import com.MyAnimaLog.Veterinary.infrastructure.repositories.VeterinaryEmployeeJ
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Component
@@ -24,5 +25,10 @@ public class VeterinaryEmployeeRepositoryAdapter implements VeterinaryEmployeeRe
     @Override
     public boolean existsByVeterinaryIdAndUserId(UUID veterinaryId, UUID userId) {
         return jpaRepository.existsByVeterinaryIdAndUserId(veterinaryId, userId);
+    }
+
+    @Override
+    public Optional<VeterinaryEmployee> findById(UUID id) {
+        return jpaRepository.findById(id).map(mapper::toDomain);
     }
 }
