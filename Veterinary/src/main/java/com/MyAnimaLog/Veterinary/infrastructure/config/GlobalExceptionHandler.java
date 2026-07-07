@@ -70,4 +70,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleEmployeeNotFound(EmployeeNotFoundException ex) {
         return build(HttpStatus.NOT_FOUND, ex.getMessage());
     }
+
+    @ExceptionHandler(SubscriptionNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleSubscriptionNotFound(SubscriptionNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    @ExceptionHandler(NoActiveSubscriptionException.class)
+    public ResponseEntity<Map<String, Object>> handleNoActiveSubscription(NoActiveSubscriptionException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
 }
