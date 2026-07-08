@@ -10,4 +10,5 @@ import java.util.UUID;
 public interface VeterinarySubscriptionJpaRepository extends JpaRepository<VeterinarySubscriptionEntity, UUID> {
     Optional<VeterinarySubscriptionEntity> findByVeterinaryIdAndActiveTrue(UUID veterinaryId);
     Optional<VeterinarySubscriptionEntity> findTopByVeterinaryIdOrderByEndDateDesc(UUID veterinaryId);
+    boolean existsByVeterinaryIdAndActiveTrue(UUID veterinaryId);
 }

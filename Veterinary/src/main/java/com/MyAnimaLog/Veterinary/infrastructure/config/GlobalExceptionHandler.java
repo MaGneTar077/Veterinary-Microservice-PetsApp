@@ -80,4 +80,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleNoActiveSubscription(NoActiveSubscriptionException ex) {
         return build(HttpStatus.NOT_FOUND, ex.getMessage());
     }
+
+    @ExceptionHandler(ActiveSubscriptionAlreadyExistsException.class)
+    public ResponseEntity<Map<String, Object>> handleActiveSubscriptionAlreadyExists(ActiveSubscriptionAlreadyExistsException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage());
+    }
 }
