@@ -22,4 +22,10 @@ public class VeterinarySubscriptionRepositoryAdapter implements VeterinarySubscr
         return jpaRepository.findByVeterinaryIdAndActiveTrue(veterinaryId)
                 .map(mapper::toDomain);
     }
+
+    @Override
+    public Optional<VeterinarySubscription> findLatestByVeterinaryId(UUID veterinaryId) {
+        return jpaRepository.findTopByVeterinaryIdOrderByEndDateDesc(veterinaryId)
+                .map(mapper::toDomain);
+    }
 }
