@@ -7,6 +7,7 @@ import com.MyAnimaLog.Veterinary.infrastructure.repositories.UserVeterinaryLinkJ
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Component
@@ -24,5 +25,16 @@ public class UserVeterinaryLinkRepositoryAdapter implements UserVeterinaryLinkRe
     @Override
     public boolean existsByUserIdAndVeterinaryId(UUID userId, UUID veterinaryId) {
         return jpaRepository.existsByUserIdAndVeterinaryId(userId, veterinaryId);
+    }
+
+    @Override
+    public Optional<UserVeterinaryLink> findByUserIdAndVeterinaryId(UUID userId, UUID veterinaryId) {
+        return jpaRepository.findByUserIdAndVeterinaryId(userId, veterinaryId)
+                .map(mapper::toDomain);
+    }
+
+    @Override
+    public void deleteById(UUID id) {
+        jpaRepository.deleteById(id);
     }
 }

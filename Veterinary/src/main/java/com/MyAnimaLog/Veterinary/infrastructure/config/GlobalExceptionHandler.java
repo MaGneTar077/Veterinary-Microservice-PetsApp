@@ -95,4 +95,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleUserAlreadyLinked(UserAlreadyLinkedException ex) {
         return build(HttpStatus.CONFLICT, ex.getMessage());
     }
+
+    @ExceptionHandler(UserNotLinkedException.class)
+    public ResponseEntity<Map<String, Object>> handleUserNotLinked(UserNotLinkedException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
 }
