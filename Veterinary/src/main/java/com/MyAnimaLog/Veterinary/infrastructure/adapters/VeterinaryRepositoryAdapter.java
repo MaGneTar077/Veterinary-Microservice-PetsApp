@@ -54,4 +54,9 @@ public class VeterinaryRepositoryAdapter implements VeterinaryRepositoryPort {
     public Optional<Veterinary> findByInviteCode(String inviteCode) {
         return jpaRepository.findByInviteCode(inviteCode).map(mapper::toDomain);
     }
+
+    @Override
+    public Optional<Veterinary> findByInviteLink(String inviteLink) {
+        return jpaRepository.findByInviteLink(inviteLink).map(mapper::toDomain);
+    }
 }
