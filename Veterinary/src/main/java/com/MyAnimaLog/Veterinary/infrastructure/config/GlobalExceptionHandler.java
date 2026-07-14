@@ -85,4 +85,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleActiveSubscriptionAlreadyExists(ActiveSubscriptionAlreadyExistsException ex) {
         return build(HttpStatus.CONFLICT, ex.getMessage());
     }
+
+    @ExceptionHandler(InvalidInviteCodeException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidInviteCode(InvalidInviteCodeException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(UserAlreadyLinkedException.class)
+    public ResponseEntity<Map<String, Object>> handleUserAlreadyLinked(UserAlreadyLinkedException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage());
+    }
 }

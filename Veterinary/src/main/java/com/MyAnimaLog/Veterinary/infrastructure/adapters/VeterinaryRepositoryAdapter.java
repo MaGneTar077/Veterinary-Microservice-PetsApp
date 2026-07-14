@@ -49,4 +49,9 @@ public class VeterinaryRepositoryAdapter implements VeterinaryRepositoryPort {
     public boolean existsByEmailAndIdNot(String email, UUID id) {
         return jpaRepository.existsByEmailAndIdNot(email, id);
     }
+
+    @Override
+    public Optional<Veterinary> findByInviteCode(String inviteCode) {
+        return jpaRepository.findByInviteCode(inviteCode).map(mapper::toDomain);
+    }
 }

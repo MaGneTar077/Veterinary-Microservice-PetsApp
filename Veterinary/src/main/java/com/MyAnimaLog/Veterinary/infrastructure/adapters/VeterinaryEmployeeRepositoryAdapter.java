@@ -31,4 +31,5 @@ public class VeterinaryEmployeeRepositoryAdapter implements VeterinaryEmployeeRe
     public Optional<VeterinaryEmployee> findById(UUID id) {
         return jpaRepository.findById(id).map(mapper::toDomain);
     }
+
 }
