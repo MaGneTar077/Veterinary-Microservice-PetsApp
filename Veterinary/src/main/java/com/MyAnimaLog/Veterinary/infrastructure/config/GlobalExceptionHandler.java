@@ -1,6 +1,20 @@
 package com.MyAnimaLog.Veterinary.infrastructure.config;
 
-import com.MyAnimaLog.Veterinary.domain.exceptions.*;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidVeterinaryEmailException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.VeterinaryAlreadyExistsException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.VeterinaryEmailAlreadyExistsException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeAlreadyExistsException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeNotFoundException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvalidEmployeeRoleException;
+import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.ActiveSubscriptionAlreadyExistsException;
+import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.NoActiveSubscriptionException;
+import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.SubscriptionNotFoundException;
+import com.MyAnimaLog.Veterinary.domain.patients.exceptions.InvalidInviteCodeException;
+import com.MyAnimaLog.Veterinary.domain.patients.exceptions.UserAlreadyLinkedException;
+import com.MyAnimaLog.Veterinary.domain.patients.exceptions.UserNotLinkedException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InvalidVeterinaryNameException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotActiveException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;

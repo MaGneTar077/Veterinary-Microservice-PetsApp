@@ -1,0 +1,7 @@
+package com.MyAnimaLog.Veterinary.domain.staff.enums;
+
+public enum EmployeeRole {
+    VETERINARIAN,
+    ASSISTANT,
+    ADMIN
+}

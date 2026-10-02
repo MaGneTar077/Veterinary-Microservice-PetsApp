@@ -1,9 +1,0 @@
-package com.MyAnimaLog.Veterinary.application.ports.in;
-
-import com.MyAnimaLog.Veterinary.application.dto.GetActivePlanResponse;
-
-import java.util.UUID;
-
-public interface GetActivePlanUseCase {
-    GetActivePlanResponse getActivePlan(UUID veterinaryId);
-}
