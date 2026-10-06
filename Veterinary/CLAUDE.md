@@ -31,6 +31,21 @@ Tests (including `VeterinaryApplicationTests#contextLoads`) boot the full Spring
 
 Swagger/OpenAPI UI is available at `/swagger-ui.html` (raw spec at `/api-docs`) when the app is running. Actuator exposes only `/actuator/health` and `/actuator/info`.
 
+### Variables de entorno (`.env`)
+
+| Variable | Requerida | Default | Uso |
+|---|---|---|---|
+| `DB_URL` | Sí | — | JDBC de Postgres (Supabase, pooler transaccional puerto 6543) |
+| `DB_USERNAME` | Sí | — | Usuario de la base |
+| `DB_PASSWORD` | Sí | — | Password de la base |
+| `SERVER_PORT` | No | `8082` | Puerto HTTP del servicio |
+| `SUPABASE_URL` | Sí | — | URL del proyecto Supabase |
+| `SUPABASE_KEY` | Sí | — | Anon key de Supabase |
+| `JWT_SECRET` | Sí | — | Secreto HS256 para `jjwt` (sin uso real hoy — ver sección Security) |
+| `APP_BASE_URL` | Sí | — | Base URL pública, usada para construir `inviteLink` |
+| `EVENTS_ENABLED` | No | `true` | Activa/desactiva la publicación de eventos a Pub/Sub — ver sección Eventos |
+| `GCP_PROJECT_ID` | Solo si `EVENTS_ENABLED=true` contra un proyecto real | — | Proyecto de Google Cloud para Pub/Sub |
+
 ## Architecture
 
 This service follows **hexagonal architecture (ports & adapters)**, organized by **business module** (`clinic`, `staff`, `subscription`, `patients`), strictly one-feature-per-slice within each module: every use case gets its own request/response DTO pair, inbound port, service, and controller.
@@ -122,6 +137,34 @@ Ver `db/scripts/README.md` para la convención completa (numeración `NNN_descri
 ### Regla para Claude Code
 
 Cuando una tarea necesite cambiar el esquema: escribe el script en `db/scripts/`, actualiza las entidades (`infrastructure/entity`) y mappers (`infrastructure/mapper`) que correspondan, y **detente** — no asumas que el script ya fue ejecutado en Supabase ni intentes correr la app o los tests contra el esquema nuevo hasta que el usuario confirme que lo aplicó manualmente en el SQL Editor.
+
+## Eventos (Google Cloud Pub/Sub)
+
+Infraestructura de eventos según el sobre de `CONTRATOS_COMPARTIDOS.md §4`. **Todavía ningún caso de uso publica eventos** — VET-04 solo deja listas las piezas; la emisión real desde los servicios llega en tareas posteriores.
+
+- **Dependencia**: `com.google.cloud:spring-cloud-gcp-starter-pubsub`, versión gestionada por el BOM `com.google.cloud:spring-cloud-gcp-dependencies:7.4.10` (serie `7.x`, la compatible con Spring Boot `3.5.x` según la tabla de compatibilidad oficial del repo `GoogleCloudPlatform/spring-cloud-gcp`).
+- **Puerto**: `EventPublisherPort` (`application/shared/ports/out`) — `void publish(DomainEvent event)`.
+- **Sobre** (`application/shared/dto`): `DomainEvent` (record: `eventType`, `userId`, `recipient`, `payload`, `occurredAt`, `metadata`), `Recipient` (`email`/`phone`/`name`), `EventMetadata` (record completo, más `EventMetadata.of(veterinaryId, correlationId)` que fija `version="1.0"` y `source="veterinary-service"`). `DomainEvent.create(...)` es el factory: lanza `IllegalArgumentException` si `userId` y `recipient` son ambos `null` (evento inválido — regla de `CONTRATOS_COMPARTIDOS.md §4.1`: nunca se publica, se loguea en el emisor).
+- **Tipos de evento**: `VeterinaryEventType` (`domain/shared/enums`), los 22 eventos de `VETERINARY_SERVICE_PLAN.md §11` (de `VETERINARY_REGISTERED` a `PAYMENT_FAILED`).
+- **Adaptador**: `GooglePubSubEventAdapter` (`infrastructure/messaging`) implementa el puerto sobre `PubSubTemplate`, serializando con el `ObjectMapper` de Spring (fechas ISO-8601 vía `jackson-datatype-jsr310`). Mapa estático `VeterinaryEventType -> topic`:
+
+  | Topic | Eventos |
+  |---|---|
+  | `veterinary-clinic` | `VETERINARY_REGISTERED`, `VETERINARY_SUSPENDED`, `VETERINARY_REACTIVATED` |
+  | `veterinary-verification` | `VERIFICATION_SUBMITTED`, `VERIFICATION_APPROVED`, `VERIFICATION_REJECTED`, `VERIFICATION_CORRECTION_REQUESTED` |
+  | `veterinary-staff` | `EMPLOYEE_INVITED`, `EMPLOYEE_JOINED`, `EMPLOYEE_ROLE_UPDATED`, `EMPLOYEE_DEACTIVATED`, `OWNERSHIP_TRANSFERRED` |
+  | `veterinary-patients` | `USER_LINKED`, `USER_UNLINKED`, `PET_SHARED_WITH_VETERINARY`, `PET_SHARE_REVOKED` |
+  | `veterinary-subscription` | `SUBSCRIPTION_TRIAL_STARTED`, `SUBSCRIPTION_EXPIRING`, `SUBSCRIPTION_IN_GRACE`, `SUBSCRIPTION_EXPIRED`, `SUBSCRIPTION_RENEWED`, `PAYMENT_FAILED` |
+
+  **Regla obligatoria**: todo valor nuevo que se agregue a `VeterinaryEventType` necesita una entrada en ese mapa — `VeterinaryEventTypeTopicCoverageTest` recorre `VeterinaryEventType.values()` y falla si a alguno le falta topic (a diferencia de Pets, donde un evento sin topic se pierde en silencio).
+- **Fallos nunca se propagan**: una excepción al serializar, al llamar `pubSubTemplate.publish(...)`, o una falla asíncrona del `CompletableFuture` devuelto, se captura y se loguea (`eventType`, `veterinaryId`) dentro de `GooglePubSubEventAdapter`; jamás llega al caso de uso que invocó `publish(...)`.
+- **Apagado sin credenciales**: `app.events.enabled` (env `EVENTS_ENABLED`, default `true`) está atado en `application.yaml` también a `spring.cloud.gcp.core.enabled` y `spring.cloud.gcp.pubsub.enabled`. En `false`, la autoconfiguración de GCP se salta por completo (no pide credenciales) y se registra `NoOpEventPublisher` (`infrastructure/messaging`, solo loguea en DEBUG) en vez de `GooglePubSubEventAdapter` — ambos usan `@ConditionalOnProperty` sobre `app.events.enabled` y son mutuamente excluyentes.
+- **Tests**: el perfil `test` (`src/test/resources/application-test.yaml`) fuerza `app.events.enabled=false` y `spring.cloud.gcp.{pubsub,core}.enabled=false`, independientemente de lo que tenga `.env`. Se activa con `@ActiveProfiles("test")` en cualquier test que levante el contexto completo de Spring (hoy solo `VeterinaryApplicationTests`); los `@WebMvcTest` y los tests de servicio con Mockito puro no lo necesitan porque nunca disparan la autoconfiguración de GCP.
+- **Crear los topics reales** (una sola vez, fuera de la app):
+  ```bash
+  gcloud pubsub topics create veterinary-clinic veterinary-verification \
+    veterinary-staff veterinary-patients veterinary-subscription
+  ```
 
 ## Deuda técnica conocida
 

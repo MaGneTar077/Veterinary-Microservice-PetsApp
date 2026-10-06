@@ -27,6 +27,14 @@ spring:
   config:
     import: optional:file:.env[.properties]
 
+  cloud:
+    gcp:
+      core:
+        enabled: ${EVENTS_ENABLED:true}
+      pubsub:
+        enabled: ${EVENTS_ENABLED:true}
+      project-id: ${GCP_PROJECT_ID:}
+
 server:
   port: ${SERVER_PORT:8082}
 
@@ -45,6 +53,8 @@ supabase:
 
 app:
   base-url: ${APP_BASE_URL}
+  events:
+    enabled: ${EVENTS_ENABLED:true}
 
 management:
   endpoints:
