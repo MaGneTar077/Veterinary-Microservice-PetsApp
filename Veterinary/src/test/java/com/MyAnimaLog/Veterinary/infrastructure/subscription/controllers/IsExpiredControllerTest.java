@@ -5,16 +5,13 @@ import com.MyAnimaLog.Veterinary.application.subscription.ports.in.IsExpiredUseC
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.SubscriptionNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
-import com.MyAnimaLog.Veterinary.infrastructure.security.SecurityConfig;
+import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
 import com.MyAnimaLog.Veterinary.infrastructure.subscription.controllers.IsExpiredController;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
-import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -24,18 +21,13 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(
-        controllers = IsExpiredController.class,
-        excludeFilters = @ComponentScan.Filter(
-                type = FilterType.ASSIGNABLE_TYPE,
-                classes = SecurityConfig.class
-        )
-)
+@WebMvcTest(controllers = IsExpiredController.class)
 @Import(GlobalExceptionHandler.class)
-@WithMockUser
+@ImportSecurityConfig
 class IsExpiredControllerTest {
 
     @Autowired
@@ -63,7 +55,8 @@ class IsExpiredControllerTest {
         when(isExpiredUseCase.isExpired(any(UUID.class))).thenReturn(response);
 
         mockMvc.perform(get("/api/veterinary/{veterinaryId}/subscription/is-expired", veterinaryId)
-                        .with(csrf()))
+                        .with(csrf())
+                        .with(jwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.expired").value(false))
                 .andExpect(jsonPath("$.plan").value("BASIC"))
@@ -82,7 +75,8 @@ class IsExpiredControllerTest {
         when(isExpiredUseCase.isExpired(any(UUID.class))).thenReturn(response);
 
         mockMvc.perform(get("/api/veterinary/{veterinaryId}/subscription/is-expired", veterinaryId)
-                        .with(csrf()))
+                        .with(csrf())
+                        .with(jwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.expired").value(true))
                 .andExpect(jsonPath("$.endDate").value("2025-06-30"));
@@ -94,7 +88,8 @@ class IsExpiredControllerTest {
                 .thenThrow(new VeterinaryNotFoundException());
 
         mockMvc.perform(get("/api/veterinary/{veterinaryId}/subscription/is-expired", veterinaryId)
-                        .with(csrf()))
+                        .with(csrf())
+                        .with(jwt()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Veterinary not found"));
     }
@@ -105,7 +100,8 @@ class IsExpiredControllerTest {
                 .thenThrow(new SubscriptionNotFoundException());
 
         mockMvc.perform(get("/api/veterinary/{veterinaryId}/subscription/is-expired", veterinaryId)
-                        .with(csrf()))
+                        .with(csrf())
+                        .with(jwt()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Subscription not found"));
     }

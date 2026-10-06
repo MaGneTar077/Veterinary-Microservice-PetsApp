@@ -41,10 +41,13 @@ Swagger/OpenAPI UI is available at `/swagger-ui.html` (raw spec at `/api-docs`) 
 | `SERVER_PORT` | No | `8082` | Puerto HTTP del servicio |
 | `SUPABASE_URL` | Sí | — | URL del proyecto Supabase |
 | `SUPABASE_KEY` | Sí | — | Anon key de Supabase |
-| `JWT_SECRET` | Sí | — | Secreto HS256 para `jjwt` (sin uso real hoy — ver sección Security) |
 | `APP_BASE_URL` | Sí | — | Base URL pública, usada para construir `inviteLink` |
 | `EVENTS_ENABLED` | No | `true` | Activa/desactiva la publicación de eventos a Pub/Sub — ver sección Eventos |
 | `GCP_PROJECT_ID` | Solo si `EVENTS_ENABLED=true` contra un proyecto real | — | Proyecto de Google Cloud para Pub/Sub |
+| `JWT_JWKS_URI` | Sí | — | URL del JWKS del User service (`GET {USER_SERVICE_URL}/.well-known/jwks.json`), usada por `NimbusJwtDecoder` |
+| `INTERNAL_API_KEY` | Sí | — | Llave compartida para `X-Internal-Api-Key` en rutas `/internal/**` (debe ser idéntica en todos los servicios) |
+
+**Importante para desarrollo local**: con `EVENTS_ENABLED` sin definir (default `true`) y sin `GCP_PROJECT_ID`, la app **no arranca** — la autoconfiguración de `spring-cloud-gcp-starter-pubsub` intenta construir un `PublisherFactory` real y falla con `IllegalArgumentException: The project ID can't be null or empty`. En local, deja `EVENTS_ENABLED=false` en `.env` (ya está así) a menos que de verdad vayas a publicar a un proyecto GCP real.
 
 ## Architecture
 
@@ -79,9 +82,14 @@ infrastructure/
   <module>/repositories/  Spring Data JpaRepository interfaces (query derivation + one @Query)
   <module>/entity/        @Entity classes (JPA-mapped; separate from domain models)
   <module>/mapper/        hand-written entity <-> domain model converters (no MapStruct)
-  security/               SecurityConfig
+  security/               SecurityConfig, JwtClaimsConverter, InternalApiKeyFilter,
+                          SpringAuthenticatedUserAdapter, RestAuthenticationEntryPoint,
+                          RestAccessDeniedHandler, JwtTokenValidator, ImportSecurityConfig
   config/                 GlobalExceptionHandler (module-agnostic, imports exceptions from every
                           domain/<module>/exceptions and domain/shared/exceptions)
+
+domain/security/          Permission, RolePermissions — framework-free (no Spring types), shared
+                          by every module's future authorization checks
 ```
 
 `VeterinaryApplication` (the `@SpringBootApplication` root) and `VeterinaryApplicationTests` stay at the top-level `com.MyAnimaLog.Veterinary` package — there is no `@EnableJpaRepositories`/`@EntityScan` override, so Spring's default component/repository scan (rooted at that package) covers every module subpackage automatically.
@@ -92,7 +100,45 @@ When adding a new use case, follow the existing 6-file pattern (`dto` request+re
 
 ### Security
 
-`SecurityConfig` (`infrastructure/security`) currently **permits all requests** (`anyRequest().permitAll()`, CSRF disabled) — there is no authentication/authorization enforced at this layer despite the `jjwt` dependency and `jwt.secret` config being present. Caller identity (e.g. `userId` for linking) is passed directly in request bodies/path variables, not derived from a token. Treat this as a known gap, not an intended design, when touching security-sensitive code.
+Real JWT auth as of VET-05/06/07/11, per `CONTRATOS_COMPARTIDOS.md` §1–3. **Only the infrastructure is wired — no existing use case/controller checks a permission yet** (that's a later task); every endpoint except the ones below currently just requires *some* valid token, with no role/permission check.
+
+- **Token validation**: `spring-boot-starter-oauth2-resource-server`, `SecurityConfig.jwtDecoder()` builds a `NimbusJwtDecoder` from `${JWT_JWKS_URI}` and validates `iss=myanimalog-user-service` + `aud=myanimalog-api` (`JwtTokenValidator`, framework-adjacent but no network call at construction time — the JWKS fetch happens lazily on first `decode()`). `jjwt` and `jwt.secret`/`JWT_SECRET` were removed — they were never actually used by this service.
+- **Authorities**: `JwtClaimsConverter` turns a `Jwt` into a `JwtAuthenticationToken` granting `PLATFORM_ADMIN` when `platform_role=PLATFORM_ADMIN`, and `VET_ROLE_<rol>` when `ctx=VETERINARY` (clinic tokens don't exist yet — the User service will start minting them once it calls VET-11's members endpoint).
+- **Route rules** (`SecurityConfig.securityFilterChain`): `/swagger-ui/**`, `/api-docs/**`, `/actuator/health`, `/actuator/info`, `/public/**` are open; `/internal/**` requires authority `INTERNAL_SERVICE` (never a user JWT); `/admin/**` requires `PLATFORM_ADMIN`; everything else requires any authenticated token.
+- **`/internal/**`**: `InternalApiKeyFilter` (runs before `BearerTokenAuthenticationFilter`) compares the `X-Internal-Api-Key` header against `${INTERNAL_API_KEY}` with `MessageDigest.isEqual` (constant-time). Match → sets a `PreAuthenticatedAuthenticationToken` with `INTERNAL_SERVICE` and continues the chain. No match → writes the 401 JSON directly via `RestAuthenticationEntryPoint` and stops (never reaches `/internal/**`'s own `hasAuthority` check, which would otherwise need an authenticated principal to even evaluate).
+- **401/403 JSON format**: `RestAuthenticationEntryPoint` / `RestAccessDeniedHandler` write the exact same `{timestamp, status, error, message}` shape as `GlobalExceptionHandler` (`SecurityErrorResponseWriter`), since these two cases are resolved at the filter level, before `@RestControllerAdvice` ever runs.
+- **`AuthenticatedUserPort`** (`application/shared/ports/out`) + **`SpringAuthenticatedUserAdapter`** (`infrastructure/security`): reads the current `JwtAuthenticationToken` from `SecurityContextHolder` and maps claims to `AuthenticatedUser` (`userId`, `email`, `emailVerified`, `platformAdmin`, `clinic: Optional<ClinicContext>`) and `ClinicContext` (`veterinaryId`, `employeeId`, `role`, `licensed`, `status`). Throws `UnauthenticatedException` if there's no JWT principal.
+- **`VeterinaryAuthorizationService`** (`application/shared/services`, not yet called from anywhere): `require(veterinaryId, permission)`, `requireMember(veterinaryId)`, `requirePlatformAdmin()`. Throws `ClinicContextRequiredException` / `TenantMismatchException` / `InsufficientPermissionException` / `PlatformAdminRequiredException` (all `domain/shared/exceptions`, all mapped to 403 in `GlobalExceptionHandler`; `UnauthenticatedException` maps to 401).
+- **`Permission`** (`domain/security`, 11 values from `CONTRATOS_COMPARTIDOS.md` §3.1) and **`RolePermissions.resolve(role, licensed, status)`** (`domain/security`) implement the role → permission matrix for the 3 roles that exist today:
+
+  | Permiso | ADMIN | VETERINARIAN | ASSISTANT |
+  |---|:-:|:-:|:-:|
+  | `CLINIC_CONFIGURE` | ✅ | | |
+  | `SUBSCRIPTION_MANAGE` | — (excluido a propósito, ver abajo) | | |
+  | `STAFF_MANAGE` | ✅ | | |
+  | `APPOINTMENT_MANAGE` | ✅ | ✅ | ✅ |
+  | `PATIENT_REGISTER` | ✅ | ✅ | ✅ |
+  | `CLINICAL_READ` | ✅ | ✅ | ✅ |
+  | `CLINICAL_READ_BASIC` | ✅ | ✅ | ✅ |
+  | `CLINICAL_WRITE` | 🔑 | 🔑 | |
+  | `NURSING_WRITE` | 🔑 | ✅ (incondicional) | ✅ (incondicional) |
+  | `DOCUMENT_UPLOAD` | ✅ | ✅ | ✅ |
+  | `REPORTS_VIEW` | ✅ | | |
+
+  🔑 = solo si `licensed=true` (siempre `false` hoy — no existe perfil profesional todavía). ADMIN recibe lo que el contrato asigna a `OWNER`, **excepto** `SUBSCRIPTION_MANAGE` (nadie de la clínica la tiene por ahora). Si `status != ACTIVE` (cualquier valor distinto de `ACTIVE`, no solo `SUSPENDED`), el resultado se reduce a la intersección con `{CLINIC_CONFIGURE, STAFF_MANAGE, SUBSCRIPTION_MANAGE}`. `TODO(VET-09)` marcado en el código: cuando `EmployeeRole` agregue `OWNER`/`RECEPTIONIST`, `OWNER` hereda lo de `ADMIN` más `SUBSCRIPTION_MANAGE`, y `RECEPTIONIST` entra con su propia fila.
+- **`VeterinaryStatus`** (`domain/clinic/enums`, 6 valores de `CONTRATOS_COMPARTIDOS.md` §1.3) **no se persiste** — `VeterinaryStatus.fromActiveFlag(boolean)` lo deriva del booleano `active` existente (`true→ACTIVE`, `false→SUSPENDED`) hasta que exista un estado real de clínica (Fase 2 del plan).
+- **Endpoint interno de miembros** — `GET /internal/veterinaries/{veterinaryId}/members/{userId}` (`GetVeterinaryMemberController`/`Service`/`UseCase`, módulo `clinic`, consume los 3 puertos de clinic/staff/subscription): lo usará el User service para decidir si puede emitir un token de clínica. Si la clínica no existe **o** el usuario no es empleado, responde `200` con `member=false` (nunca `404`) y el resto de campos en `null`; `licensed` siempre `false` por ahora.
+- **Probar manualmente** (con el User service corriendo en `localhost:8080`):
+  ```powershell
+  $login = Invoke-RestMethod -Uri "http://localhost:8080/auth/local" -Method Post `
+      -ContentType "application/json" -Body '{"email":"...","password":"..."}'
+  $token = $login.accessToken   # o el campo que use el User service
+
+  Invoke-RestMethod -Uri "http://localhost:8082/api/veterinary/register" -Method Post `
+      -Headers @{ Authorization = "Bearer $token" } -ContentType "application/json" `
+      -Body '{"name":"Clinica X","city":"Bogota","email":"x@x.com"}'
+  ```
+- **Testing**: `@WebMvcTest` does **not** auto-detect `SecurityConfig`'s plain `@Component` collaborators (`InternalApiKeyFilter`, `JwtClaimsConverter`, `RestAuthenticationEntryPoint`, `RestAccessDeniedHandler`) — confirmed empirically (`NoSuchBeanDefinitionException` without it). Every `@WebMvcTest` controller test needs `@ImportSecurityConfig` (a composed `@Import` annotation in `infrastructure/security`) plus `.with(jwt())` (from `spring-security-test`) on each `mockMvc.perform(...)` call that hits a non-public, non-internal endpoint.
 
 ### Error handling
 
@@ -168,6 +214,7 @@ Infraestructura de eventos según el sobre de `CONTRATOS_COMPARTIDOS.md §4`. **
 
 ## Deuda técnica conocida
 
+- **`GlobalExceptionHandler.handleGeneric` (catch-all `Exception.class`) se traga el 404 de Spring para rutas sin handler mapeado**, convirtiéndolo en `500 Unexpected error: No static resource ...` o `500` genérico, sin importar el método HTTP. Se descubrió al escribir `SecurityFilterChainTest` (VET-05): una request a una ruta `/admin/**` sin controlador que la atienda, con token `PLATFORM_ADMIN` válido (pasa la autorización), debería dar `404`, pero da `500`. Pendiente: que `handleGeneric` reconozca `NoResourceFoundException`/`NoHandlerFoundException` (o excepciones que ya traen su propio `HttpStatusCode`, p. ej. `ErrorResponseException`) y respete su status en vez de forzar 500 siempre. No se tocó en VET-05 porque es un comportamiento preexistente ajeno a seguridad.
 - **`CreatePlanService` lanza la excepción equivocada al validar el nombre del plan.** En `application/subscription/services/CreatePlanService.java`, la validación `if (request.getPlan() == null || request.getPlan().isBlank())` lanza `InvalidVeterinaryNameException("Plan name is required")` — la excepción de `domain/shared/exceptions` pensada para el *nombre de la clínica* (la usan `RegisterVeterinaryService`/`UpdateVeterinaryService` de `clinic` para ese mismo propósito), no para el nombre del plan de suscripción. Por eso terminó en `domain/shared/exceptions` en VET-02 (la usan dos módulos) en vez de quedarse en `domain/subscription/exceptions`. El comportamiento HTTP actual es correcto por coincidencia (400 + mensaje "Plan name is required", manejado por el mismo `@ExceptionHandler` en `GlobalExceptionHandler`), pero el acoplamiento es conceptualmente incorrecto. Pendiente: crear una excepción propia (p. ej. `InvalidSubscriptionPlanException`) en `domain/subscription/exceptions`, lanzarla en su lugar, agregar su `@ExceptionHandler`, y evaluar si `InvalidVeterinaryNameException` puede volver a `domain/clinic/exceptions` una vez que ya no la use ningún otro módulo. No se tocó en VET-02 porque esa tarea era solo mover clases, no cambiar lógica.
 
 ## Testing conventions

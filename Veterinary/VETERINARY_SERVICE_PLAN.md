@@ -420,18 +420,20 @@ public final class RolePermissions {
 
   public static Set<Permission> resolve(EmployeeRole role, boolean licensed, VeterinaryStatus status) {
     Set<Permission> p = EnumSet.copyOf(base(role));
+    // base(VETERINARIAN) y base(ASSISTANT) ya incluyen NURSING_WRITE sin condición.
+    // La licencia solo agrega permisos adicionales, nunca quita los que el rol ya tiene en base().
     if (licensed && EnumSet.of(OWNER, ADMIN, VETERINARIAN).contains(role)) {
       p.add(CLINICAL_WRITE);
-      p.add(NURSING_WRITE);
     }
-    if (!licensed && role == VETERINARIAN) {
-      p.remove(CLINICAL_WRITE);
-      p.remove(NURSING_WRITE);
+    if (licensed && EnumSet.of(OWNER, ADMIN).contains(role)) {
+      p.add(NURSING_WRITE);
     }
     if (status != VeterinaryStatus.ACTIVE) p.retainAll(PRE_APPROVAL);
     return p;
   }
-  // base(role): implementa la matriz de CONTRATOS_COMPARTIDOS.md §3.2
+  // base(role): implementa la matriz de CONTRATOS_COMPARTIDOS.md §3.2.
+  // VETERINARIAN y ASSISTANT incluyen NURSING_WRITE sin condición; solo CLINICAL_WRITE
+  // (y, para OWNER/ADMIN, también NURSING_WRITE) dependen de `licensed`.
 }
 ```
 

@@ -5,16 +5,13 @@ import com.MyAnimaLog.Veterinary.application.patients.ports.in.UnlinkUseCase;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.UserNotLinkedException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
-import com.MyAnimaLog.Veterinary.infrastructure.security.SecurityConfig;
+import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
 import com.MyAnimaLog.Veterinary.infrastructure.patients.controllers.UnlinkController;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
-import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -23,18 +20,13 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(
-        controllers = UnlinkController.class,
-        excludeFilters = @ComponentScan.Filter(
-                type = FilterType.ASSIGNABLE_TYPE,
-                classes = SecurityConfig.class
-        )
-)
+@WebMvcTest(controllers = UnlinkController.class)
 @Import(GlobalExceptionHandler.class)
-@WithMockUser
+@ImportSecurityConfig
 class UnlinkControllerTest {
 
     @Autowired
@@ -65,7 +57,8 @@ class UnlinkControllerTest {
 
         mockMvc.perform(delete("/api/veterinary/link/{veterinaryId}/user/{userId}",
                         veterinaryId, userId)
-                        .with(csrf()))
+                        .with(csrf())
+                        .with(jwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(userId.toString()))
                 .andExpect(jsonPath("$.veterinaryId").value(veterinaryId.toString()))
@@ -79,7 +72,8 @@ class UnlinkControllerTest {
 
         mockMvc.perform(delete("/api/veterinary/link/{veterinaryId}/user/{userId}",
                         veterinaryId, userId)
-                        .with(csrf()))
+                        .with(csrf())
+                        .with(jwt()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Veterinary not found"));
     }
@@ -91,7 +85,8 @@ class UnlinkControllerTest {
 
         mockMvc.perform(delete("/api/veterinary/link/{veterinaryId}/user/{userId}",
                         veterinaryId, userId)
-                        .with(csrf()))
+                        .with(csrf())
+                        .with(jwt()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("User is not linked to this veterinary"));
     }

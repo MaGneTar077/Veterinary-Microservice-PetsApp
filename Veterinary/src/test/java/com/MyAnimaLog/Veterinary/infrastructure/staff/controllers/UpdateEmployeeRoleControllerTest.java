@@ -7,18 +7,15 @@ import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvalidEmployeeRoleException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
-import com.MyAnimaLog.Veterinary.infrastructure.security.SecurityConfig;
+import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
 import com.MyAnimaLog.Veterinary.infrastructure.staff.controllers.UpdateEmployeeRoleController;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -27,18 +24,13 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(
-        controllers = UpdateEmployeeRoleController.class,
-        excludeFilters = @ComponentScan.Filter(
-                type = FilterType.ASSIGNABLE_TYPE,
-                classes = SecurityConfig.class
-        )
-)
+@WebMvcTest(controllers = UpdateEmployeeRoleController.class)
 @Import(GlobalExceptionHandler.class)
-@WithMockUser
+@ImportSecurityConfig
 class UpdateEmployeeRoleControllerTest {
 
     @Autowired
@@ -75,7 +67,8 @@ class UpdateEmployeeRoleControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 UpdateEmployeeRoleRequest.builder().role(EmployeeRole.ADMIN).build()
                         ))
-                        .with(csrf()))
+                        .with(csrf())
+                        .with(jwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(employeeId.toString()))
                 .andExpect(jsonPath("$.role").value("ADMIN"));
@@ -91,7 +84,8 @@ class UpdateEmployeeRoleControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 UpdateEmployeeRoleRequest.builder().build()
                         ))
-                        .with(csrf()))
+                        .with(csrf())
+                        .with(jwt()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Employee role is invalid"));
     }
@@ -106,7 +100,8 @@ class UpdateEmployeeRoleControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 UpdateEmployeeRoleRequest.builder().role(EmployeeRole.ADMIN).build()
                         ))
-                        .with(csrf()))
+                        .with(csrf())
+                        .with(jwt()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Employee not found"));
     }

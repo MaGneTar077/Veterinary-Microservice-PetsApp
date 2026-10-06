@@ -9,4 +9,5 @@ public interface VeterinaryEmployeeRepositoryPort {
     VeterinaryEmployee save(VeterinaryEmployee employee);
     boolean existsByVeterinaryIdAndUserId(UUID veterinaryId, UUID userId);
     Optional<VeterinaryEmployee> findById(UUID id);
+    Optional<VeterinaryEmployee> findByVeterinaryIdAndUserId(UUID veterinaryId, UUID userId);
 }

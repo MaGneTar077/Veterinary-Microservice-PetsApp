@@ -35,6 +35,12 @@ spring:
         enabled: ${EVENTS_ENABLED:true}
       project-id: ${GCP_PROJECT_ID:}
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${JWT_JWKS_URI}
+
 server:
   port: ${SERVER_PORT:8082}
 
@@ -44,9 +50,6 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
-jwt:
-  secret: ${JWT_SECRET}
-
 supabase:
   url: ${SUPABASE_URL}
   key: ${SUPABASE_KEY}
@@ -55,6 +58,10 @@ app:
   base-url: ${APP_BASE_URL}
   events:
     enabled: ${EVENTS_ENABLED:true}
+  security:
+    issuer: myanimalog-user-service
+    audience: myanimalog-api
+    internal-api-key: ${INTERNAL_API_KEY}
 
 management:
   endpoints:

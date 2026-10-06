@@ -144,7 +144,7 @@ Respuesta `200`:
 | DOCUMENT_UPLOAD | ✅ | ✅ | ✅ | ✅ | |
 | REPORTS_VIEW | ✅ | ✅ | | | |
 
-🔑 = solo si `licensed = true` (tarjeta profesional verificada). Un `VETERINARIAN` sin licencia verificada **no** tiene `CLINICAL_WRITE` ni `NURSING_WRITE` hasta que se apruebe.
+🔑 = solo si `licensed = true` (tarjeta profesional verificada). `NURSING_WRITE` es incondicional para `VETERINARIAN` y `ASSISTANT` (no depende de la licencia); solo `OWNER` y `ADMIN` la tienen marcada con 🔑. Un `VETERINARIAN` sin licencia verificada **no** tiene `CLINICAL_WRITE` hasta que se apruebe, pero sí conserva `NURSING_WRITE`.
 
 Además, si `veterinaryStatus != ACTIVE`, la clínica solo conserva `CLINIC_CONFIGURE`, `STAFF_MANAGE` y `SUBSCRIPTION_MANAGE` (puede prepararse mientras la revisan, pero no atender).
 

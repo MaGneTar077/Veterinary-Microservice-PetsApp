@@ -4,16 +4,13 @@ import com.MyAnimaLog.Veterinary.application.clinic.dto.GenerateInviteCodeRespon
 import com.MyAnimaLog.Veterinary.application.clinic.ports.in.GenerateInviteCodeUseCase;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
-import com.MyAnimaLog.Veterinary.infrastructure.security.SecurityConfig;
+import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
 import com.MyAnimaLog.Veterinary.infrastructure.clinic.controllers.GenerateInviteCodeController;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
-import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -22,18 +19,13 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(
-        controllers = GenerateInviteCodeController.class,
-        excludeFilters = @ComponentScan.Filter(
-                type = FilterType.ASSIGNABLE_TYPE,
-                classes = SecurityConfig.class
-        )
-)
+@WebMvcTest(controllers = GenerateInviteCodeController.class)
 @Import(GlobalExceptionHandler.class)
-@WithMockUser
+@ImportSecurityConfig
 class GenerateInviteCodeControllerTest {
 
     @Autowired
@@ -61,7 +53,8 @@ class GenerateInviteCodeControllerTest {
         when(generateInviteCodeUseCase.generateInviteCode(any())).thenReturn(validResponse);
 
         mockMvc.perform(post("/api/veterinary/{veterinaryId}/invite-code", veterinaryId)
-                        .with(csrf()))
+                        .with(csrf())
+                        .with(jwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(veterinaryId.toString()))
                 .andExpect(jsonPath("$.inviteCode").value("VET-A3X9K2B7"))
@@ -74,7 +67,8 @@ class GenerateInviteCodeControllerTest {
                 .thenThrow(new VeterinaryNotFoundException());
 
         mockMvc.perform(post("/api/veterinary/{veterinaryId}/invite-code", veterinaryId)
-                        .with(csrf()))
+                        .with(csrf())
+                        .with(jwt()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Veterinary not found"));
     }

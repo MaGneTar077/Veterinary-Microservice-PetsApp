@@ -15,6 +15,11 @@ import com.MyAnimaLog.Veterinary.domain.patients.exceptions.UserNotLinkedExcepti
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InvalidVeterinaryNameException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotActiveException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.ClinicContextRequiredException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.PlatformAdminRequiredException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.TenantMismatchException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.UnauthenticatedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -113,5 +118,30 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UserNotLinkedException.class)
     public ResponseEntity<Map<String, Object>> handleUserNotLinked(UserNotLinkedException ex) {
         return build(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    @ExceptionHandler(UnauthenticatedException.class)
+    public ResponseEntity<Map<String, Object>> handleUnauthenticated(UnauthenticatedException ex) {
+        return build(HttpStatus.UNAUTHORIZED, ex.getMessage());
+    }
+
+    @ExceptionHandler(ClinicContextRequiredException.class)
+    public ResponseEntity<Map<String, Object>> handleClinicContextRequired(ClinicContextRequiredException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    @ExceptionHandler(TenantMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleTenantMismatch(TenantMismatchException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    @ExceptionHandler(InsufficientPermissionException.class)
+    public ResponseEntity<Map<String, Object>> handleInsufficientPermission(InsufficientPermissionException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    @ExceptionHandler(PlatformAdminRequiredException.class)
+    public ResponseEntity<Map<String, Object>> handlePlatformAdminRequired(PlatformAdminRequiredException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage());
     }
 }

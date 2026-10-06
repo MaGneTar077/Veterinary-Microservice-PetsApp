@@ -32,4 +32,9 @@ public class VeterinaryEmployeeRepositoryAdapter implements VeterinaryEmployeeRe
         return jpaRepository.findById(id).map(mapper::toDomain);
     }
 
+    @Override
+    public Optional<VeterinaryEmployee> findByVeterinaryIdAndUserId(UUID veterinaryId, UUID userId) {
+        return jpaRepository.findByVeterinaryIdAndUserId(veterinaryId, userId).map(mapper::toDomain);
+    }
+
 }
