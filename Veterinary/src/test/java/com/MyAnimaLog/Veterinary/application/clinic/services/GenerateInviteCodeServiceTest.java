@@ -3,6 +3,10 @@ package com.MyAnimaLog.Veterinary.application.clinic.services;
 import com.MyAnimaLog.Veterinary.application.clinic.dto.GenerateInviteCodeRequest;
 import com.MyAnimaLog.Veterinary.application.clinic.dto.GenerateInviteCodeResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
+import com.MyAnimaLog.Veterinary.domain.security.Permission;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.TenantMismatchException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +31,9 @@ class GenerateInviteCodeServiceTest {
 
     @Mock
     private VeterinaryRepositoryPort veterinaryRepositoryPort;
+
+    @Mock
+    private VeterinaryAuthorizationService authorizationService;
 
     @InjectMocks
     private GenerateInviteCodeService generateInviteCodeService;
@@ -173,6 +180,34 @@ class GenerateInviteCodeServiceTest {
                         GenerateInviteCodeRequest.builder().veterinaryId(veterinaryId).build()
                 )
         ).isInstanceOf(VeterinaryNotFoundException.class);
+
+        verify(veterinaryRepositoryPort, never()).save(any());
+    }
+
+    @Test
+    void generateInviteCode_shouldThrowInsufficientPermissionException_whenCallerLacksClinicConfigure() {
+        when(authorizationService.require(veterinaryId, Permission.CLINIC_CONFIGURE))
+                .thenThrow(new InsufficientPermissionException(Permission.CLINIC_CONFIGURE));
+
+        assertThatThrownBy(() ->
+                generateInviteCodeService.generateInviteCode(
+                        GenerateInviteCodeRequest.builder().veterinaryId(veterinaryId).build()
+                )
+        ).isInstanceOf(InsufficientPermissionException.class);
+
+        verify(veterinaryRepositoryPort, never()).save(any());
+    }
+
+    @Test
+    void generateInviteCode_shouldThrowTenantMismatchException_whenCallerBelongsToAnotherVeterinary() {
+        when(authorizationService.require(veterinaryId, Permission.CLINIC_CONFIGURE))
+                .thenThrow(new TenantMismatchException());
+
+        assertThatThrownBy(() ->
+                generateInviteCodeService.generateInviteCode(
+                        GenerateInviteCodeRequest.builder().veterinaryId(veterinaryId).build()
+                )
+        ).isInstanceOf(TenantMismatchException.class);
 
         verify(veterinaryRepositoryPort, never()).save(any());
     }

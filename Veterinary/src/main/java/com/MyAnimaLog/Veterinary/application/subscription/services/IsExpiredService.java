@@ -4,6 +4,7 @@ import com.MyAnimaLog.Veterinary.application.subscription.dto.IsExpiredResponse;
 import com.MyAnimaLog.Veterinary.application.subscription.ports.in.IsExpiredUseCase;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.subscription.ports.out.VeterinarySubscriptionRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.SubscriptionNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.subscription.model.VeterinarySubscription;
@@ -19,10 +20,12 @@ public class IsExpiredService  implements IsExpiredUseCase {
 
     private final VeterinaryRepositoryPort veterinaryRepositoryPort;
     private final VeterinarySubscriptionRepositoryPort subscriptionRepositoryPort;
+    private final VeterinaryAuthorizationService authorizationService;
 
 
     @Override
     public IsExpiredResponse isExpired(UUID veterinaryId) {
+        authorizationService.requireMember(veterinaryId);
 
         veterinaryRepositoryPort.findById(veterinaryId)
                 .orElseThrow(VeterinaryNotFoundException::new);

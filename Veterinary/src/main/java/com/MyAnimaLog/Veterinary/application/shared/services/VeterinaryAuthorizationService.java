@@ -45,4 +45,24 @@ public class VeterinaryAuthorizationService {
             throw new PlatformAdminRequiredException();
         }
     }
+
+    /**
+     * For operations a user can perform on their own record (self-service) or that clinic staff
+     * can perform on a user's behalf (e.g. unlinking a client). Allows the call if the caller's
+     * own userId matches targetUserId, regardless of clinic context; otherwise requires the
+     * caller to hold {@code permission} over the clinic in the path.
+     */
+    public void requireSelfOrPermission(UUID targetUserId, UUID veterinaryIdFromPath, Permission permission) {
+        AuthenticatedUser user = authenticatedUserPort.current();
+        if (user.userId().equals(targetUserId)) {
+            return;
+        }
+        ClinicContext context = user.clinic().orElseThrow(() -> new InsufficientPermissionException(permission));
+        if (!context.veterinaryId().equals(veterinaryIdFromPath)) {
+            throw new InsufficientPermissionException(permission);
+        }
+        if (!RolePermissions.resolve(context.role(), context.licensed(), context.status()).contains(permission)) {
+            throw new InsufficientPermissionException(permission);
+        }
+    }
 }

@@ -3,7 +3,10 @@ package com.MyAnimaLog.Veterinary.application.patients.services;
 import com.MyAnimaLog.Veterinary.application.patients.dto.UnlinkResponse;
 import com.MyAnimaLog.Veterinary.application.patients.ports.out.UserVeterinaryLinkRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.UserNotLinkedException;
+import com.MyAnimaLog.Veterinary.domain.security.Permission;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.patients.model.UserVeterinaryLink;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
@@ -30,6 +33,9 @@ class UnlinkServiceTest {
 
     @Mock
     private UserVeterinaryLinkRepositoryPort linkRepositoryPort;
+
+    @Mock
+    private VeterinaryAuthorizationService authorizationService;
 
     @InjectMocks
     private UnlinkService unlinkService;
@@ -132,5 +138,29 @@ class UnlinkServiceTest {
         ).isInstanceOf(UserNotLinkedException.class);
 
         verify(linkRepositoryPort, never()).deleteById(any());
+    }
+
+    @Test
+    void unlink_shouldReturn403_whenCallerIsNeitherSelfNorAuthorizedStaff() {
+        doThrow(new InsufficientPermissionException(Permission.CLINIC_CONFIGURE))
+                .when(authorizationService).requireSelfOrPermission(userId, veterinaryId, Permission.CLINIC_CONFIGURE);
+
+        assertThatThrownBy(() ->
+                unlinkService.unlink(userId, veterinaryId)
+        ).isInstanceOf(InsufficientPermissionException.class);
+
+        verify(linkRepositoryPort, never()).deleteById(any());
+    }
+
+    @Test
+    void unlink_shouldCheckSelfOrPermission_beforeTouchingRepositories() {
+        when(veterinaryRepositoryPort.findById(veterinaryId)).thenReturn(Optional.of(veterinary));
+        when(linkRepositoryPort.findByUserIdAndVeterinaryId(userId, veterinaryId))
+                .thenReturn(Optional.of(existingLink));
+
+        unlinkService.unlink(userId, veterinaryId);
+
+        verify(authorizationService, times(1))
+                .requireSelfOrPermission(userId, veterinaryId, Permission.CLINIC_CONFIGURE);
     }
 }

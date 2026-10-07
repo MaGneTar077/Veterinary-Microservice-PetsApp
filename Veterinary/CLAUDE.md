@@ -100,7 +100,7 @@ When adding a new use case, follow the existing 6-file pattern (`dto` request+re
 
 ### Security
 
-Real JWT auth as of VET-05/06/07/11, per `CONTRATOS_COMPARTIDOS.md` §1–3. **Only the infrastructure is wired — no existing use case/controller checks a permission yet** (that's a later task); every endpoint except the ones below currently just requires *some* valid token, with no role/permission check.
+Real JWT auth as of VET-05/06/07/11, per `CONTRATOS_COMPARTIDOS.md` §1–3. As of **VET-08**, the 16 pre-existing use cases now call `VeterinaryAuthorizationService` (see the permission table below) — this was the last step of Fase 1.
 
 - **Token validation**: `spring-boot-starter-oauth2-resource-server`, `SecurityConfig.jwtDecoder()` builds a `NimbusJwtDecoder` from `${JWT_JWKS_URI}` and validates `iss=myanimalog-user-service` + `aud=myanimalog-api` (`JwtTokenValidator`, framework-adjacent but no network call at construction time — the JWKS fetch happens lazily on first `decode()`). `jjwt` and `jwt.secret`/`JWT_SECRET` were removed — they were never actually used by this service.
 - **Authorities**: `JwtClaimsConverter` turns a `Jwt` into a `JwtAuthenticationToken` granting `PLATFORM_ADMIN` when `platform_role=PLATFORM_ADMIN`, and `VET_ROLE_<rol>` when `ctx=VETERINARY` (clinic tokens don't exist yet — the User service will start minting them once it calls VET-11's members endpoint).
@@ -108,7 +108,7 @@ Real JWT auth as of VET-05/06/07/11, per `CONTRATOS_COMPARTIDOS.md` §1–3. **O
 - **`/internal/**`**: `InternalApiKeyFilter` (runs before `BearerTokenAuthenticationFilter`) compares the `X-Internal-Api-Key` header against `${INTERNAL_API_KEY}` with `MessageDigest.isEqual` (constant-time). Match → sets a `PreAuthenticatedAuthenticationToken` with `INTERNAL_SERVICE` and continues the chain. No match → writes the 401 JSON directly via `RestAuthenticationEntryPoint` and stops (never reaches `/internal/**`'s own `hasAuthority` check, which would otherwise need an authenticated principal to even evaluate).
 - **401/403 JSON format**: `RestAuthenticationEntryPoint` / `RestAccessDeniedHandler` write the exact same `{timestamp, status, error, message}` shape as `GlobalExceptionHandler` (`SecurityErrorResponseWriter`), since these two cases are resolved at the filter level, before `@RestControllerAdvice` ever runs.
 - **`AuthenticatedUserPort`** (`application/shared/ports/out`) + **`SpringAuthenticatedUserAdapter`** (`infrastructure/security`): reads the current `JwtAuthenticationToken` from `SecurityContextHolder` and maps claims to `AuthenticatedUser` (`userId`, `email`, `emailVerified`, `platformAdmin`, `clinic: Optional<ClinicContext>`) and `ClinicContext` (`veterinaryId`, `employeeId`, `role`, `licensed`, `status`). Throws `UnauthenticatedException` if there's no JWT principal.
-- **`VeterinaryAuthorizationService`** (`application/shared/services`, not yet called from anywhere): `require(veterinaryId, permission)`, `requireMember(veterinaryId)`, `requirePlatformAdmin()`. Throws `ClinicContextRequiredException` / `TenantMismatchException` / `InsufficientPermissionException` / `PlatformAdminRequiredException` (all `domain/shared/exceptions`, all mapped to 403 in `GlobalExceptionHandler`; `UnauthenticatedException` maps to 401).
+- **`VeterinaryAuthorizationService`** (`application/shared/services`): `require(veterinaryId, permission)`, `requireMember(veterinaryId)`, `requirePlatformAdmin()`, `requireSelfOrPermission(targetUserId, veterinaryId, permission)` (allows the call if the caller's own `userId` matches `targetUserId`, regardless of clinic context; otherwise requires `permission` over the clinic — used by `Unlink`). Throws `ClinicContextRequiredException` / `TenantMismatchException` / `InsufficientPermissionException` / `PlatformAdminRequiredException` (all `domain/shared/exceptions`, all mapped to 403 in `GlobalExceptionHandler`; `UnauthenticatedException` maps to 401).
 - **`Permission`** (`domain/security`, 11 values from `CONTRATOS_COMPARTIDOS.md` §3.1) and **`RolePermissions.resolve(role, licensed, status)`** (`domain/security`) implement the role → permission matrix for the 3 roles that exist today:
 
   | Permiso | ADMIN | VETERINARIAN | ASSISTANT |
@@ -128,6 +128,23 @@ Real JWT auth as of VET-05/06/07/11, per `CONTRATOS_COMPARTIDOS.md` §1–3. **O
   🔑 = solo si `licensed=true` (siempre `false` hoy — no existe perfil profesional todavía). ADMIN recibe lo que el contrato asigna a `OWNER`, **excepto** `SUBSCRIPTION_MANAGE` (nadie de la clínica la tiene por ahora). Si `status != ACTIVE` (cualquier valor distinto de `ACTIVE`, no solo `SUSPENDED`), el resultado se reduce a la intersección con `{CLINIC_CONFIGURE, STAFF_MANAGE, SUBSCRIPTION_MANAGE}`. `TODO(VET-09)` marcado en el código: cuando `EmployeeRole` agregue `OWNER`/`RECEPTIONIST`, `OWNER` hereda lo de `ADMIN` más `SUBSCRIPTION_MANAGE`, y `RECEPTIONIST` entra con su propia fila.
 - **`VeterinaryStatus`** (`domain/clinic/enums`, 6 valores de `CONTRATOS_COMPARTIDOS.md` §1.3) **no se persiste** — `VeterinaryStatus.fromActiveFlag(boolean)` lo deriva del booleano `active` existente (`true→ACTIVE`, `false→SUSPENDED`) hasta que exista un estado real de clínica (Fase 2 del plan).
 - **Endpoint interno de miembros** — `GET /internal/veterinaries/{veterinaryId}/members/{userId}` (`GetVeterinaryMemberController`/`Service`/`UseCase`, módulo `clinic`, consume los 3 puertos de clinic/staff/subscription): lo usará el User service para decidir si puede emitir un token de clínica. Si la clínica no existe **o** el usuario no es empleado, responde `200` con `member=false` (nunca `404`) y el resto de campos en `null`; `licensed` siempre `false` por ahora.
+- **Permisos por caso de uso (VET-08)** — las rutas no cambiaron, solo quién puede llamarlas y de dónde sale la identidad del caller (`AuthenticatedUserPort`, nunca un campo del body/path que identifique a quien hace la petición):
+
+  | Caso de uso | Permiso / chequeo | Notas |
+  |---|---|---|
+  | `RegisterVeterinary` | token normal (cualquier usuario autenticado) | El creador sale del token; en la misma transacción (`@Transactional`) se crea como `VeterinaryEmployee` `ADMIN` activo de la clínica nueva. `TODO(VET-10)`: debería ser `OWNER`, no existe ese rol todavía. |
+  | `GenerateInviteCode` | `CLINIC_CONFIGURE` | |
+  | `UpdateVeterinary` | `CLINIC_CONFIGURE` | |
+  | `ActivateVeterinary` / `DeActivateVeterinary` | `PLATFORM_ADMIN` | |
+  | `CreateEmployee` | `STAFF_MANAGE` | |
+  | `UpdateEmployeeRole` / `DeActivateEmployee` | `STAFF_MANAGE` | Además: nadie puede modificar su propio registro de empleado (`CannotModifySelfException`, 403) ni desactivar/degradar al último `ADMIN` activo de la clínica (`LastAdminException`, 409, vía `VeterinaryEmployeeRepositoryPort.countByVeterinaryIdAndRoleAndActiveTrue`). El actor se relee de la base por `employeeId` del token (no se confía en `vet_role`/`vet_status` del claim, que puede tener hasta 60 min de antigüedad). |
+  | `ActivateEmployee` | `STAFF_MANAGE` | Sin restricción de auto-activación. |
+  | `CreatePlan` / `UpdatePlan` | `PLATFORM_ADMIN` | |
+  | `GetActivePlan` / `IsExpired` | `requireMember` (cualquier rol, solo tenant match) | |
+  | `LinkByCode` / `LinkByUrl` | token normal | El `userId` sale del token, ya no viene en el body. |
+  | `Unlink` | self **o** `CLINIC_CONFIGURE` | Permitido si el `userId` del path == `userId` del token (auto-desvinculación), o si el token es de clínica, su `vet_id` coincide con el `veterinaryId` del path y tiene `CLINIC_CONFIGURE` (no `STAFF_MANAGE`: el usuario vinculado es un cliente, no un empleado — ver `VeterinaryAuthorizationService.requireSelfOrPermission`). |
+
+  **Frontend**: todo endpoint salvo los listados como públicos/internos necesita `Authorization: Bearer <token>`. Usa el **token normal** (el que devuelve el login) para `RegisterVeterinary`, `LinkByCode`/`LinkByUrl`/`Unlink` (auto-desvinculación); usa el **token de clínica** (`POST {USER_URL}/auth/context/veterinary/{veterinaryId}`) para todo lo demás que opera sobre una clínica concreta.
 - **Probar manualmente** (con el User service corriendo en `localhost:8080`):
   ```powershell
   $login = Invoke-RestMethod -Uri "http://localhost:8080/auth/local" -Method Post `
@@ -157,7 +174,7 @@ Real JWT auth as of VET-05/06/07/11, per `CONTRATOS_COMPARTIDOS.md` §1–3. **O
 
 ### Key business rules worth knowing before changing a service
 
-- `RegisterVeterinaryService`: validates name/email format, enforces unique name and email, generates a random `tenantId`.
+- `RegisterVeterinaryService`: validates name/email format, enforces unique name and email, generates a random `tenantId`; also creates the caller (from the token) as an active `ADMIN` `VeterinaryEmployee` of the new clinic, in the same `@Transactional` method.
 - `GenerateInviteCodeService`: generates a unique `VET-XXXXXXXX` code (`SecureRandom`, retries on collision) and builds `inviteLink` from `app.base-url`.
 - `LinkByCodeService` / `LinkByUrlService`: reject if the clinic is inactive or the user is already linked.
 - `CreatePlanService`: rejects if the clinic is inactive or already has an active subscription; `UpdatePlanService`/`GetActivePlanService`/`IsExpiredService` operate on the single active (or latest) subscription per clinic.

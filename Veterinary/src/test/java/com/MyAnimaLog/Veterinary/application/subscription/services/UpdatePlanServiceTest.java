@@ -4,7 +4,9 @@ import com.MyAnimaLog.Veterinary.application.subscription.dto.UpdatePlanRequest;
 import com.MyAnimaLog.Veterinary.application.subscription.dto.UpdatePlanResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.subscription.ports.out.VeterinarySubscriptionRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.NoActiveSubscriptionException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.PlatformAdminRequiredException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
 import com.MyAnimaLog.Veterinary.domain.subscription.model.VeterinarySubscription;
@@ -32,6 +34,9 @@ class UpdatePlanServiceTest {
 
     @Mock
     private VeterinarySubscriptionRepositoryPort subscriptionRepositoryPort;
+
+    @Mock
+    private VeterinaryAuthorizationService authorizationService;
 
     @InjectMocks
     private UpdatePlanService updatePlanService;
@@ -177,6 +182,17 @@ class UpdatePlanServiceTest {
         assertThatThrownBy(() ->
                 updatePlanService.updatePlan(veterinaryId, UpdatePlanRequest.builder().build())
         ).isInstanceOf(NoActiveSubscriptionException.class);
+
+        verify(subscriptionRepositoryPort, never()).save(any());
+    }
+
+    @Test
+    void updatePlan_shouldThrowPlatformAdminRequiredException_whenCallerIsNotPlatformAdmin() {
+        doThrow(new PlatformAdminRequiredException()).when(authorizationService).requirePlatformAdmin();
+
+        assertThatThrownBy(() ->
+                updatePlanService.updatePlan(veterinaryId, UpdatePlanRequest.builder().build())
+        ).isInstanceOf(PlatformAdminRequiredException.class);
 
         verify(subscriptionRepositoryPort, never()).save(any());
     }

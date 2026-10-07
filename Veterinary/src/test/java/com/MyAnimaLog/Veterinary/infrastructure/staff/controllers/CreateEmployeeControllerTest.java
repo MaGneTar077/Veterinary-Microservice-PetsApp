@@ -6,6 +6,9 @@ import com.MyAnimaLog.Veterinary.application.staff.ports.in.CreateEmployeeUseCas
 import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvalidEmployeeRoleException;
+import com.MyAnimaLog.Veterinary.domain.security.Permission;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.TenantMismatchException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotActiveException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
@@ -141,5 +144,40 @@ class CreateEmployeeControllerTest {
                         .with(jwt()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("Employee already exists in this veterinary"));
+    }
+
+    @Test
+    void create_shouldReturn401_whenNoTokenIsPresent() throws Exception {
+        mockMvc.perform(post("/api/veterinary/employees")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest))
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void create_shouldReturn403_whenCallerLacksStaffManage() throws Exception {
+        when(createEmployeeUseCase.create(any(CreateEmployeeRequest.class)))
+                .thenThrow(new InsufficientPermissionException(Permission.STAFF_MANAGE));
+
+        mockMvc.perform(post("/api/veterinary/employees")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest))
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void create_shouldReturn403_whenCallerBelongsToAnotherVeterinary() throws Exception {
+        when(createEmployeeUseCase.create(any(CreateEmployeeRequest.class)))
+                .thenThrow(new TenantMismatchException());
+
+        mockMvc.perform(post("/api/veterinary/employees")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest))
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
     }
 }

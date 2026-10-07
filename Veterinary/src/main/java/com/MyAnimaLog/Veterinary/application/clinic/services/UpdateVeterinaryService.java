@@ -4,7 +4,9 @@ import com.MyAnimaLog.Veterinary.application.clinic.dto.UpdateVeterinaryRequest;
 import com.MyAnimaLog.Veterinary.application.clinic.dto.UpdateVeterinaryResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.in.UpdateVeterinaryUseCase;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidVeterinaryEmailException;
+import com.MyAnimaLog.Veterinary.domain.security.Permission;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InvalidVeterinaryNameException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.VeterinaryEmailAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
@@ -20,9 +22,11 @@ import java.util.UUID;
 public class UpdateVeterinaryService implements UpdateVeterinaryUseCase {
 
     private final VeterinaryRepositoryPort veterinaryRepositoryPort;
+    private final VeterinaryAuthorizationService authorizationService;
 
     @Override
     public UpdateVeterinaryResponse update(UUID veterinaryId, UpdateVeterinaryRequest request) {
+        authorizationService.require(veterinaryId, Permission.CLINIC_CONFIGURE);
 
         Veterinary veterinary = veterinaryRepositoryPort.findById(veterinaryId)
                 .orElseThrow(VeterinaryNotFoundException::new);

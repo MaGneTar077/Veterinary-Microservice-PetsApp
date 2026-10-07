@@ -3,11 +3,16 @@ package com.MyAnimaLog.Veterinary.application.clinic.services;
 import com.MyAnimaLog.Veterinary.application.clinic.dto.RegisterVeterinaryRequest;
 import com.MyAnimaLog.Veterinary.application.clinic.dto.RegisterVeterinaryResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.shared.dto.AuthenticatedUser;
+import com.MyAnimaLog.Veterinary.application.shared.ports.out.AuthenticatedUserPort;
+import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidVeterinaryEmailException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InvalidVeterinaryNameException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.VeterinaryAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.VeterinaryEmailAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
+import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
+import com.MyAnimaLog.Veterinary.domain.staff.model.VeterinaryEmployee;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
@@ -28,15 +34,26 @@ class RegisterVeterinaryServiceTest {
     @Mock
     private VeterinaryRepositoryPort veterinaryRepositoryPort;
 
+    @Mock
+    private VeterinaryEmployeeRepositoryPort employeeRepositoryPort;
+
+    @Mock
+    private AuthenticatedUserPort authenticatedUserPort;
+
     @InjectMocks
     private RegisterVeterinaryService registerVeterinaryService;
 
+    private UUID callerId;
     private RegisterVeterinaryRequest validRequest;
     private Veterinary savedVeterinary;
 
     @BeforeEach
 
     void setUp() {
+        callerId = UUID.randomUUID();
+        when(authenticatedUserPort.current()).thenReturn(
+                new AuthenticatedUser(callerId, "caller@example.com", true, false, Optional.empty()));
+
         validRequest = RegisterVeterinaryRequest.builder()
                 .name("Clínica El Bosque")
                 .city("Cartagena")
@@ -147,5 +164,22 @@ class RegisterVeterinaryServiceTest {
         ).isInstanceOf(InvalidVeterinaryNameException.class);
 
         verify(veterinaryRepositoryPort, never()).save(any());
+        verify(employeeRepositoryPort, never()).save(any());
+    }
+
+    @Test
+    void registerVeterinary_shouldCreateCallerAsActiveAdminEmployee_ofTheNewVeterinary() {
+        when(veterinaryRepositoryPort.existsByName(any())).thenReturn(false);
+        when(veterinaryRepositoryPort.existsByEmail(any())).thenReturn(false);
+        when(veterinaryRepositoryPort.save(any(Veterinary.class))).thenReturn(savedVeterinary);
+
+        registerVeterinaryService.registerVeterinary(validRequest);
+
+        verify(employeeRepositoryPort, times(1)).save(argThat((VeterinaryEmployee employee) ->
+                employee.getVeterinaryId().equals(savedVeterinary.getId())
+                        && employee.getUserId().equals(callerId)
+                        && employee.getRole() == EmployeeRole.ADMIN
+                        && Boolean.TRUE.equals(employee.getActive())
+        ));
     }
 }

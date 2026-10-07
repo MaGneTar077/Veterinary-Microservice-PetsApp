@@ -2,6 +2,7 @@ package com.MyAnimaLog.Veterinary.infrastructure.clinic.controllers;
 
 import com.MyAnimaLog.Veterinary.application.clinic.dto.DeActivateVeterinaryResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.in.DeActivateVeterinaryUseCase;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.PlatformAdminRequiredException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
 import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
@@ -71,5 +72,23 @@ class DeActivateVeterinaryControllerTest {
                         .with(jwt()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Veterinary not found"));
+    }
+
+    @Test
+    void deActivate_shouldReturn401_whenNoTokenIsPresent() throws Exception {
+        mockMvc.perform(patch("/api/veterinary/{veterinaryId}/deactivate", veterinaryId)
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void deActivate_shouldReturn403_whenCallerIsNotPlatformAdmin() throws Exception {
+        when(deActivateVeterinaryUseCase.deActivate(any(UUID.class)))
+                .thenThrow(new PlatformAdminRequiredException());
+
+        mockMvc.perform(patch("/api/veterinary/{veterinaryId}/deactivate", veterinaryId)
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
     }
 }

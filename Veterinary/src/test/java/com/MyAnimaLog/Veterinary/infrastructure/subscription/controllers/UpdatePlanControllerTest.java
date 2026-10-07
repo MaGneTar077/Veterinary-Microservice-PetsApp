@@ -4,6 +4,7 @@ import com.MyAnimaLog.Veterinary.application.subscription.dto.UpdatePlanRequest;
 import com.MyAnimaLog.Veterinary.application.subscription.dto.UpdatePlanResponse;
 import com.MyAnimaLog.Veterinary.application.subscription.ports.in.UpdatePlanUseCase;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.NoActiveSubscriptionException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.PlatformAdminRequiredException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
 import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
@@ -106,5 +107,27 @@ class UpdatePlanControllerTest {
                         .with(jwt()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Veterinary has no active subscription"));
+    }
+
+    @Test
+    void updatePlan_shouldReturn401_whenNoTokenIsPresent() throws Exception {
+        mockMvc.perform(patch("/api/veterinary/{veterinaryId}/subscription", veterinaryId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(UpdatePlanRequest.builder().build()))
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void updatePlan_shouldReturn403_whenCallerIsNotPlatformAdmin() throws Exception {
+        when(updatePlanUseCase.updatePlan(any(UUID.class), any(UpdatePlanRequest.class)))
+                .thenThrow(new PlatformAdminRequiredException());
+
+        mockMvc.perform(patch("/api/veterinary/{veterinaryId}/subscription", veterinaryId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(UpdatePlanRequest.builder().build()))
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
     }
 }

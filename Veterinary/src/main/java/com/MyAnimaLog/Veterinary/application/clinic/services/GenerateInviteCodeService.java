@@ -4,6 +4,8 @@ import com.MyAnimaLog.Veterinary.application.clinic.dto.GenerateInviteCodeReques
 import com.MyAnimaLog.Veterinary.application.clinic.dto.GenerateInviteCodeResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.in.GenerateInviteCodeUseCase;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
+import com.MyAnimaLog.Veterinary.domain.security.Permission;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +19,7 @@ import java.security.SecureRandom;
 public class GenerateInviteCodeService implements GenerateInviteCodeUseCase {
 
     private final VeterinaryRepositoryPort veterinaryRepositoryPort;
+    private final VeterinaryAuthorizationService authorizationService;
 
     @Value("${app.base-url}")
     private String baseUrl;
@@ -26,6 +29,8 @@ public class GenerateInviteCodeService implements GenerateInviteCodeUseCase {
 
     @Override
     public GenerateInviteCodeResponse generateInviteCode(GenerateInviteCodeRequest request) {
+        authorizationService.require(request.getVeterinaryId(), Permission.CLINIC_CONFIGURE);
+
         Veterinary veterinary = veterinaryRepositoryPort.findById(request.getVeterinaryId())
                 .orElseThrow(VeterinaryNotFoundException::new);
 

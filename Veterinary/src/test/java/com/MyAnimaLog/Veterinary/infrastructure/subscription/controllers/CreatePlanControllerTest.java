@@ -4,6 +4,7 @@ import com.MyAnimaLog.Veterinary.application.subscription.dto.CreatePlanRequest;
 import com.MyAnimaLog.Veterinary.application.subscription.dto.CreatePlanResponse;
 import com.MyAnimaLog.Veterinary.application.subscription.ports.in.CreatePlanUseCase;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.ActiveSubscriptionAlreadyExistsException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.PlatformAdminRequiredException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotActiveException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
@@ -123,5 +124,27 @@ class CreatePlanControllerTest {
                         .with(jwt()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("Veterinary already has an active subscription"));
+    }
+
+    @Test
+    void createPlan_shouldReturn401_whenNoTokenIsPresent() throws Exception {
+        mockMvc.perform(post("/api/veterinary/{veterinaryId}/subscription", veterinaryId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest))
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void createPlan_shouldReturn403_whenCallerIsNotPlatformAdmin() throws Exception {
+        when(createPlanUseCase.createPlan(any(CreatePlanRequest.class)))
+                .thenThrow(new PlatformAdminRequiredException());
+
+        mockMvc.perform(post("/api/veterinary/{veterinaryId}/subscription", veterinaryId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest))
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
     }
 }

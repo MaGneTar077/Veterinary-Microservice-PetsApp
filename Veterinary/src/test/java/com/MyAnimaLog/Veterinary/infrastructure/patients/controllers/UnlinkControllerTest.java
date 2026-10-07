@@ -3,6 +3,8 @@ package com.MyAnimaLog.Veterinary.infrastructure.patients.controllers;
 import com.MyAnimaLog.Veterinary.application.patients.dto.UnlinkResponse;
 import com.MyAnimaLog.Veterinary.application.patients.ports.in.UnlinkUseCase;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.UserNotLinkedException;
+import com.MyAnimaLog.Veterinary.domain.security.Permission;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
 import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
@@ -89,5 +91,24 @@ class UnlinkControllerTest {
                         .with(jwt()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("User is not linked to this veterinary"));
+    }
+
+    @Test
+    void unlink_shouldReturn401_whenNoTokenIsPresent() throws Exception {
+        mockMvc.perform(delete("/api/veterinary/link/{veterinaryId}/user/{userId}",
+                        veterinaryId, userId))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void unlink_shouldReturn403_whenCallerIsNeitherSelfNorClinicStaffWithPermission() throws Exception {
+        when(unlinkUseCase.unlink(any(UUID.class), any(UUID.class)))
+                .thenThrow(new InsufficientPermissionException(Permission.CLINIC_CONFIGURE));
+
+        mockMvc.perform(delete("/api/veterinary/link/{veterinaryId}/user/{userId}",
+                        veterinaryId, userId)
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
     }
 }

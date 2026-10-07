@@ -3,7 +3,11 @@ package com.MyAnimaLog.Veterinary.infrastructure.staff.controllers;
 import com.MyAnimaLog.Veterinary.application.staff.dto.DeActivateEmployeeResponse;
 import com.MyAnimaLog.Veterinary.application.staff.ports.in.DeActivateEmployeeUseCase;
 import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
+import com.MyAnimaLog.Veterinary.domain.security.Permission;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifySelfException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeNotFoundException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.LastAdminException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
 import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
 import com.MyAnimaLog.Veterinary.infrastructure.staff.controllers.DeActivateEmployeeController;
@@ -74,5 +78,45 @@ class DeActivateEmployeeControllerTest {
                         .with(jwt()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Employee not found"));
+    }
+
+    @Test
+    void deActivate_shouldReturn401_whenNoTokenIsPresent() throws Exception {
+        mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/deactivate", employeeId)
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void deActivate_shouldReturn403_whenCallerLacksStaffManage() throws Exception {
+        when(deActivateEmployeeUseCase.deActivate(any(UUID.class)))
+                .thenThrow(new InsufficientPermissionException(Permission.STAFF_MANAGE));
+
+        mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/deactivate", employeeId)
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void deActivate_shouldReturn403_whenActorTargetsSelf() throws Exception {
+        when(deActivateEmployeeUseCase.deActivate(any(UUID.class)))
+                .thenThrow(new CannotModifySelfException());
+
+        mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/deactivate", employeeId)
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void deActivate_shouldReturn409_whenDeactivatingTheLastActiveAdmin() throws Exception {
+        when(deActivateEmployeeUseCase.deActivate(any(UUID.class)))
+                .thenThrow(new LastAdminException());
+
+        mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/deactivate", employeeId)
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isConflict());
     }
 }

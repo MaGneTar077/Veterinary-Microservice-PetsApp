@@ -3,6 +3,8 @@ package com.MyAnimaLog.Veterinary.infrastructure.subscription.controllers;
 import com.MyAnimaLog.Veterinary.application.subscription.dto.IsExpiredResponse;
 import com.MyAnimaLog.Veterinary.application.subscription.ports.in.IsExpiredUseCase;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.SubscriptionNotFoundException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.ClinicContextRequiredException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.TenantMismatchException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
 import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
@@ -104,5 +106,33 @@ class IsExpiredControllerTest {
                         .with(jwt()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Subscription not found"));
+    }
+
+    @Test
+    void isExpired_shouldReturn401_whenNoTokenIsPresent() throws Exception {
+        mockMvc.perform(get("/api/veterinary/{veterinaryId}/subscription/is-expired", veterinaryId))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void isExpired_shouldReturn403_whenCallerHasNoClinicToken() throws Exception {
+        when(isExpiredUseCase.isExpired(any(UUID.class)))
+                .thenThrow(new ClinicContextRequiredException());
+
+        mockMvc.perform(get("/api/veterinary/{veterinaryId}/subscription/is-expired", veterinaryId)
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void isExpired_shouldReturn403_whenCallerBelongsToAnotherVeterinary() throws Exception {
+        when(isExpiredUseCase.isExpired(any(UUID.class)))
+                .thenThrow(new TenantMismatchException());
+
+        mockMvc.perform(get("/api/veterinary/{veterinaryId}/subscription/is-expired", veterinaryId)
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
     }
 }

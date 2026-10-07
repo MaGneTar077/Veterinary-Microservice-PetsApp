@@ -2,6 +2,9 @@ package com.MyAnimaLog.Veterinary.infrastructure.clinic.controllers;
 
 import com.MyAnimaLog.Veterinary.application.clinic.dto.GenerateInviteCodeResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.in.GenerateInviteCodeUseCase;
+import com.MyAnimaLog.Veterinary.domain.security.Permission;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.TenantMismatchException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
 import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
@@ -71,5 +74,34 @@ class GenerateInviteCodeControllerTest {
                         .with(jwt()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Veterinary not found"));
+    }
+
+    @Test
+    void generateInviteCode_shouldReturn401_whenNoTokenIsPresent() throws Exception {
+        mockMvc.perform(post("/api/veterinary/{veterinaryId}/invite-code", veterinaryId)
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void generateInviteCode_shouldReturn403_whenCallerLacksClinicConfigure() throws Exception {
+        when(generateInviteCodeUseCase.generateInviteCode(any()))
+                .thenThrow(new InsufficientPermissionException(Permission.CLINIC_CONFIGURE));
+
+        mockMvc.perform(post("/api/veterinary/{veterinaryId}/invite-code", veterinaryId)
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void generateInviteCode_shouldReturn403_whenCallerBelongsToAnotherVeterinary() throws Exception {
+        when(generateInviteCodeUseCase.generateInviteCode(any()))
+                .thenThrow(new TenantMismatchException());
+
+        mockMvc.perform(post("/api/veterinary/{veterinaryId}/invite-code", veterinaryId)
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
     }
 }

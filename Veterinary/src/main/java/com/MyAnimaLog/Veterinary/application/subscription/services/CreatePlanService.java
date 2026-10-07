@@ -5,6 +5,7 @@ import com.MyAnimaLog.Veterinary.application.subscription.dto.CreatePlanResponse
 import com.MyAnimaLog.Veterinary.application.subscription.ports.in.CreatePlanUseCase;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.subscription.ports.out.VeterinarySubscriptionRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.ActiveSubscriptionAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InvalidVeterinaryNameException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotActiveException;
@@ -22,10 +23,12 @@ public class CreatePlanService implements CreatePlanUseCase {
 
     private final VeterinaryRepositoryPort veterinaryRepositoryPort;
     private final VeterinarySubscriptionRepositoryPort subscriptionRepositoryPort;
+    private final VeterinaryAuthorizationService authorizationService;
 
 
     @Override
     public CreatePlanResponse createPlan(CreatePlanRequest request) {
+        authorizationService.requirePlatformAdmin();
 
         if (request.getPlan() == null || request.getPlan().isBlank()) {
             throw new InvalidVeterinaryNameException("Plan name is required");

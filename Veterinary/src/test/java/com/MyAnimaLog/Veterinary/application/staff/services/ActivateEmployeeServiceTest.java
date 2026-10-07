@@ -1,7 +1,10 @@
 package com.MyAnimaLog.Veterinary.application.staff.services;
 
+import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.application.staff.dto.ActivateEmployeeResponse;
 import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
+import com.MyAnimaLog.Veterinary.domain.security.Permission;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
 import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.staff.model.VeterinaryEmployee;
@@ -26,20 +29,25 @@ class ActivateEmployeeServiceTest {
     @Mock
     private VeterinaryEmployeeRepositoryPort employeeRepositoryPort;
 
+    @Mock
+    private VeterinaryAuthorizationService authorizationService;
+
     @InjectMocks
     private ActivateEmployeeService activateEmployeeService;
 
     private UUID employeeId;
+    private UUID veterinaryId;
     private VeterinaryEmployee inactiveEmployee;
     private VeterinaryEmployee activatedEmployee;
 
     @BeforeEach
     void setUp() {
         employeeId = UUID.randomUUID();
+        veterinaryId = UUID.randomUUID();
 
         inactiveEmployee = VeterinaryEmployee.builder()
                 .id(employeeId)
-                .veterinaryId(UUID.randomUUID())
+                .veterinaryId(veterinaryId)
                 .userId(UUID.randomUUID())
                 .role(EmployeeRole.VETERINARIAN)
                 .active(false)
@@ -100,6 +108,19 @@ class ActivateEmployeeServiceTest {
         assertThatThrownBy(() ->
                 activateEmployeeService.activate(employeeId)
         ).isInstanceOf(EmployeeNotFoundException.class);
+
+        verify(employeeRepositoryPort, never()).save(any());
+    }
+
+    @Test
+    void activate_shouldThrowInsufficientPermissionException_whenCallerLacksStaffManage() {
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(inactiveEmployee));
+        doThrow(new InsufficientPermissionException(Permission.STAFF_MANAGE))
+                .when(authorizationService).require(veterinaryId, Permission.STAFF_MANAGE);
+
+        assertThatThrownBy(() ->
+                activateEmployeeService.activate(employeeId)
+        ).isInstanceOf(InsufficientPermissionException.class);
 
         verify(employeeRepositoryPort, never()).save(any());
     }

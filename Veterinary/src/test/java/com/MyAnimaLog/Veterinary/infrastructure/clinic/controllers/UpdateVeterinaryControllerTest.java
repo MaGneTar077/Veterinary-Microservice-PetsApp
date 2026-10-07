@@ -6,6 +6,9 @@ import com.MyAnimaLog.Veterinary.application.clinic.ports.in.UpdateVeterinaryUse
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidVeterinaryEmailException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InvalidVeterinaryNameException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.VeterinaryEmailAlreadyExistsException;
+import com.MyAnimaLog.Veterinary.domain.security.Permission;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.TenantMismatchException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
 import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
@@ -136,5 +139,40 @@ class UpdateVeterinaryControllerTest {
                         .with(jwt()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("A veterinary with this email already exists"));
+    }
+
+    @Test
+    void update_shouldReturn401_whenNoTokenIsPresent() throws Exception {
+        mockMvc.perform(patch("/api/veterinary/{veterinaryId}", veterinaryId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(UpdateVeterinaryRequest.builder().build()))
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void update_shouldReturn403_whenCallerLacksClinicConfigure() throws Exception {
+        when(updateVeterinaryUseCase.update(any(UUID.class), any(UpdateVeterinaryRequest.class)))
+                .thenThrow(new InsufficientPermissionException(Permission.CLINIC_CONFIGURE));
+
+        mockMvc.perform(patch("/api/veterinary/{veterinaryId}", veterinaryId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(UpdateVeterinaryRequest.builder().build()))
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void update_shouldReturn403_whenCallerBelongsToAnotherVeterinary() throws Exception {
+        when(updateVeterinaryUseCase.update(any(UUID.class), any(UpdateVeterinaryRequest.class)))
+                .thenThrow(new TenantMismatchException());
+
+        mockMvc.perform(patch("/api/veterinary/{veterinaryId}", veterinaryId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(UpdateVeterinaryRequest.builder().build()))
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
     }
 }

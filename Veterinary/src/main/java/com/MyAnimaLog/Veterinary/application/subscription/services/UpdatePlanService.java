@@ -5,6 +5,7 @@ import com.MyAnimaLog.Veterinary.application.subscription.dto.UpdatePlanResponse
 import com.MyAnimaLog.Veterinary.application.subscription.ports.in.UpdatePlanUseCase;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.subscription.ports.out.VeterinarySubscriptionRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.NoActiveSubscriptionException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.subscription.model.VeterinarySubscription;
@@ -19,9 +20,11 @@ public class UpdatePlanService implements UpdatePlanUseCase {
 
     private final VeterinaryRepositoryPort veterinaryRepositoryPort;
     private final VeterinarySubscriptionRepositoryPort subscriptionRepositoryPort;
+    private final VeterinaryAuthorizationService authorizationService;
 
     @Override
     public UpdatePlanResponse updatePlan(UUID veterinaryId, UpdatePlanRequest request) {
+        authorizationService.requirePlatformAdmin();
 
         veterinaryRepositoryPort.findById(veterinaryId)
                 .orElseThrow(VeterinaryNotFoundException::new);

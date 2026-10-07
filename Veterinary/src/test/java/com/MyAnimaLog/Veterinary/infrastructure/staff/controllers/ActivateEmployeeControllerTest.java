@@ -3,6 +3,8 @@ package com.MyAnimaLog.Veterinary.infrastructure.staff.controllers;
 import com.MyAnimaLog.Veterinary.application.staff.dto.ActivateEmployeeResponse;
 import com.MyAnimaLog.Veterinary.application.staff.ports.in.ActivateEmployeeUseCase;
 import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
+import com.MyAnimaLog.Veterinary.domain.security.Permission;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeNotFoundException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
 import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
@@ -74,5 +76,23 @@ class ActivateEmployeeControllerTest {
                         .with(jwt()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Employee not found"));
+    }
+
+    @Test
+    void activate_shouldReturn401_whenNoTokenIsPresent() throws Exception {
+        mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/activate", employeeId)
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void activate_shouldReturn403_whenCallerLacksStaffManage() throws Exception {
+        when(activateEmployeeUseCase.activate(any(UUID.class)))
+                .thenThrow(new InsufficientPermissionException(Permission.STAFF_MANAGE));
+
+        mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/activate", employeeId)
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
     }
 }

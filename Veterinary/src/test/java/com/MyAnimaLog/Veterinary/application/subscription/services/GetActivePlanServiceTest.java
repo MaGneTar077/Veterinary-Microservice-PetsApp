@@ -3,7 +3,10 @@ package com.MyAnimaLog.Veterinary.application.subscription.services;
 import com.MyAnimaLog.Veterinary.application.subscription.dto.GetActivePlanResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.subscription.ports.out.VeterinarySubscriptionRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.NoActiveSubscriptionException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.ClinicContextRequiredException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.TenantMismatchException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
 import com.MyAnimaLog.Veterinary.domain.subscription.model.VeterinarySubscription;
@@ -31,6 +34,9 @@ class GetActivePlanServiceTest {
 
     @Mock
     private VeterinarySubscriptionRepositoryPort subscriptionRepositoryPort;
+
+    @Mock
+    private VeterinaryAuthorizationService authorizationService;
 
     @InjectMocks
     private GetActivePlanService getActivePlanService;
@@ -142,5 +148,27 @@ class GetActivePlanServiceTest {
         assertThat(response.getStartDate()).isEqualTo(LocalDate.of(2026, 1, 1));
         assertThat(response.getEndDate()).isEqualTo(LocalDate.of(2026, 12, 31));
         assertThat(response.getId()).isEqualTo(activeSubscription.getId());
+    }
+
+    @Test
+    void getActivePlan_shouldThrowClinicContextRequiredException_whenCallerHasNoClinicToken() {
+        doThrow(new ClinicContextRequiredException()).when(authorizationService).requireMember(veterinaryId);
+
+        assertThatThrownBy(() ->
+                getActivePlanService.getActivePlan(veterinaryId)
+        ).isInstanceOf(ClinicContextRequiredException.class);
+
+        verify(subscriptionRepositoryPort, never()).findActiveByVeterinaryId(any());
+    }
+
+    @Test
+    void getActivePlan_shouldThrowTenantMismatchException_whenCallerBelongsToAnotherVeterinary() {
+        doThrow(new TenantMismatchException()).when(authorizationService).requireMember(veterinaryId);
+
+        assertThatThrownBy(() ->
+                getActivePlanService.getActivePlan(veterinaryId)
+        ).isInstanceOf(TenantMismatchException.class);
+
+        verify(subscriptionRepositoryPort, never()).findActiveByVeterinaryId(any());
     }
 }

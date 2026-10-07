@@ -1,11 +1,19 @@
 package com.MyAnimaLog.Veterinary.application.staff.services;
 
+import com.MyAnimaLog.Veterinary.application.shared.dto.ClinicContext;
+import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.application.staff.dto.UpdateEmployeeRoleRequest;
 import com.MyAnimaLog.Veterinary.application.staff.dto.UpdateEmployeeRoleResponse;
 import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
+import com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus;
+import com.MyAnimaLog.Veterinary.domain.security.Permission;
 import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifySelfException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvalidEmployeeRoleException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.LastAdminException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.TenantMismatchException;
 import com.MyAnimaLog.Veterinary.domain.staff.model.VeterinaryEmployee;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,20 +36,29 @@ class UpdateEmployeeRoleServiceTest {
     @Mock
     private VeterinaryEmployeeRepositoryPort employeeRepositoryPort;
 
+    @Mock
+    private VeterinaryAuthorizationService authorizationService;
+
     @InjectMocks
     private UpdateEmployeeRoleService updateEmployeeRoleService;
 
     private UUID employeeId;
+    private UUID veterinaryId;
+    private UUID actingEmployeeId;
     private VeterinaryEmployee existingEmployee;
     private VeterinaryEmployee updatedEmployee;
+    private VeterinaryEmployee actingEmployee;
+    private ClinicContext callerContext;
 
     @BeforeEach
     void setUp() {
         employeeId = UUID.randomUUID();
+        veterinaryId = UUID.randomUUID();
+        actingEmployeeId = UUID.randomUUID();
 
         existingEmployee = VeterinaryEmployee.builder()
                 .id(employeeId)
-                .veterinaryId(UUID.randomUUID())
+                .veterinaryId(veterinaryId)
                 .userId(UUID.randomUUID())
                 .role(EmployeeRole.VETERINARIAN)
                 .active(true)
@@ -51,6 +68,22 @@ class UpdateEmployeeRoleServiceTest {
         updatedEmployee = existingEmployee.toBuilder()
                 .role(EmployeeRole.ADMIN)
                 .build();
+
+        actingEmployee = VeterinaryEmployee.builder()
+                .id(actingEmployeeId)
+                .veterinaryId(veterinaryId)
+                .userId(UUID.randomUUID())
+                .role(EmployeeRole.ADMIN)
+                .active(true)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        callerContext = new ClinicContext(veterinaryId, actingEmployeeId, EmployeeRole.ADMIN, false, VeterinaryStatus.ACTIVE);
+
+        lenient().when(authorizationService.require(veterinaryId, Permission.STAFF_MANAGE)).thenReturn(callerContext);
+        lenient().when(employeeRepositoryPort.findById(actingEmployeeId)).thenReturn(Optional.of(actingEmployee));
+        lenient().when(employeeRepositoryPort.countByVeterinaryIdAndRoleAndActiveTrue(veterinaryId, EmployeeRole.ADMIN))
+                .thenReturn(2L);
     }
 
     @Test
@@ -140,6 +173,86 @@ class UpdateEmployeeRoleServiceTest {
                         UpdateEmployeeRoleRequest.builder().role(EmployeeRole.ADMIN).build()
                 )
         ).isInstanceOf(EmployeeNotFoundException.class);
+
+        verify(employeeRepositoryPort, never()).save(any());
+    }
+
+    @Test
+    void updateRole_shouldThrowCannotModifySelfException_whenActorTargetsOwnEmployeeRecord() {
+        VeterinaryEmployee selfEmployee = existingEmployee.toBuilder().id(actingEmployeeId).build();
+        when(employeeRepositoryPort.findById(actingEmployeeId)).thenReturn(Optional.of(selfEmployee));
+
+        assertThatThrownBy(() ->
+                updateEmployeeRoleService.updateRole(
+                        actingEmployeeId,
+                        UpdateEmployeeRoleRequest.builder().role(EmployeeRole.ASSISTANT).build()
+                )
+        ).isInstanceOf(CannotModifySelfException.class);
+
+        verify(employeeRepositoryPort, never()).save(any());
+    }
+
+    @Test
+    void updateRole_shouldThrowLastAdminException_whenDemotingTheOnlyActiveAdmin() {
+        VeterinaryEmployee lastAdmin = existingEmployee.toBuilder().role(EmployeeRole.ADMIN).active(true).build();
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(lastAdmin));
+        when(employeeRepositoryPort.countByVeterinaryIdAndRoleAndActiveTrue(veterinaryId, EmployeeRole.ADMIN))
+                .thenReturn(1L);
+
+        assertThatThrownBy(() ->
+                updateEmployeeRoleService.updateRole(
+                        employeeId,
+                        UpdateEmployeeRoleRequest.builder().role(EmployeeRole.VETERINARIAN).build()
+                )
+        ).isInstanceOf(LastAdminException.class);
+
+        verify(employeeRepositoryPort, never()).save(any());
+    }
+
+    @Test
+    void updateRole_shouldAllowDemotion_whenAnotherActiveAdminRemains() {
+        VeterinaryEmployee admin = existingEmployee.toBuilder().role(EmployeeRole.ADMIN).active(true).build();
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(admin));
+        when(employeeRepositoryPort.countByVeterinaryIdAndRoleAndActiveTrue(veterinaryId, EmployeeRole.ADMIN))
+                .thenReturn(2L);
+        when(employeeRepositoryPort.save(any(VeterinaryEmployee.class))).thenReturn(updatedEmployee);
+
+        assertThatNoException().isThrownBy(() ->
+                updateEmployeeRoleService.updateRole(
+                        employeeId,
+                        UpdateEmployeeRoleRequest.builder().role(EmployeeRole.VETERINARIAN).build()
+                )
+        );
+    }
+
+    @Test
+    void updateRole_shouldThrowInsufficientPermissionException_whenCallerLacksStaffManage() {
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(existingEmployee));
+        when(authorizationService.require(veterinaryId, Permission.STAFF_MANAGE))
+                .thenThrow(new InsufficientPermissionException(Permission.STAFF_MANAGE));
+
+        assertThatThrownBy(() ->
+                updateEmployeeRoleService.updateRole(
+                        employeeId,
+                        UpdateEmployeeRoleRequest.builder().role(EmployeeRole.ADMIN).build()
+                )
+        ).isInstanceOf(InsufficientPermissionException.class);
+
+        verify(employeeRepositoryPort, never()).save(any());
+    }
+
+    @Test
+    void updateRole_shouldThrowTenantMismatchException_whenCallerBelongsToAnotherVeterinary() {
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(existingEmployee));
+        when(authorizationService.require(veterinaryId, Permission.STAFF_MANAGE))
+                .thenThrow(new TenantMismatchException());
+
+        assertThatThrownBy(() ->
+                updateEmployeeRoleService.updateRole(
+                        employeeId,
+                        UpdateEmployeeRoleRequest.builder().role(EmployeeRole.ADMIN).build()
+                )
+        ).isInstanceOf(TenantMismatchException.class);
 
         verify(employeeRepositoryPort, never()).save(any());
     }

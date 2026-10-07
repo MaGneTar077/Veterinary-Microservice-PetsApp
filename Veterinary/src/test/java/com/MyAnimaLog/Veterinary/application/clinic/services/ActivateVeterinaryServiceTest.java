@@ -2,6 +2,8 @@ package com.MyAnimaLog.Veterinary.application.clinic.services;
 
 import com.MyAnimaLog.Veterinary.application.clinic.dto.ActivateVeterinaryResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.PlatformAdminRequiredException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +26,9 @@ class ActivateVeterinaryServiceTest {
 
     @Mock
     private VeterinaryRepositoryPort veterinaryRepositoryPort;
+
+    @Mock
+    private VeterinaryAuthorizationService authorizationService;
 
     @InjectMocks
     private ActivateVeterinaryService activateVeterinaryService;
@@ -101,6 +106,17 @@ class ActivateVeterinaryServiceTest {
         assertThatThrownBy(() ->
                 activateVeterinaryService.activate(veterinaryId)
         ).isInstanceOf(VeterinaryNotFoundException.class);
+
+        verify(veterinaryRepositoryPort, never()).save(any());
+    }
+
+    @Test
+    void activate_shouldThrowPlatformAdminRequiredException_whenCallerIsNotPlatformAdmin() {
+        doThrow(new PlatformAdminRequiredException()).when(authorizationService).requirePlatformAdmin();
+
+        assertThatThrownBy(() ->
+                activateVeterinaryService.activate(veterinaryId)
+        ).isInstanceOf(PlatformAdminRequiredException.class);
 
         verify(veterinaryRepositoryPort, never()).save(any());
     }

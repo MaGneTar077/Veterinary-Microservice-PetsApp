@@ -5,6 +5,8 @@ import com.MyAnimaLog.Veterinary.application.staff.dto.CreateEmployeeResponse;
 import com.MyAnimaLog.Veterinary.application.staff.ports.in.CreateEmployeeUseCase;
 import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
+import com.MyAnimaLog.Veterinary.domain.security.Permission;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvalidEmployeeRoleException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotActiveException;
@@ -23,9 +25,12 @@ public class CreateEmployeeService implements CreateEmployeeUseCase {
 
     private final VeterinaryRepositoryPort veterinaryRepositoryPort;
     private final VeterinaryEmployeeRepositoryPort employeeRepositoryPort;
+    private final VeterinaryAuthorizationService authorizationService;
 
     @Override
     public CreateEmployeeResponse create(CreateEmployeeRequest request) {
+        authorizationService.require(request.getVeterinaryId(), Permission.STAFF_MANAGE);
+
         if (request.getRole() == null) {
             throw new InvalidEmployeeRoleException();
         }

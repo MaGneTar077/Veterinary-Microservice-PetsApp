@@ -1,5 +1,6 @@
 package com.MyAnimaLog.Veterinary.application.staff.ports.out;
 
+import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
 import com.MyAnimaLog.Veterinary.domain.staff.model.VeterinaryEmployee;
 
 import java.util.Optional;
@@ -10,4 +11,5 @@ public interface VeterinaryEmployeeRepositoryPort {
     boolean existsByVeterinaryIdAndUserId(UUID veterinaryId, UUID userId);
     Optional<VeterinaryEmployee> findById(UUID id);
     Optional<VeterinaryEmployee> findByVeterinaryIdAndUserId(UUID veterinaryId, UUID userId);
+    long countByVeterinaryIdAndRoleAndActiveTrue(UUID veterinaryId, EmployeeRole role);
 }

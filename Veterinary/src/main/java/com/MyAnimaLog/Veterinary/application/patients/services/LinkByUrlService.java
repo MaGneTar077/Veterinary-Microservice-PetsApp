@@ -5,6 +5,7 @@ import com.MyAnimaLog.Veterinary.application.patients.dto.LinkByUrlResponse;
 import com.MyAnimaLog.Veterinary.application.patients.ports.in.LinkByUrlUseCase;
 import com.MyAnimaLog.Veterinary.application.patients.ports.out.UserVeterinaryLinkRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.shared.ports.out.AuthenticatedUserPort;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.InvalidInviteCodeException;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.UserAlreadyLinkedException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotActiveException;
@@ -22,6 +23,7 @@ public class LinkByUrlService implements LinkByUrlUseCase {
 
     private final VeterinaryRepositoryPort veterinaryRepositoryPort;
     private final UserVeterinaryLinkRepositoryPort linkRepositoryPort;
+    private final AuthenticatedUserPort authenticatedUserPort;
 
 
     @Override
@@ -30,6 +32,8 @@ public class LinkByUrlService implements LinkByUrlUseCase {
         if (request.getInviteLink() == null || request.getInviteLink().isBlank()) {
             throw new InvalidInviteCodeException("Invite link is invalid or does not exist");
         }
+
+        UUID userId = authenticatedUserPort.current().userId();
 
         Veterinary veterinary = veterinaryRepositoryPort
                 .findByInviteLink(request.getInviteLink())
@@ -40,13 +44,13 @@ public class LinkByUrlService implements LinkByUrlUseCase {
         }
 
         if (linkRepositoryPort.existsByUserIdAndVeterinaryId(
-                request.getUserId(), veterinary.getId())) {
+                userId, veterinary.getId())) {
             throw new UserAlreadyLinkedException();
         }
 
         UserVeterinaryLink link = UserVeterinaryLink.builder()
                 .id(UUID.randomUUID())
-                .userId(request.getUserId())
+                .userId(userId)
                 .veterinaryId(veterinary.getId())
                 .status("LINKED")
                 .linkedAt(LocalDateTime.now())

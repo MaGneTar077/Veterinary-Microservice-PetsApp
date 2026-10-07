@@ -140,4 +140,13 @@ class RegisterVeterinaryControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("A veterinary with this email already exists"));
     }
+
+    @Test
+    void register_shouldReturn401_whenNoTokenIsPresent() throws Exception {
+        mockMvc.perform(post("/api/veterinary/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest))
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized());
+    }
 }

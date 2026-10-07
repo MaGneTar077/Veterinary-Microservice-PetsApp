@@ -52,7 +52,6 @@ class LinkByCodeControllerTest {
         userId = UUID.randomUUID();
 
         validRequest = LinkByCodeRequest.builder()
-                .userId(userId)
                 .inviteCode("VET-DNU4WXDQ")
                 .build();
 
@@ -120,5 +119,14 @@ class LinkByCodeControllerTest {
                         .with(jwt()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("User is already linked to this veterinary"));
+    }
+
+    @Test
+    void linkByCode_shouldReturn401_whenNoTokenIsPresent() throws Exception {
+        mockMvc.perform(post("/api/veterinary/link/code")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest))
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized());
     }
 }

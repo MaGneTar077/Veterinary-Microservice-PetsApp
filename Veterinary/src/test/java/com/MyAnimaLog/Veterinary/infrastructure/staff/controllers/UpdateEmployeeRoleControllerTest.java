@@ -4,8 +4,13 @@ import com.MyAnimaLog.Veterinary.application.staff.dto.UpdateEmployeeRoleRequest
 import com.MyAnimaLog.Veterinary.application.staff.dto.UpdateEmployeeRoleResponse;
 import com.MyAnimaLog.Veterinary.application.staff.ports.in.UpdateEmployeeRoleUseCase;
 import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
+import com.MyAnimaLog.Veterinary.domain.security.Permission;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.TenantMismatchException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifySelfException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvalidEmployeeRoleException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.LastAdminException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
 import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
 import com.MyAnimaLog.Veterinary.infrastructure.staff.controllers.UpdateEmployeeRoleController;
@@ -104,5 +109,76 @@ class UpdateEmployeeRoleControllerTest {
                         .with(jwt()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Employee not found"));
+    }
+
+    @Test
+    void updateRole_shouldReturn401_whenNoTokenIsPresent() throws Exception {
+        mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/role", employeeId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                UpdateEmployeeRoleRequest.builder().role(EmployeeRole.ADMIN).build()
+                        ))
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void updateRole_shouldReturn403_whenCallerLacksStaffManage() throws Exception {
+        when(updateEmployeeRoleUseCase.updateRole(any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
+                .thenThrow(new InsufficientPermissionException(Permission.STAFF_MANAGE));
+
+        mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/role", employeeId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                UpdateEmployeeRoleRequest.builder().role(EmployeeRole.ADMIN).build()
+                        ))
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateRole_shouldReturn403_whenCallerBelongsToAnotherVeterinary() throws Exception {
+        when(updateEmployeeRoleUseCase.updateRole(any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
+                .thenThrow(new TenantMismatchException());
+
+        mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/role", employeeId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                UpdateEmployeeRoleRequest.builder().role(EmployeeRole.ADMIN).build()
+                        ))
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateRole_shouldReturn403_whenActorTargetsOwnRole() throws Exception {
+        when(updateEmployeeRoleUseCase.updateRole(any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
+                .thenThrow(new CannotModifySelfException());
+
+        mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/role", employeeId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                UpdateEmployeeRoleRequest.builder().role(EmployeeRole.ASSISTANT).build()
+                        ))
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateRole_shouldReturn409_whenDemotingTheLastActiveAdmin() throws Exception {
+        when(updateEmployeeRoleUseCase.updateRole(any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
+                .thenThrow(new LastAdminException());
+
+        mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/role", employeeId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                UpdateEmployeeRoleRequest.builder().role(EmployeeRole.VETERINARIAN).build()
+                        ))
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isConflict());
     }
 }

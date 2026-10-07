@@ -3,9 +3,11 @@ package com.MyAnimaLog.Veterinary.infrastructure.config;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidVeterinaryEmailException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.VeterinaryAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.VeterinaryEmailAlreadyExistsException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifySelfException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvalidEmployeeRoleException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.LastAdminException;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.ActiveSubscriptionAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.NoActiveSubscriptionException;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.SubscriptionNotFoundException;
@@ -143,5 +145,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(PlatformAdminRequiredException.class)
     public ResponseEntity<Map<String, Object>> handlePlatformAdminRequired(PlatformAdminRequiredException ex) {
         return build(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    @ExceptionHandler(CannotModifySelfException.class)
+    public ResponseEntity<Map<String, Object>> handleCannotModifySelf(CannotModifySelfException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    @ExceptionHandler(LastAdminException.class)
+    public ResponseEntity<Map<String, Object>> handleLastAdmin(LastAdminException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage());
     }
 }

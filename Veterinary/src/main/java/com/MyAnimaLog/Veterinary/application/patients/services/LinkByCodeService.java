@@ -5,6 +5,7 @@ import com.MyAnimaLog.Veterinary.application.patients.dto.LinkByCodeResponse;
 import com.MyAnimaLog.Veterinary.application.patients.ports.in.LinkByCodeUseCase;
 import com.MyAnimaLog.Veterinary.application.patients.ports.out.UserVeterinaryLinkRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.shared.ports.out.AuthenticatedUserPort;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.InvalidInviteCodeException;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.UserAlreadyLinkedException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotActiveException;
@@ -22,6 +23,7 @@ public class LinkByCodeService implements LinkByCodeUseCase {
 
     private final VeterinaryRepositoryPort veterinaryRepositoryPort;
     private final UserVeterinaryLinkRepositoryPort linkRepositoryPort;
+    private final AuthenticatedUserPort authenticatedUserPort;
 
     @Override
     public LinkByCodeResponse linkByCode(LinkByCodeRequest request) {
@@ -29,6 +31,8 @@ public class LinkByCodeService implements LinkByCodeUseCase {
         if (request.getInviteCode() == null || request.getInviteCode().isBlank()) {
             throw new InvalidInviteCodeException();
         }
+
+        UUID userId = authenticatedUserPort.current().userId();
 
         Veterinary veterinary = veterinaryRepositoryPort
                 .findByInviteCode(request.getInviteCode())
@@ -39,13 +43,13 @@ public class LinkByCodeService implements LinkByCodeUseCase {
         }
 
         if (linkRepositoryPort.existsByUserIdAndVeterinaryId(
-                request.getUserId(), veterinary.getId())) {
+                userId, veterinary.getId())) {
             throw new UserAlreadyLinkedException();
         }
 
         UserVeterinaryLink link = UserVeterinaryLink.builder()
                 .id(UUID.randomUUID())
-                .userId(request.getUserId())
+                .userId(userId)
                 .veterinaryId(veterinary.getId())
                 .status("LINKED")
                 .linkedAt(LocalDateTime.now())

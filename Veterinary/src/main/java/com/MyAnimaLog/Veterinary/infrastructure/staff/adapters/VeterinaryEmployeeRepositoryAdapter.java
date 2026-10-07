@@ -1,6 +1,7 @@
 package com.MyAnimaLog.Veterinary.infrastructure.staff.adapters;
 
 import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
+import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
 import com.MyAnimaLog.Veterinary.domain.staff.model.VeterinaryEmployee;
 import com.MyAnimaLog.Veterinary.infrastructure.staff.mapper.VeterinaryEmployeeMapper;
 import com.MyAnimaLog.Veterinary.infrastructure.staff.repositories.VeterinaryEmployeeJpaRepository;
@@ -35,6 +36,11 @@ public class VeterinaryEmployeeRepositoryAdapter implements VeterinaryEmployeeRe
     @Override
     public Optional<VeterinaryEmployee> findByVeterinaryIdAndUserId(UUID veterinaryId, UUID userId) {
         return jpaRepository.findByVeterinaryIdAndUserId(veterinaryId, userId).map(mapper::toDomain);
+    }
+
+    @Override
+    public long countByVeterinaryIdAndRoleAndActiveTrue(UUID veterinaryId, EmployeeRole role) {
+        return jpaRepository.countByVeterinaryIdAndRoleAndActiveTrue(veterinaryId, role);
     }
 
 }

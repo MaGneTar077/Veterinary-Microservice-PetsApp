@@ -4,9 +4,13 @@ import com.MyAnimaLog.Veterinary.application.staff.dto.CreateEmployeeRequest;
 import com.MyAnimaLog.Veterinary.application.staff.dto.CreateEmployeeResponse;
 import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
+import com.MyAnimaLog.Veterinary.domain.security.Permission;
 import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvalidEmployeeRoleException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.TenantMismatchException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotActiveException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
@@ -34,6 +38,9 @@ class CreateEmployeeServiceTest {
 
     @Mock
     private VeterinaryEmployeeRepositoryPort employeeRepositoryPort;
+
+    @Mock
+    private VeterinaryAuthorizationService authorizationService;
 
     @InjectMocks
     private CreateEmployeeService createEmployeeService;
@@ -173,6 +180,30 @@ class CreateEmployeeServiceTest {
         assertThatThrownBy(() ->
                 createEmployeeService.create(validRequest)
         ).isInstanceOf(VeterinaryNotActiveException.class);
+
+        verify(employeeRepositoryPort, never()).save(any());
+    }
+
+    @Test
+    void create_shouldThrowInsufficientPermissionException_whenCallerLacksStaffManage() {
+        when(authorizationService.require(veterinaryId, Permission.STAFF_MANAGE))
+                .thenThrow(new InsufficientPermissionException(Permission.STAFF_MANAGE));
+
+        assertThatThrownBy(() ->
+                createEmployeeService.create(validRequest)
+        ).isInstanceOf(InsufficientPermissionException.class);
+
+        verify(employeeRepositoryPort, never()).save(any());
+    }
+
+    @Test
+    void create_shouldThrowTenantMismatchException_whenCallerBelongsToAnotherVeterinary() {
+        when(authorizationService.require(veterinaryId, Permission.STAFF_MANAGE))
+                .thenThrow(new TenantMismatchException());
+
+        assertThatThrownBy(() ->
+                createEmployeeService.create(validRequest)
+        ).isInstanceOf(TenantMismatchException.class);
 
         verify(employeeRepositoryPort, never()).save(any());
     }

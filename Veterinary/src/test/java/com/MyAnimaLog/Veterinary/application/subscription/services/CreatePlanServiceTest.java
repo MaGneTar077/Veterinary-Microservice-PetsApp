@@ -4,8 +4,10 @@ import com.MyAnimaLog.Veterinary.application.subscription.dto.CreatePlanRequest;
 import com.MyAnimaLog.Veterinary.application.subscription.dto.CreatePlanResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.subscription.ports.out.VeterinarySubscriptionRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.ActiveSubscriptionAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InvalidVeterinaryNameException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.PlatformAdminRequiredException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotActiveException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
@@ -34,6 +36,9 @@ class CreatePlanServiceTest {
 
     @Mock
     private VeterinarySubscriptionRepositoryPort subscriptionRepositoryPort;
+
+    @Mock
+    private VeterinaryAuthorizationService authorizationService;
 
     @InjectMocks
     private CreatePlanService createPlanService;
@@ -201,6 +206,17 @@ class CreatePlanServiceTest {
         assertThatThrownBy(() ->
                 createPlanService.createPlan(validRequest)
         ).isInstanceOf(ActiveSubscriptionAlreadyExistsException.class);
+
+        verify(subscriptionRepositoryPort, never()).save(any());
+    }
+
+    @Test
+    void createPlan_shouldThrowPlatformAdminRequiredException_whenCallerIsNotPlatformAdmin() {
+        doThrow(new PlatformAdminRequiredException()).when(authorizationService).requirePlatformAdmin();
+
+        assertThatThrownBy(() ->
+                createPlanService.createPlan(validRequest)
+        ).isInstanceOf(PlatformAdminRequiredException.class);
 
         verify(subscriptionRepositoryPort, never()).save(any());
     }

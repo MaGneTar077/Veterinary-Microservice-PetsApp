@@ -4,6 +4,8 @@ import com.MyAnimaLog.Veterinary.application.patients.dto.LinkByUrlRequest;
 import com.MyAnimaLog.Veterinary.application.patients.dto.LinkByUrlResponse;
 import com.MyAnimaLog.Veterinary.application.patients.ports.out.UserVeterinaryLinkRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.shared.dto.AuthenticatedUser;
+import com.MyAnimaLog.Veterinary.application.shared.ports.out.AuthenticatedUserPort;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.InvalidInviteCodeException;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.UserAlreadyLinkedException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotActiveException;
@@ -33,6 +35,9 @@ class LinkByUrlServiceTest {
     @Mock
     private UserVeterinaryLinkRepositoryPort linkRepositoryPort;
 
+    @Mock
+    private AuthenticatedUserPort authenticatedUserPort;
+
     @InjectMocks
     private LinkByUrlService linkByUrlService;
 
@@ -46,6 +51,9 @@ class LinkByUrlServiceTest {
     void setUp() {
         userId = UUID.randomUUID();
         UUID veterinaryId = UUID.randomUUID();
+
+        lenient().when(authenticatedUserPort.current()).thenReturn(
+                new AuthenticatedUser(userId, "owner@example.com", true, false, Optional.empty()));
 
         activeVeterinary = Veterinary.builder()
                 .id(veterinaryId)
@@ -71,7 +79,6 @@ class LinkByUrlServiceTest {
                 .build();
 
         validRequest = LinkByUrlRequest.builder()
-                .userId(userId)
                 .inviteLink("http://localhost:8082/api/veterinary/join?code=VET-DNU4WXDQ")
                 .build();
     }
