@@ -36,6 +36,7 @@ public class SecurityConfig {
                         .requestMatchers("/public/**").permitAll()
                         .requestMatchers("/internal/**").hasAuthority("INTERNAL_SERVICE")
                         .requestMatchers("/admin/**").hasAuthority("PLATFORM_ADMIN")
+                        .requestMatchers("/api/veterinary/admin/**").hasAuthority("PLATFORM_ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(internalApiKeyFilter, BearerTokenAuthenticationFilter.class)
                 .exceptionHandling(exceptionHandling -> exceptionHandling

@@ -8,6 +8,7 @@ import com.MyAnimaLog.Veterinary.infrastructure.staff.repositories.VeterinaryEmp
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -39,8 +40,13 @@ public class VeterinaryEmployeeRepositoryAdapter implements VeterinaryEmployeeRe
     }
 
     @Override
-    public long countByVeterinaryIdAndRoleAndActiveTrue(UUID veterinaryId, EmployeeRole role) {
-        return jpaRepository.countByVeterinaryIdAndRoleAndActiveTrue(veterinaryId, role);
+    public List<VeterinaryEmployee> findByUserIdAndRole(UUID userId, EmployeeRole role) {
+        return jpaRepository.findByUserIdAndRole(userId, role).stream().map(mapper::toDomain).toList();
+    }
+
+    @Override
+    public List<VeterinaryEmployee> findByUserIdAndActiveTrue(UUID userId) {
+        return jpaRepository.findByUserIdAndActiveTrue(userId).stream().map(mapper::toDomain).toList();
     }
 
 }

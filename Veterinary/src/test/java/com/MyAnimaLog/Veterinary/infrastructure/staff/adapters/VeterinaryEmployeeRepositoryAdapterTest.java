@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -124,5 +125,36 @@ class VeterinaryEmployeeRepositoryAdapterTest {
         boolean result = adapter.existsByVeterinaryIdAndUserId(veterinaryId, userId);
 
         assertThat(result).isFalse();
+    }
+
+    @Test
+    void findByUserIdAndRole_shouldReturnMappedDomainList() {
+        when(jpaRepository.findByUserIdAndRole(userId, EmployeeRole.OWNER)).thenReturn(List.of(entity));
+        when(mapper.toDomain(entity)).thenReturn(domain);
+
+        List<VeterinaryEmployee> result = adapter.findByUserIdAndRole(userId, EmployeeRole.OWNER);
+
+        assertThat(result).containsExactly(domain);
+        verify(jpaRepository, times(1)).findByUserIdAndRole(userId, EmployeeRole.OWNER);
+    }
+
+    @Test
+    void findByUserIdAndRole_shouldReturnEmptyList_whenNoneMatch() {
+        when(jpaRepository.findByUserIdAndRole(userId, EmployeeRole.OWNER)).thenReturn(List.of());
+
+        List<VeterinaryEmployee> result = adapter.findByUserIdAndRole(userId, EmployeeRole.OWNER);
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void findByUserIdAndActiveTrue_shouldReturnMappedDomainList() {
+        when(jpaRepository.findByUserIdAndActiveTrue(userId)).thenReturn(List.of(entity));
+        when(mapper.toDomain(entity)).thenReturn(domain);
+
+        List<VeterinaryEmployee> result = adapter.findByUserIdAndActiveTrue(userId);
+
+        assertThat(result).containsExactly(domain);
+        verify(jpaRepository, times(1)).findByUserIdAndActiveTrue(userId);
     }
 }

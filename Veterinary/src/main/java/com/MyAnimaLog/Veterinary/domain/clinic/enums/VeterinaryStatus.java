@@ -8,7 +8,11 @@ public enum VeterinaryStatus {
     REJECTED,
     SUSPENDED;
 
-    public static VeterinaryStatus fromActiveFlag(boolean active) {
-        return active ? ACTIVE : SUSPENDED;
+    /**
+     * public.veterinary.active is kept in sync with this status (active = status == ACTIVE)
+     * until a future cleanup script drops that column — see db/scripts/README.md.
+     */
+    public boolean impliesActiveFlag() {
+        return this == ACTIVE;
     }
 }

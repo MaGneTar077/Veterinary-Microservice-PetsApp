@@ -7,6 +7,7 @@ import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeR
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.domain.security.Permission;
+import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvalidEmployeeRoleException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotActiveException;
@@ -33,6 +34,9 @@ public class CreateEmployeeService implements CreateEmployeeUseCase {
 
         if (request.getRole() == null) {
             throw new InvalidEmployeeRoleException();
+        }
+        if (request.getRole() == EmployeeRole.OWNER) {
+            throw new InvalidEmployeeRoleException("Cannot assign the OWNER role through this endpoint");
         }
 
         Veterinary veterinary = veterinaryRepositoryPort.findById(request.getVeterinaryId())

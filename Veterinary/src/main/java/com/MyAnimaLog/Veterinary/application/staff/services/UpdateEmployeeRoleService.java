@@ -8,10 +8,11 @@ import com.MyAnimaLog.Veterinary.application.staff.ports.in.UpdateEmployeeRoleUs
 import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
 import com.MyAnimaLog.Veterinary.domain.security.Permission;
 import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyOwnerException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyPeerAdminException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifySelfException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvalidEmployeeRoleException;
-import com.MyAnimaLog.Veterinary.domain.staff.exceptions.LastAdminException;
 import com.MyAnimaLog.Veterinary.domain.staff.model.VeterinaryEmployee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,9 @@ public class UpdateEmployeeRoleService implements UpdateEmployeeRoleUseCase {
         if (request.getRole() == null) {
             throw new InvalidEmployeeRoleException();
         }
+        if (request.getRole() == EmployeeRole.OWNER) {
+            throw new InvalidEmployeeRoleException("Cannot assign the OWNER role through this endpoint");
+        }
 
         VeterinaryEmployee employee = employeeRepositoryPort.findById(employeeId)
                 .orElseThrow(EmployeeNotFoundException::new);
@@ -45,13 +49,11 @@ public class UpdateEmployeeRoleService implements UpdateEmployeeRoleUseCase {
             throw new CannotModifySelfException();
         }
 
-        boolean isDemotingLastAdmin = employee.getRole() == EmployeeRole.ADMIN
-                && Boolean.TRUE.equals(employee.getActive())
-                && request.getRole() != EmployeeRole.ADMIN
-                && employeeRepositoryPort.countByVeterinaryIdAndRoleAndActiveTrue(
-                        employee.getVeterinaryId(), EmployeeRole.ADMIN) <= 1;
-        if (isDemotingLastAdmin) {
-            throw new LastAdminException();
+        if (employee.getRole() == EmployeeRole.OWNER) {
+            throw new CannotModifyOwnerException();
+        }
+        if (actingEmployee.getRole() == EmployeeRole.ADMIN && employee.getRole() == EmployeeRole.ADMIN) {
+            throw new CannotModifyPeerAdminException();
         }
 
         VeterinaryEmployee updated = employee.toBuilder()

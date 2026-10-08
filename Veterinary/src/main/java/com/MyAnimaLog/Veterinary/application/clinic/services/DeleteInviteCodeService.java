@@ -1,11 +1,12 @@
 package com.MyAnimaLog.Veterinary.application.clinic.services;
 
-import com.MyAnimaLog.Veterinary.application.clinic.dto.DeActivateVeterinaryResponse;
-import com.MyAnimaLog.Veterinary.application.clinic.ports.in.DeActivateVeterinaryUseCase;
+import com.MyAnimaLog.Veterinary.application.clinic.dto.DeleteInviteCodeResponse;
+import com.MyAnimaLog.Veterinary.application.clinic.ports.in.DeleteInviteCodeUseCase;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
-import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
+import com.MyAnimaLog.Veterinary.domain.security.Permission;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -13,28 +14,29 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class DeActivateVeterinaryService implements DeActivateVeterinaryUseCase {
+public class DeleteInviteCodeService implements DeleteInviteCodeUseCase {
 
     private final VeterinaryRepositoryPort veterinaryRepositoryPort;
     private final VeterinaryAuthorizationService authorizationService;
 
     @Override
-    public DeActivateVeterinaryResponse deActivate(UUID veterinaryId) {
-        authorizationService.requirePlatformAdmin();
+    public DeleteInviteCodeResponse deleteInviteCode(UUID veterinaryId) {
+        authorizationService.require(veterinaryId, Permission.CLINIC_CONFIGURE);
 
         Veterinary veterinary = veterinaryRepositoryPort.findById(veterinaryId)
                 .orElseThrow(VeterinaryNotFoundException::new);
 
         Veterinary updated = veterinary.toBuilder()
-                .active(false)
+                .inviteCode(null)
+                .inviteLink(null)
                 .build();
 
         Veterinary saved = veterinaryRepositoryPort.save(updated);
 
-        return DeActivateVeterinaryResponse.builder()
+        return DeleteInviteCodeResponse.builder()
                 .id(saved.getId())
-                .name(saved.getName())
-                .active(saved.getActive())
+                .inviteCode(saved.getInviteCode())
+                .inviteLink(saved.getInviteLink())
                 .build();
     }
 }

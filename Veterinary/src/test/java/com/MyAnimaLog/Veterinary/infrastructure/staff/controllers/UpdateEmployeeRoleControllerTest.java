@@ -10,7 +10,8 @@ import com.MyAnimaLog.Veterinary.domain.shared.exceptions.TenantMismatchExceptio
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifySelfException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvalidEmployeeRoleException;
-import com.MyAnimaLog.Veterinary.domain.staff.exceptions.LastAdminException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyOwnerException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyPeerAdminException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
 import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
 import com.MyAnimaLog.Veterinary.infrastructure.staff.controllers.UpdateEmployeeRoleController;
@@ -168,9 +169,9 @@ class UpdateEmployeeRoleControllerTest {
     }
 
     @Test
-    void updateRole_shouldReturn409_whenDemotingTheLastActiveAdmin() throws Exception {
+    void updateRole_shouldReturn403_whenTargetIsOwner() throws Exception {
         when(updateEmployeeRoleUseCase.updateRole(any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
-                .thenThrow(new LastAdminException());
+                .thenThrow(new CannotModifyOwnerException());
 
         mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/role", employeeId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -179,6 +180,21 @@ class UpdateEmployeeRoleControllerTest {
                         ))
                         .with(csrf())
                         .with(jwt()))
-                .andExpect(status().isConflict());
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateRole_shouldReturn403_whenActingAdminTargetsAnotherAdmin() throws Exception {
+        when(updateEmployeeRoleUseCase.updateRole(any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
+                .thenThrow(new CannotModifyPeerAdminException());
+
+        mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/role", employeeId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                UpdateEmployeeRoleRequest.builder().role(EmployeeRole.VETERINARIAN).build()
+                        ))
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
     }
 }

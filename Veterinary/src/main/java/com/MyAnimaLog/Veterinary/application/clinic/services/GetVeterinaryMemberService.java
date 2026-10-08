@@ -40,7 +40,7 @@ public class GetVeterinaryMemberService implements GetVeterinaryMemberUseCase {
                     .build();
         }
 
-        VeterinaryStatus status = VeterinaryStatus.fromActiveFlag(veterinary.get().getActive());
+        VeterinaryStatus status = veterinary.get().getStatus();
         String subscriptionStatus = subscriptionRepositoryPort.existsActiveByVeterinaryId(veterinaryId)
                 ? SUBSCRIPTION_ACTIVE
                 : SUBSCRIPTION_NONE;

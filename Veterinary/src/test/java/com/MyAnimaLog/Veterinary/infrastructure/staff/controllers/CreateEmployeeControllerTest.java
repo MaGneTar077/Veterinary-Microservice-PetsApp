@@ -105,6 +105,20 @@ class CreateEmployeeControllerTest {
     }
 
     @Test
+    void create_shouldReturn400_whenRoleIsOwner() throws Exception {
+        when(createEmployeeUseCase.create(any(CreateEmployeeRequest.class)))
+                .thenThrow(new InvalidEmployeeRoleException("Cannot assign the OWNER role through this endpoint"));
+
+        mockMvc.perform(post("/api/veterinary/employees")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest))
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Cannot assign the OWNER role through this endpoint"));
+    }
+
+    @Test
     void create_shouldReturn404_whenVeterinaryNotFound() throws Exception {
         when(createEmployeeUseCase.create(any(CreateEmployeeRequest.class)))
                 .thenThrow(new VeterinaryNotFoundException());

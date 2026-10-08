@@ -14,4 +14,5 @@ public interface VeterinaryRepositoryPort {
     boolean existsByEmailAndIdNot(String email, UUID id);
     Optional<Veterinary> findByInviteCode(String inviteCode);
     Optional<Veterinary> findByInviteLink(String inviteLink);
+    boolean existsByNit(String nit);
 }

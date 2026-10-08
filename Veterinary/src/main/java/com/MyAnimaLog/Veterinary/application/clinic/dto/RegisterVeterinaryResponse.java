@@ -1,5 +1,6 @@
 package com.MyAnimaLog.Veterinary.application.clinic.dto;
 
+import com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,5 +21,8 @@ public class RegisterVeterinaryResponse {
     private String email;
     private String tenantId;
     private Boolean active;
+    private VeterinaryStatus status;
+    private String legalName;
+    private String nit;
     private LocalDateTime createdAt;
 }

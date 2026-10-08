@@ -7,9 +7,10 @@ import com.MyAnimaLog.Veterinary.application.staff.ports.in.DeActivateEmployeeUs
 import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
 import com.MyAnimaLog.Veterinary.domain.security.Permission;
 import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyOwnerException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyPeerAdminException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifySelfException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeNotFoundException;
-import com.MyAnimaLog.Veterinary.domain.staff.exceptions.LastAdminException;
 import com.MyAnimaLog.Veterinary.domain.staff.model.VeterinaryEmployee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -38,12 +39,11 @@ public class DeActivateEmployeeService implements DeActivateEmployeeUseCase {
             throw new CannotModifySelfException();
         }
 
-        boolean isDeactivatingLastAdmin = employee.getRole() == EmployeeRole.ADMIN
-                && Boolean.TRUE.equals(employee.getActive())
-                && employeeRepositoryPort.countByVeterinaryIdAndRoleAndActiveTrue(
-                        employee.getVeterinaryId(), EmployeeRole.ADMIN) <= 1;
-        if (isDeactivatingLastAdmin) {
-            throw new LastAdminException();
+        if (employee.getRole() == EmployeeRole.OWNER) {
+            throw new CannotModifyOwnerException();
+        }
+        if (actingEmployee.getRole() == EmployeeRole.ADMIN && employee.getRole() == EmployeeRole.ADMIN) {
+            throw new CannotModifyPeerAdminException();
         }
 
         VeterinaryEmployee updated = employee.toBuilder()

@@ -59,4 +59,9 @@ public class VeterinaryRepositoryAdapter implements VeterinaryRepositoryPort {
     public Optional<Veterinary> findByInviteLink(String inviteLink) {
         return jpaRepository.findByInviteLink(inviteLink).map(mapper::toDomain);
     }
+
+    @Override
+    public boolean existsByNit(String nit) {
+        return jpaRepository.existsByNit(nit);
+    }
 }

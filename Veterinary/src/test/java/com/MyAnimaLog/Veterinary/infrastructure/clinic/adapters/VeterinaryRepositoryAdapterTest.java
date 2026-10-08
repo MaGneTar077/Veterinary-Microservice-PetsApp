@@ -185,4 +185,23 @@ class VeterinaryRepositoryAdapterTest {
 
         assertThat(result).isFalse();
     }
+
+    @Test
+    void existsByNit_shouldReturnTrue_whenNitExists() {
+        when(jpaRepository.existsByNit("123456789-6")).thenReturn(true);
+
+        boolean result = veterinaryRepositoryAdapter.existsByNit("123456789-6");
+
+        assertThat(result).isTrue();
+        verify(jpaRepository, times(1)).existsByNit("123456789-6");
+    }
+
+    @Test
+    void existsByNit_shouldReturnFalse_whenNitDoesNotExist() {
+        when(jpaRepository.existsByNit("900123456-8")).thenReturn(false);
+
+        boolean result = veterinaryRepositoryAdapter.existsByNit("900123456-8");
+
+        assertThat(result).isFalse();
+    }
 }

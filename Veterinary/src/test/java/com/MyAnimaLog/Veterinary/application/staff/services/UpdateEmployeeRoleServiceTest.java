@@ -8,10 +8,11 @@ import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeR
 import com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus;
 import com.MyAnimaLog.Veterinary.domain.security.Permission;
 import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyOwnerException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyPeerAdminException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifySelfException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvalidEmployeeRoleException;
-import com.MyAnimaLog.Veterinary.domain.staff.exceptions.LastAdminException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.TenantMismatchException;
 import com.MyAnimaLog.Veterinary.domain.staff.model.VeterinaryEmployee;
@@ -82,8 +83,6 @@ class UpdateEmployeeRoleServiceTest {
 
         lenient().when(authorizationService.require(veterinaryId, Permission.STAFF_MANAGE)).thenReturn(callerContext);
         lenient().when(employeeRepositoryPort.findById(actingEmployeeId)).thenReturn(Optional.of(actingEmployee));
-        lenient().when(employeeRepositoryPort.countByVeterinaryIdAndRoleAndActiveTrue(veterinaryId, EmployeeRole.ADMIN))
-                .thenReturn(2L);
     }
 
     @Test
@@ -193,36 +192,45 @@ class UpdateEmployeeRoleServiceTest {
     }
 
     @Test
-    void updateRole_shouldThrowLastAdminException_whenDemotingTheOnlyActiveAdmin() {
-        VeterinaryEmployee lastAdmin = existingEmployee.toBuilder().role(EmployeeRole.ADMIN).active(true).build();
-        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(lastAdmin));
-        when(employeeRepositoryPort.countByVeterinaryIdAndRoleAndActiveTrue(veterinaryId, EmployeeRole.ADMIN))
-                .thenReturn(1L);
+    void updateRole_shouldThrowInvalidEmployeeRoleException_whenAssigningOwnerRole() {
+        assertThatThrownBy(() ->
+                updateEmployeeRoleService.updateRole(
+                        employeeId,
+                        UpdateEmployeeRoleRequest.builder().role(EmployeeRole.OWNER).build()
+                )
+        ).isInstanceOf(InvalidEmployeeRoleException.class);
+
+        verify(employeeRepositoryPort, never()).save(any());
+    }
+
+    @Test
+    void updateRole_shouldThrowCannotModifyOwnerException_whenTargetIsOwner() {
+        VeterinaryEmployee owner = existingEmployee.toBuilder().role(EmployeeRole.OWNER).build();
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(owner));
 
         assertThatThrownBy(() ->
                 updateEmployeeRoleService.updateRole(
                         employeeId,
                         UpdateEmployeeRoleRequest.builder().role(EmployeeRole.VETERINARIAN).build()
                 )
-        ).isInstanceOf(LastAdminException.class);
+        ).isInstanceOf(CannotModifyOwnerException.class);
 
         verify(employeeRepositoryPort, never()).save(any());
     }
 
     @Test
-    void updateRole_shouldAllowDemotion_whenAnotherActiveAdminRemains() {
-        VeterinaryEmployee admin = existingEmployee.toBuilder().role(EmployeeRole.ADMIN).active(true).build();
-        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(admin));
-        when(employeeRepositoryPort.countByVeterinaryIdAndRoleAndActiveTrue(veterinaryId, EmployeeRole.ADMIN))
-                .thenReturn(2L);
-        when(employeeRepositoryPort.save(any(VeterinaryEmployee.class))).thenReturn(updatedEmployee);
+    void updateRole_shouldThrowCannotModifyPeerAdminException_whenActingAdminTargetsAnotherAdmin() {
+        VeterinaryEmployee targetAdmin = existingEmployee.toBuilder().role(EmployeeRole.ADMIN).build();
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(targetAdmin));
 
-        assertThatNoException().isThrownBy(() ->
+        assertThatThrownBy(() ->
                 updateEmployeeRoleService.updateRole(
                         employeeId,
                         UpdateEmployeeRoleRequest.builder().role(EmployeeRole.VETERINARIAN).build()
                 )
-        );
+        ).isInstanceOf(CannotModifyPeerAdminException.class);
+
+        verify(employeeRepositoryPort, never()).save(any());
     }
 
     @Test

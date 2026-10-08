@@ -13,4 +13,5 @@ public interface VeterinaryJpaRepository extends JpaRepository<VeterinaryEntity,
     boolean existsByEmailAndIdNot(String email, UUID id);
     Optional<VeterinaryEntity> findByInviteCode(String inviteCode);
     Optional<VeterinaryEntity> findByInviteLink(String inviteLink);
+    boolean existsByNit(String nit);
 }

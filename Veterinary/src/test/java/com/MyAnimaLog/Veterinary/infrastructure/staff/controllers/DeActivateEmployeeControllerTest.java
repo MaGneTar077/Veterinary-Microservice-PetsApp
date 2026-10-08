@@ -7,7 +7,8 @@ import com.MyAnimaLog.Veterinary.domain.security.Permission;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifySelfException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeNotFoundException;
-import com.MyAnimaLog.Veterinary.domain.staff.exceptions.LastAdminException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyOwnerException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyPeerAdminException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
 import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
 import com.MyAnimaLog.Veterinary.infrastructure.staff.controllers.DeActivateEmployeeController;
@@ -110,13 +111,24 @@ class DeActivateEmployeeControllerTest {
     }
 
     @Test
-    void deActivate_shouldReturn409_whenDeactivatingTheLastActiveAdmin() throws Exception {
+    void deActivate_shouldReturn403_whenTargetIsOwner() throws Exception {
         when(deActivateEmployeeUseCase.deActivate(any(UUID.class)))
-                .thenThrow(new LastAdminException());
+                .thenThrow(new CannotModifyOwnerException());
 
         mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/deactivate", employeeId)
                         .with(csrf())
                         .with(jwt()))
-                .andExpect(status().isConflict());
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void deActivate_shouldReturn403_whenActingAdminTargetsAnotherAdmin() throws Exception {
+        when(deActivateEmployeeUseCase.deActivate(any(UUID.class)))
+                .thenThrow(new CannotModifyPeerAdminException());
+
+        mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/deactivate", employeeId)
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
     }
 }

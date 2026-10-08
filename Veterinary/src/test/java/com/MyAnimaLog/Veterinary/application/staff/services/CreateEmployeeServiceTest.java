@@ -104,6 +104,17 @@ class CreateEmployeeServiceTest {
     }
 
     @Test
+    void create_shouldThrowInvalidEmployeeRoleException_whenRoleIsOwner() {
+        validRequest.setRole(EmployeeRole.OWNER);
+
+        assertThatThrownBy(() ->
+                createEmployeeService.create(validRequest)
+        ).isInstanceOf(InvalidEmployeeRoleException.class);
+
+        verify(employeeRepositoryPort, never()).save(any());
+    }
+
+    @Test
     void create_shouldThrowInvalidEmployeeRoleException_whenRoleIsNull() {
         validRequest.setRole(null);
 

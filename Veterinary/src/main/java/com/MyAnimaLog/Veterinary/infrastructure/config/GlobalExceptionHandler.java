@@ -1,13 +1,19 @@
 package com.MyAnimaLog.Veterinary.infrastructure.config;
 
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.EmailNotVerifiedException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidNitException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidVeterinaryEmailException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidVeterinaryStatusTransitionException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.TooManyOwnedVeterinariesException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.VeterinaryAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.VeterinaryEmailAlreadyExistsException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.VeterinaryNitAlreadyExistsException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyOwnerException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyPeerAdminException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifySelfException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvalidEmployeeRoleException;
-import com.MyAnimaLog.Veterinary.domain.staff.exceptions.LastAdminException;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.ActiveSubscriptionAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.NoActiveSubscriptionException;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.SubscriptionNotFoundException;
@@ -152,8 +158,38 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.FORBIDDEN, ex.getMessage());
     }
 
-    @ExceptionHandler(LastAdminException.class)
-    public ResponseEntity<Map<String, Object>> handleLastAdmin(LastAdminException ex) {
+    @ExceptionHandler(CannotModifyOwnerException.class)
+    public ResponseEntity<Map<String, Object>> handleCannotModifyOwner(CannotModifyOwnerException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    @ExceptionHandler(CannotModifyPeerAdminException.class)
+    public ResponseEntity<Map<String, Object>> handleCannotModifyPeerAdmin(CannotModifyPeerAdminException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidNitException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidNit(InvalidNitException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(VeterinaryNitAlreadyExistsException.class)
+    public ResponseEntity<Map<String, Object>> handleNitAlreadyExists(VeterinaryNitAlreadyExistsException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ResponseEntity<Map<String, Object>> handleEmailNotVerified(EmailNotVerifiedException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    @ExceptionHandler(TooManyOwnedVeterinariesException.class)
+    public ResponseEntity<Map<String, Object>> handleTooManyOwnedVeterinaries(TooManyOwnedVeterinariesException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidVeterinaryStatusTransitionException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidStatusTransition(InvalidVeterinaryStatusTransitionException ex) {
         return build(HttpStatus.CONFLICT, ex.getMessage());
     }
 }

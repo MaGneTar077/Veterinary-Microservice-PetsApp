@@ -56,6 +56,7 @@ class GetVeterinaryMemberServiceTest {
                 .email("elbosque@veterinaria.com")
                 .tenantId(UUID.randomUUID().toString())
                 .active(true)
+                .status(VeterinaryStatus.ACTIVE)
                 .createdAt(LocalDateTime.now())
                 .build();
     }
@@ -144,7 +145,10 @@ class GetVeterinaryMemberServiceTest {
 
     @Test
     void getMember_returnsSuspendedStatus_whenVeterinaryIsInactive() {
-        Veterinary suspendedVeterinary = activeVeterinary.toBuilder().active(false).build();
+        Veterinary suspendedVeterinary = activeVeterinary.toBuilder()
+                .active(false)
+                .status(VeterinaryStatus.SUSPENDED)
+                .build();
         when(veterinaryRepositoryPort.findById(veterinaryId)).thenReturn(Optional.of(suspendedVeterinary));
         when(subscriptionRepositoryPort.existsActiveByVeterinaryId(veterinaryId)).thenReturn(false);
         when(employeeRepositoryPort.findByVeterinaryIdAndUserId(veterinaryId, userId))

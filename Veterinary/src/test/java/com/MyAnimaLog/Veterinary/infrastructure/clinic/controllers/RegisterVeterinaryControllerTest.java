@@ -3,10 +3,15 @@ package com.MyAnimaLog.Veterinary.infrastructure.clinic.controllers;
 import com.MyAnimaLog.Veterinary.application.clinic.dto.RegisterVeterinaryRequest;
 import com.MyAnimaLog.Veterinary.application.clinic.dto.RegisterVeterinaryResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.in.RegisterVeterinaryUseCase;
+import com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.EmailNotVerifiedException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidNitException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidVeterinaryEmailException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InvalidVeterinaryNameException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.TooManyOwnedVeterinariesException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.VeterinaryAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.VeterinaryEmailAlreadyExistsException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.VeterinaryNitAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
 import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -53,6 +58,7 @@ class RegisterVeterinaryControllerTest {
                 .city("Cartagena")
                 .phone("3001234567")
                 .email("elbosque@veterinaria.com")
+                .nit("123456789-6")
                 .build();
 
         validResponse = RegisterVeterinaryResponse.builder()
@@ -62,7 +68,8 @@ class RegisterVeterinaryControllerTest {
                 .phone("3001234567")
                 .email("elbosque@veterinaria.com")
                 .tenantId(UUID.randomUUID().toString())
-                .active(true)
+                .active(false)
+                .status(VeterinaryStatus.PENDING_DOCUMENTS)
                 .createdAt(LocalDateTime.now())
                 .build();
     }
@@ -80,7 +87,8 @@ class RegisterVeterinaryControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Clínica El Bosque"))
                 .andExpect(jsonPath("$.email").value("elbosque@veterinaria.com"))
-                .andExpect(jsonPath("$.active").value(true))
+                .andExpect(jsonPath("$.active").value(false))
+                .andExpect(jsonPath("$.status").value("PENDING_DOCUMENTS"))
                 .andExpect(jsonPath("$.tenantId").isNotEmpty())
                 .andExpect(jsonPath("$.id").isNotEmpty());
     }
@@ -139,6 +147,58 @@ class RegisterVeterinaryControllerTest {
                         .with(jwt()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("A veterinary with this email already exists"));
+    }
+
+    @Test
+    void register_shouldReturn400_whenNitIsInvalid() throws Exception {
+        when(registerVeterinaryUseCase.registerVeterinary(any(RegisterVeterinaryRequest.class)))
+                .thenThrow(new InvalidNitException());
+
+        mockMvc.perform(post("/api/veterinary/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest))
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void register_shouldReturn409_whenNitAlreadyExists() throws Exception {
+        when(registerVeterinaryUseCase.registerVeterinary(any(RegisterVeterinaryRequest.class)))
+                .thenThrow(new VeterinaryNitAlreadyExistsException());
+
+        mockMvc.perform(post("/api/veterinary/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest))
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void register_shouldReturn403_whenCallerEmailIsNotVerified() throws Exception {
+        when(registerVeterinaryUseCase.registerVeterinary(any(RegisterVeterinaryRequest.class)))
+                .thenThrow(new EmailNotVerifiedException());
+
+        mockMvc.perform(post("/api/veterinary/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest))
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void register_shouldReturn409_whenCallerAlreadyOwnsThreeNonFinalClinics() throws Exception {
+        when(registerVeterinaryUseCase.registerVeterinary(any(RegisterVeterinaryRequest.class)))
+                .thenThrow(new TooManyOwnedVeterinariesException());
+
+        mockMvc.perform(post("/api/veterinary/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest))
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isConflict());
     }
 
     @Test

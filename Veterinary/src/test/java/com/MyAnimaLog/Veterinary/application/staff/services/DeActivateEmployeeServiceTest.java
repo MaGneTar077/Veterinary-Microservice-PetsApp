@@ -9,9 +9,10 @@ import com.MyAnimaLog.Veterinary.domain.security.Permission;
 import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.TenantMismatchException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyOwnerException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyPeerAdminException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifySelfException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeNotFoundException;
-import com.MyAnimaLog.Veterinary.domain.staff.exceptions.LastAdminException;
 import com.MyAnimaLog.Veterinary.domain.staff.model.VeterinaryEmployee;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -71,17 +72,15 @@ class DeActivateEmployeeServiceTest {
                 .id(actingEmployeeId)
                 .veterinaryId(veterinaryId)
                 .userId(UUID.randomUUID())
-                .role(EmployeeRole.ADMIN)
+                .role(EmployeeRole.OWNER)
                 .active(true)
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        callerContext = new ClinicContext(veterinaryId, actingEmployeeId, EmployeeRole.ADMIN, false, VeterinaryStatus.ACTIVE);
+        callerContext = new ClinicContext(veterinaryId, actingEmployeeId, EmployeeRole.OWNER, false, VeterinaryStatus.ACTIVE);
 
         lenient().when(authorizationService.require(veterinaryId, Permission.STAFF_MANAGE)).thenReturn(callerContext);
         lenient().when(employeeRepositoryPort.findById(actingEmployeeId)).thenReturn(Optional.of(actingEmployee));
-        lenient().when(employeeRepositoryPort.countByVeterinaryIdAndRoleAndActiveTrue(veterinaryId, EmployeeRole.ADMIN))
-                .thenReturn(2L);
     }
 
     @Test
@@ -150,14 +149,26 @@ class DeActivateEmployeeServiceTest {
     }
 
     @Test
-    void deActivate_shouldThrowLastAdminException_whenDeactivatingTheOnlyActiveAdmin() {
-        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(activeEmployee));
-        when(employeeRepositoryPort.countByVeterinaryIdAndRoleAndActiveTrue(veterinaryId, EmployeeRole.ADMIN))
-                .thenReturn(1L);
+    void deActivate_shouldThrowCannotModifyOwnerException_whenTargetIsOwner() {
+        VeterinaryEmployee owner = activeEmployee.toBuilder().role(EmployeeRole.OWNER).build();
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(owner));
 
         assertThatThrownBy(() ->
                 deActivateEmployeeService.deActivate(employeeId)
-        ).isInstanceOf(LastAdminException.class);
+        ).isInstanceOf(CannotModifyOwnerException.class);
+
+        verify(employeeRepositoryPort, never()).save(any());
+    }
+
+    @Test
+    void deActivate_shouldThrowCannotModifyPeerAdminException_whenActingAdminTargetsAnotherAdmin() {
+        VeterinaryEmployee actingAdmin = actingEmployee.toBuilder().role(EmployeeRole.ADMIN).build();
+        when(employeeRepositoryPort.findById(actingEmployeeId)).thenReturn(Optional.of(actingAdmin));
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(activeEmployee));
+
+        assertThatThrownBy(() ->
+                deActivateEmployeeService.deActivate(employeeId)
+        ).isInstanceOf(CannotModifyPeerAdminException.class);
 
         verify(employeeRepositoryPort, never()).save(any());
     }

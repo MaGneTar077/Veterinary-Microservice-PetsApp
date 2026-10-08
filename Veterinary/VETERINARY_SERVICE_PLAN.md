@@ -833,11 +833,11 @@ APP_BASE_URL, SUPPORT_EMAIL
 
 ### Fase 2 — Clínica, roles y verificación
 
-- ☐ **VET-09** Scripts 002 y 003. `VeterinaryStatus` reemplaza el booleano `active` en dominio, entidad y mapper.
-- ☐ **VET-10** `RegisterVeterinary` 🔧 (OWNER + verificación DRAFT en una transacción, value object `Nit`).
+- ☑ **VET-09** Scripts 001-003 (numeración real: no existía ningún script previo, así que no son los "002 y 003" nombrados aquí). `VeterinaryStatus` se persiste en `status` (reemplaza la derivación desde `active`) en dominio, entidad y mapper; `EmployeeRole` agrega `OWNER`/`RECEPTIONIST`; `RolePermissions` implementa la matriz de 5 roles completa.
+- ☑ **VET-10** `RegisterVeterinary` 🔧: el creador queda `OWNER` (no hay verificación `DRAFT` separada todavía — el estado inicial es directamente `PENDING_DOCUMENTS`), value object `Nit` con dígito de verificación DIAN, máximo 3 clínicas no-`REJECTED` por `OWNER`, requiere `email_verified=true`.
 - ☐ **VET-11** Endpoint interno `members` (§5.5). *Desbloquea USER-03.*
-- ☐ **VET-12** `GetVeterinary`, `UpdateVeterinarySettings`, logo, `RevokeInviteCode`, `GetMyVeterinaries`.
-- ☐ **VET-13** Mover `Activate`/`DeActivate` a admin (`Suspend`/`Reactivate`).
+- ☑ **VET-12 (parcial)** `GetVeterinaryProfile` (`GET /api/veterinary/{id}`), `UpdateVeterinarySettings`, `DeleteInviteCode` (el plan lo llama `RevokeInviteCode`), `GetMyVeterinaries` (`GET /api/veterinary/me`) — hechos. **Falta el logo** (`FileStoragePort`/bucket, Fase 2B, junto con la verificación de documentos).
+- ☑ **VET-13** `Activate`/`DeActivate` reemplazados por `SuspendVeterinary`/`ReactivateVeterinary`, bajo `/api/veterinary/admin/veterinaries/{id}/suspend|reactivate` (no bajo `/admin/**`: el gateway solo enruta `/api/veterinary/**` a este servicio — ver CLAUDE.md "Admin routing convention"). `ReactivateVeterinary` acepta temporalmente `PENDING_DOCUMENTS`/`UNDER_REVIEW → ACTIVE` además de `SUSPENDED → ACTIVE` (`TODO(VET-17)`, hasta que exista el flujo de verificación real).
 - ☐ **VET-14** Scripts 004 y 005. `FileStoragePort` con bucket privado y URLs firmadas.
 - ☐ **VET-15** Verificación de clínica: subir/borrar documentos, `Submit`, estados (§5.3).
 - ☐ **VET-16** Perfil profesional completo (§5.4).

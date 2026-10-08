@@ -5,14 +5,12 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.UUID;
+import java.util.List;
 
 @Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class DeActivateVeterinaryResponse {
-    private UUID id;
-    private String name;
-    private Boolean active;
+public class GetMyVeterinariesResponse {
+    private List<MyVeterinarySummary> veterinaries;
 }

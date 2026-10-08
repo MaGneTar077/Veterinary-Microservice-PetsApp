@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-`veterinary-service` is a Spring Boot 3.5 / Java 17 microservice (part of the larger "Mascotas" / MyAnimaLog platform) that owns veterinary clinics: registration, activation, staff (employees), invite-based linking of app users to a clinic, and subscription plans. It talks to a Postgres database hosted on Supabase and is designed to run standalone on port 8082 (configurable).
+`veterinary-service` is a Spring Boot 3.5 / Java 17 microservice (part of the larger "Mascotas" / MyAnimaLog platform) that owns veterinary clinics: registration/verification status, suspension/reactivation, staff (employees) and roles, invite-based linking of app users to a clinic, and subscription plans. It talks to a Postgres database hosted on Supabase and is designed to run standalone on port 8082 (configurable).
 
 ## Commands
 
@@ -56,7 +56,7 @@ This service follows **hexagonal architecture (ports & adapters)**, organized by
 ```
 domain/
   <module>/model/        domain models for that module (plain Lombok @Data/@Builder, no JPA annotations)
-  <module>/enums/         e.g. domain/staff/enums/EmployeeRole (VETERINARIAN, ASSISTANT, ADMIN)
+  <module>/enums/         e.g. domain/staff/enums/EmployeeRole (OWNER, ADMIN, VETERINARIAN, ASSISTANT, RECEPTIONIST)
   <module>/exceptions/    exceptions thrown only by services in that module
   shared/exceptions/      exceptions thrown by services in more than one module
                           (InvalidVeterinaryNameException, VeterinaryNotActiveException,
@@ -100,51 +100,54 @@ When adding a new use case, follow the existing 6-file pattern (`dto` request+re
 
 ### Security
 
-Real JWT auth as of VET-05/06/07/11, per `CONTRATOS_COMPARTIDOS.md` §1–3. As of **VET-08**, the 16 pre-existing use cases now call `VeterinaryAuthorizationService` (see the permission table below) — this was the last step of Fase 1.
+Real JWT auth as of VET-05/06/07/11, per `CONTRATOS_COMPARTIDOS.md` §1–3. As of **VET-08**, the 16 pre-existing use cases call `VeterinaryAuthorizationService`. **VET-09/10/12/13** (Fase 2A) added the real clinic/role model on top of that — see the permission table below.
 
 - **Token validation**: `spring-boot-starter-oauth2-resource-server`, `SecurityConfig.jwtDecoder()` builds a `NimbusJwtDecoder` from `${JWT_JWKS_URI}` and validates `iss=myanimalog-user-service` + `aud=myanimalog-api` (`JwtTokenValidator`, framework-adjacent but no network call at construction time — the JWKS fetch happens lazily on first `decode()`). `jjwt` and `jwt.secret`/`JWT_SECRET` were removed — they were never actually used by this service.
 - **Authorities**: `JwtClaimsConverter` turns a `Jwt` into a `JwtAuthenticationToken` granting `PLATFORM_ADMIN` when `platform_role=PLATFORM_ADMIN`, and `VET_ROLE_<rol>` when `ctx=VETERINARY` (clinic tokens don't exist yet — the User service will start minting them once it calls VET-11's members endpoint).
-- **Route rules** (`SecurityConfig.securityFilterChain`): `/swagger-ui/**`, `/api-docs/**`, `/actuator/health`, `/actuator/info`, `/public/**` are open; `/internal/**` requires authority `INTERNAL_SERVICE` (never a user JWT); `/admin/**` requires `PLATFORM_ADMIN`; everything else requires any authenticated token.
+- **Route rules** (`SecurityConfig.securityFilterChain`): `/swagger-ui/**`, `/api-docs/**`, `/actuator/health`, `/actuator/info`, `/public/**` are open; `/internal/**` requires authority `INTERNAL_SERVICE` (never a user JWT); `/admin/**` **and** `/api/veterinary/admin/**` both require `PLATFORM_ADMIN`; everything else requires any authenticated token. The second matcher exists because the API gateway only routes `/api/veterinary/**` to this service — a bare `/admin/**` path would never reach it (see "Admin routing convention" below). Services also call `requirePlatformAdmin()` themselves (defense in depth, not just the filter-chain matcher).
 - **`/internal/**`**: `InternalApiKeyFilter` (runs before `BearerTokenAuthenticationFilter`) compares the `X-Internal-Api-Key` header against `${INTERNAL_API_KEY}` with `MessageDigest.isEqual` (constant-time). Match → sets a `PreAuthenticatedAuthenticationToken` with `INTERNAL_SERVICE` and continues the chain. No match → writes the 401 JSON directly via `RestAuthenticationEntryPoint` and stops (never reaches `/internal/**`'s own `hasAuthority` check, which would otherwise need an authenticated principal to even evaluate).
 - **401/403 JSON format**: `RestAuthenticationEntryPoint` / `RestAccessDeniedHandler` write the exact same `{timestamp, status, error, message}` shape as `GlobalExceptionHandler` (`SecurityErrorResponseWriter`), since these two cases are resolved at the filter level, before `@RestControllerAdvice` ever runs.
 - **`AuthenticatedUserPort`** (`application/shared/ports/out`) + **`SpringAuthenticatedUserAdapter`** (`infrastructure/security`): reads the current `JwtAuthenticationToken` from `SecurityContextHolder` and maps claims to `AuthenticatedUser` (`userId`, `email`, `emailVerified`, `platformAdmin`, `clinic: Optional<ClinicContext>`) and `ClinicContext` (`veterinaryId`, `employeeId`, `role`, `licensed`, `status`). Throws `UnauthenticatedException` if there's no JWT principal.
 - **`VeterinaryAuthorizationService`** (`application/shared/services`): `require(veterinaryId, permission)`, `requireMember(veterinaryId)`, `requirePlatformAdmin()`, `requireSelfOrPermission(targetUserId, veterinaryId, permission)` (allows the call if the caller's own `userId` matches `targetUserId`, regardless of clinic context; otherwise requires `permission` over the clinic — used by `Unlink`). Throws `ClinicContextRequiredException` / `TenantMismatchException` / `InsufficientPermissionException` / `PlatformAdminRequiredException` (all `domain/shared/exceptions`, all mapped to 403 in `GlobalExceptionHandler`; `UnauthenticatedException` maps to 401).
-- **`Permission`** (`domain/security`, 11 values from `CONTRATOS_COMPARTIDOS.md` §3.1) and **`RolePermissions.resolve(role, licensed, status)`** (`domain/security`) implement the role → permission matrix for the 3 roles that exist today:
+- **`Permission`** (`domain/security`, 11 values from `CONTRATOS_COMPARTIDOS.md` §3.1) and **`RolePermissions.resolve(role, licensed, status)`** (`domain/security`) implement the role → permission matrix for the 5 roles added in **VET-09** (`EmployeeRole`: `OWNER`, `ADMIN`, `VETERINARIAN`, `ASSISTANT`, `RECEPTIONIST`):
 
-  | Permiso | ADMIN | VETERINARIAN | ASSISTANT |
-  |---|:-:|:-:|:-:|
-  | `CLINIC_CONFIGURE` | ✅ | | |
-  | `SUBSCRIPTION_MANAGE` | — (excluido a propósito, ver abajo) | | |
-  | `STAFF_MANAGE` | ✅ | | |
-  | `APPOINTMENT_MANAGE` | ✅ | ✅ | ✅ |
-  | `PATIENT_REGISTER` | ✅ | ✅ | ✅ |
-  | `CLINICAL_READ` | ✅ | ✅ | ✅ |
-  | `CLINICAL_READ_BASIC` | ✅ | ✅ | ✅ |
-  | `CLINICAL_WRITE` | 🔑 | 🔑 | |
-  | `NURSING_WRITE` | 🔑 | ✅ (incondicional) | ✅ (incondicional) |
-  | `DOCUMENT_UPLOAD` | ✅ | ✅ | ✅ |
-  | `REPORTS_VIEW` | ✅ | | |
+  | Permiso | OWNER | ADMIN | VETERINARIAN | ASSISTANT | RECEPTIONIST |
+  |---|:-:|:-:|:-:|:-:|:-:|
+  | `CLINIC_CONFIGURE` | ✅ | ✅ | | | |
+  | `SUBSCRIPTION_MANAGE` | ✅ | | | | |
+  | `STAFF_MANAGE` | ✅ | ✅ | | | |
+  | `APPOINTMENT_MANAGE` | ✅ | ✅ | ✅ | ✅ | ✅ |
+  | `PATIENT_REGISTER` | ✅ | ✅ | ✅ | ✅ | ✅ |
+  | `CLINICAL_READ` | ✅ | ✅ | ✅ | ✅ | |
+  | `CLINICAL_READ_BASIC` | ✅ | ✅ | ✅ | ✅ | ✅ |
+  | `CLINICAL_WRITE` | 🔑 | 🔑 | 🔑 | | |
+  | `NURSING_WRITE` | 🔑 | 🔑 | ✅ (incondicional) | ✅ (incondicional) | |
+  | `DOCUMENT_UPLOAD` | ✅ | ✅ | ✅ | ✅ | |
+  | `REPORTS_VIEW` | ✅ | ✅ | | | |
 
-  🔑 = solo si `licensed=true` (siempre `false` hoy — no existe perfil profesional todavía). ADMIN recibe lo que el contrato asigna a `OWNER`, **excepto** `SUBSCRIPTION_MANAGE` (nadie de la clínica la tiene por ahora). Si `status != ACTIVE` (cualquier valor distinto de `ACTIVE`, no solo `SUSPENDED`), el resultado se reduce a la intersección con `{CLINIC_CONFIGURE, STAFF_MANAGE, SUBSCRIPTION_MANAGE}`. `TODO(VET-09)` marcado en el código: cuando `EmployeeRole` agregue `OWNER`/`RECEPTIONIST`, `OWNER` hereda lo de `ADMIN` más `SUBSCRIPTION_MANAGE`, y `RECEPTIONIST` entra con su propia fila.
-- **`VeterinaryStatus`** (`domain/clinic/enums`, 6 valores de `CONTRATOS_COMPARTIDOS.md` §1.3) **no se persiste** — `VeterinaryStatus.fromActiveFlag(boolean)` lo deriva del booleano `active` existente (`true→ACTIVE`, `false→SUSPENDED`) hasta que exista un estado real de clínica (Fase 2 del plan).
+  🔑 = solo si `licensed=true` (siempre `false` hoy — no existe perfil profesional todavía; `NURSING_WRITE` es incondicional para `VETERINARIAN`/`ASSISTANT`, no depende de la licencia). Si `status != ACTIVE` (cualquier valor distinto de `ACTIVE`), el resultado se reduce a la intersección con `{CLINIC_CONFIGURE, STAFF_MANAGE, SUBSCRIPTION_MANAGE}` — para `OWNER` eso deja las tres; para `ADMIN`, solo las dos primeras (nunca tuvo `SUBSCRIPTION_MANAGE`); para el resto de roles, nada.
+- **`VeterinaryStatus`** (`domain/clinic/enums`, 6 valores de `CONTRATOS_COMPARTIDOS.md` §1.3: `PENDING_DOCUMENTS`, `UNDER_REVIEW`, `NEEDS_CORRECTION`, `ACTIVE`, `REJECTED`, `SUSPENDED`) se **persiste** en `public.veterinary.status` desde **VET-09** (antes se derivaba de `active`). `VeterinaryStatus.impliesActiveFlag()` (`this == ACTIVE`) es la única dirección de derivación que queda: el booleano `active` se recalcula desde `status` cada vez que el código cambia el estado (`RegisterVeterinaryService`, `SuspendVeterinaryService`, `ReactivateVeterinaryService`), nunca al revés. La columna `active` sigue viva solo por compatibilidad con código que no se tocó todavía (`CreateEmployeeService`, `LinkByCodeService`/`LinkByUrlService` siguen leyendo `veterinary.getActive()`) — ver "Pendiente" en `db/scripts/README.md`.
 - **Endpoint interno de miembros** — `GET /internal/veterinaries/{veterinaryId}/members/{userId}` (`GetVeterinaryMemberController`/`Service`/`UseCase`, módulo `clinic`, consume los 3 puertos de clinic/staff/subscription): lo usará el User service para decidir si puede emitir un token de clínica. Si la clínica no existe **o** el usuario no es empleado, responde `200` con `member=false` (nunca `404`) y el resto de campos en `null`; `licensed` siempre `false` por ahora.
-- **Permisos por caso de uso (VET-08)** — las rutas no cambiaron, solo quién puede llamarlas y de dónde sale la identidad del caller (`AuthenticatedUserPort`, nunca un campo del body/path que identifique a quien hace la petición):
+- **Permisos por caso de uso (VET-08, extendido en VET-09/10/12/13)** — las rutas no cambiaron salvo donde se indica, solo quién puede llamarlas y de dónde sale la identidad del caller (`AuthenticatedUserPort`, nunca un campo del body/path que identifique a quien hace la petición):
 
   | Caso de uso | Permiso / chequeo | Notas |
   |---|---|---|
-  | `RegisterVeterinary` | token normal (cualquier usuario autenticado) | El creador sale del token; en la misma transacción (`@Transactional`) se crea como `VeterinaryEmployee` `ADMIN` activo de la clínica nueva. `TODO(VET-10)`: debería ser `OWNER`, no existe ese rol todavía. |
-  | `GenerateInviteCode` | `CLINIC_CONFIGURE` | |
-  | `UpdateVeterinary` | `CLINIC_CONFIGURE` | |
-  | `ActivateVeterinary` / `DeActivateVeterinary` | `PLATFORM_ADMIN` | |
-  | `CreateEmployee` | `STAFF_MANAGE` | |
-  | `UpdateEmployeeRole` / `DeActivateEmployee` | `STAFF_MANAGE` | Además: nadie puede modificar su propio registro de empleado (`CannotModifySelfException`, 403) ni desactivar/degradar al último `ADMIN` activo de la clínica (`LastAdminException`, 409, vía `VeterinaryEmployeeRepositoryPort.countByVeterinaryIdAndRoleAndActiveTrue`). El actor se relee de la base por `employeeId` del token (no se confía en `vet_role`/`vet_status` del claim, que puede tener hasta 60 min de antigüedad). |
-  | `ActivateEmployee` | `STAFF_MANAGE` | Sin restricción de auto-activación. |
-  | `CreatePlan` / `UpdatePlan` | `PLATFORM_ADMIN` | |
-  | `GetActivePlan` / `IsExpired` | `requireMember` (cualquier rol, solo tenant match) | |
-  | `LinkByCode` / `LinkByUrl` | token normal | El `userId` sale del token, ya no viene en el body. |
+  | `RegisterVeterinary` | token normal + `email_verified=true` | El creador sale del token y se crea como `OWNER` activo de la clínica nueva (`EmailNotVerifiedException` si `email_verified=false`), en la misma transacción (`@Transactional`). Estado inicial `PENDING_DOCUMENTS` (`active=false`). Valida NIT (`Nit.of`, `InvalidNitException`/`VeterinaryNitAlreadyExistsException`); máximo 3 clínicas en estado no `REJECTED` por `OWNER` (`TooManyOwnedVeterinariesException`). |
+  | `GenerateInviteCode` / `UpdateVeterinary` / `UpdateVeterinarySettings` / `DeleteInviteCode` | `CLINIC_CONFIGURE` | `UpdateVeterinarySettings` y `DeleteInviteCode` son de VET-12; no exigen `status=ACTIVE`, una clínica `PENDING_DOCUMENTS` ya puede configurarse. |
+  | `GetVeterinaryProfile` (`GET /api/veterinary/{id}`) / `GetActivePlan` / `IsExpired` | `requireMember` (cualquier rol, solo tenant match) | `GetVeterinaryProfile` es de VET-12. |
+  | `GetMyVeterinaries` (`GET /api/veterinary/me`) | token normal | Sin chequeo de clínica: lista las clínicas donde el caller es empleado **activo**, con su rol y el `status` de cada clínica (selector de clínica del frontend). VET-12. |
+  | `SuspendVeterinary` (`PATCH /api/veterinary/admin/veterinaries/{id}/suspend`) | `PLATFORM_ADMIN` | VET-13, reemplaza a `ActivateVeterinary`/`DeActivateVeterinary`. Solo `ACTIVE → SUSPENDED`; cualquier otro estado de origen → `InvalidVeterinaryStatusTransitionException` (409). |
+  | `ReactivateVeterinary` (`PATCH /api/veterinary/admin/veterinaries/{id}/reactivate`) | `PLATFORM_ADMIN` | VET-13. `SUSPENDED → ACTIVE` (no toca `approved_at`, ya estaba aprobada). **Temporalmente** (`TODO(VET-17)`, hasta que exista el flujo de verificación) también acepta `PENDING_DOCUMENTS → ACTIVE` y `UNDER_REVIEW → ACTIVE`, fijando `approved_at=now()`. Cualquier otro origen → 409. |
+  | `CreateEmployee` | `STAFF_MANAGE` | No se puede asignar `OWNER` por aquí (`InvalidEmployeeRoleException`, 400) — VET-09. |
+  | `UpdateEmployeeRole` / `DeActivateEmployee` | `STAFF_MANAGE` | Nadie puede modificar su propio registro (`CannotModifySelfException`, 403). El `OWNER` no se puede desactivar ni cambiar de rol, sea quien sea el actor (`CannotModifyOwnerException`, 403) — como siempre hay exactamente un `OWNER` por clínica (índice único `ux_one_owner_per_vet`), esto sustituyó a la regla de "último ADMIN" (`LastAdminException`, eliminada en VET-09). Un `ADMIN` tampoco puede modificar a otro `ADMIN` (`CannotModifyPeerAdminException`, 403). `UpdateEmployeeRole` tampoco permite asignar `OWNER` (`InvalidEmployeeRoleException`, 400). El actor se relee de la base por `employeeId` del token (no se confía en `vet_role`/`vet_status` del claim, que puede tener hasta 60 min de antigüedad). |
+  | `ActivateEmployee` | `STAFF_MANAGE` | Sin restricción de auto-activación ni de rol del target. |
+  | `CreatePlan` / `UpdatePlan` | `PLATFORM_ADMIN` | Siguen en `/api/veterinary/{veterinaryId}/subscription`; no se movieron a `/api/veterinary/admin/**` en VET-13 para no romper rutas que ya pueda usar el frontend — moverlas requiere confirmar con el usuario primero. |
+  | `LinkByCode` / `LinkByUrl` | token normal | El `userId` sale del token, ya no viene en el body. Rechazan si la clínica no está `active` (`VeterinaryNotActiveException`) — una clínica `PENDING_DOCUMENTS` no puede vincular dueños todavía. |
   | `Unlink` | self **o** `CLINIC_CONFIGURE` | Permitido si el `userId` del path == `userId` del token (auto-desvinculación), o si el token es de clínica, su `vet_id` coincide con el `veterinaryId` del path y tiene `CLINIC_CONFIGURE` (no `STAFF_MANAGE`: el usuario vinculado es un cliente, no un empleado — ver `VeterinaryAuthorizationService.requireSelfOrPermission`). |
 
-  **Frontend**: todo endpoint salvo los listados como públicos/internos necesita `Authorization: Bearer <token>`. Usa el **token normal** (el que devuelve el login) para `RegisterVeterinary`, `LinkByCode`/`LinkByUrl`/`Unlink` (auto-desvinculación); usa el **token de clínica** (`POST {USER_URL}/auth/context/veterinary/{veterinaryId}`) para todo lo demás que opera sobre una clínica concreta.
+  **Admin routing convention** (VET-13): las operaciones que requieren `PLATFORM_ADMIN` sobre un recurso de este servicio van bajo `/api/veterinary/admin/...` (no bajo el `/admin/**` genérico — el gateway solo enruta `/api/veterinary/**` hacia este servicio). `SecurityConfig` protege ese prefijo igual que `/admin/**`. Futuras rutas de administración (verificaciones, planes manuales) deben seguir esta misma convención; mover endpoints existentes (p. ej. `CreatePlan`/`UpdatePlan`) a este prefijo solo si no rompe rutas que ya use el frontend — si las rompe, confirmar con el usuario antes.
+
+  **Frontend**: todo endpoint salvo los listados como públicos/internos necesita `Authorization: Bearer <token>`. Usa el **token normal** (el que devuelve el login) para `RegisterVeterinary`, `GetMyVeterinaries`, `LinkByCode`/`LinkByUrl`/`Unlink` (auto-desvinculación); usa el **token de clínica** (`POST {USER_URL}/auth/context/veterinary/{veterinaryId}`) para todo lo demás que opera sobre una clínica concreta.
 - **Probar manualmente** (con el User service corriendo en `localhost:8080`):
   ```powershell
   $login = Invoke-RestMethod -Uri "http://localhost:8080/auth/local" -Method Post `
@@ -167,18 +170,20 @@ Real JWT auth as of VET-05/06/07/11, per `CONTRATOS_COMPARTIDOS.md` §1–3. As 
 
 ### Domain model relationships
 
-- `Veterinary` — the clinic; has `tenantId`, `active` flag, and invite fields (`inviteCode`, `inviteLink`) generated on demand.
-- `VeterinaryEmployee` — staff member (`veterinaryId` + `userId` + `EmployeeRole` + `active`).
+- `Veterinary` — the clinic; has `tenantId`, a persisted `status` (`VeterinaryStatus`) kept in sync with the legacy `active` flag, invite fields (`inviteCode`, `inviteLink`) generated on demand, legal/profile fields (`legalName`, `nit: Nit`, `address`, `department`, `latitude`/`longitude`), per-clinic settings (`timezone`, `currency`, `defaultAppointmentMinutes`, `allowOnlineBooking`, `bookingRequiresConfirmation`, `cancellationMinHours`, `directoryVisible`), and `createdBy`/`approvedAt` (VET-09/10).
+- `Nit` (`domain/clinic/model`) — Colombian tax ID value object, format `123456789-0`. `Nit.of(raw)` validates format + DIAN check digit (throws `InvalidNitException`); `Nit.fromPersisted(value)` skips validation for data already in the DB (used by `VeterinaryMapper` so a row that predates validation never fails to load).
+- `VeterinaryEmployee` — staff member (`veterinaryId` + `userId` + `EmployeeRole` + `active`). Exactly one active `OWNER` per clinic (DB constraint `ux_one_owner_per_vet`, VET-09).
 - `VeterinarySubscription` — a plan period (`veterinaryId`, `plan`, `startDate`/`endDate`, `active`); only one active subscription per veterinary is allowed at a time (enforced in `CreatePlanService`).
 - `UserVeterinaryLink` — join between an app user and a clinic, created via invite code/URL (`LinkByCodeService` / `LinkByUrlService`), removable via `UnlinkService`.
 
 ### Key business rules worth knowing before changing a service
 
-- `RegisterVeterinaryService`: validates name/email format, enforces unique name and email, generates a random `tenantId`; also creates the caller (from the token) as an active `ADMIN` `VeterinaryEmployee` of the new clinic, in the same `@Transactional` method.
-- `GenerateInviteCodeService`: generates a unique `VET-XXXXXXXX` code (`SecureRandom`, retries on collision) and builds `inviteLink` from `app.base-url`.
-- `LinkByCodeService` / `LinkByUrlService`: reject if the clinic is inactive or the user is already linked.
+- `RegisterVeterinaryService`: validates name/email/NIT format, enforces unique name/email/NIT, generates a random `tenantId`; creates the caller (from the token) as an active `OWNER` `VeterinaryEmployee` of the new clinic, status `PENDING_DOCUMENTS` (`active=false`), in the same `@Transactional` method. Caps a user at 3 owned clinics not in status `REJECTED`.
+- `GenerateInviteCodeService`: generates a unique `VET-XXXXXXXX` code (`SecureRandom`, retries on collision) and builds `inviteLink` from `app.base-url`. `DeleteInviteCodeService` (VET-12) clears both fields back to `null`.
+- `LinkByCodeService` / `LinkByUrlService`: reject if the clinic is inactive (`active=false`, i.e. not `ACTIVE`) or the user is already linked.
 - `CreatePlanService`: rejects if the clinic is inactive or already has an active subscription; `UpdatePlanService`/`GetActivePlanService`/`IsExpiredService` operate on the single active (or latest) subscription per clinic.
-- Activation/deactivation services (`Activate/DeActivate{Employee,Veterinary}Service`) are simple state toggles via `toBuilder()`.
+- `ActivateEmployeeService` is a simple state toggle via `toBuilder()`. `UpdateEmployeeRoleService`/`DeActivateEmployeeService` additionally re-fetch the acting employee fresh from the DB (via the token's `employeeId`) and block self-modification, modifying the `OWNER`, or an `ADMIN` modifying another `ADMIN` — see the permission table above.
+- `SuspendVeterinaryService`/`ReactivateVeterinaryService` (VET-13): status-transition guards (`InvalidVeterinaryStatusTransitionException` on an invalid `from` state) plus `VeterinaryStatus.impliesActiveFlag()` to keep `active` in sync. `GetVeterinaryProfileService`/`UpdateVeterinarySettingsService`/`GetMyVeterinariesService` (VET-12) are straightforward reads/partial-updates behind the permission checks in the table above.
 
 ## Base de datos
 
@@ -186,8 +191,8 @@ El esquema vive en Supabase/Postgres (`public`) y se administra **a mano** en el
 
 ### Esquema real actual
 
-- **`veterinary`**: `id uuid PK`, `name varchar NOT NULL`, `city varchar NOT NULL`, `phone varchar NULL`, `email varchar NULL UNIQUE`, `invite_code varchar NULL UNIQUE`, `invite_link text NULL`, `tenant_id varchar NOT NULL`, `active bool NOT NULL`, `created_at timestamp NOT NULL` (sin zona horaria), `updated_at timestamptz NULL`.
-- **`veterinary_employee`**: `id uuid PK`, `veterinary_id uuid FK → veterinary`, `user_id uuid`, `role varchar`, `active bool`, `created_at timestamptz`. Todas `NOT NULL`.
+- **`veterinary`**: `id uuid PK`, `name varchar NOT NULL`, `city varchar NOT NULL`, `phone varchar NULL`, `email varchar NULL UNIQUE`, `invite_code varchar NULL UNIQUE`, `invite_link text NULL`, `tenant_id varchar NOT NULL`, `active bool NOT NULL` (compatibilidad, ver nota de `VeterinaryStatus` arriba), `created_at timestamp NOT NULL` (sin zona horaria), `updated_at timestamptz NULL`. Desde `001_clinic_status_and_profile.sql` (VET-09/10/12) además: `status varchar(30) NOT NULL DEFAULT 'PENDING_DOCUMENTS'`, `legal_name varchar NULL`, `nit varchar(20) NULL UNIQUE parcial` (índice único solo `WHERE nit IS NOT NULL`), `address varchar NULL`, `department varchar NULL`, `latitude/longitude numeric(9,6) NULL`, `timezone varchar NOT NULL DEFAULT 'America/Bogota'`, `currency varchar(3) NOT NULL DEFAULT 'COP'`, `default_appointment_minutes int NOT NULL DEFAULT 30`, `allow_online_booking/booking_requires_confirmation/directory_visible bool NOT NULL DEFAULT true`, `cancellation_min_hours int NOT NULL DEFAULT 4`, `created_by uuid NULL`, `approved_at timestamptz NULL`. RLS activado desde `003_enable_rls.sql`.
+- **`veterinary_employee`**: `id uuid PK`, `veterinary_id uuid FK → veterinary`, `user_id uuid`, `role varchar` (CHECK `IN ('OWNER','ADMIN','VETERINARIAN','ASSISTANT','RECEPTIONIST')` desde `002_employee_roles_and_ownership.sql`), `active bool`, `created_at timestamptz`. Todas `NOT NULL`. Índices únicos: `ux_one_owner_per_vet` (parcial, `WHERE role='OWNER'`, un solo OWNER por clínica) y `ux_employee_user_per_vet` (`veterinary_id, user_id`) — hay además un `uq_veterinary_employee` preexistente que probablemente duplica a este último, pendiente de limpieza (ver `db/scripts/README.md`). RLS activado desde `003_enable_rls.sql`.
 - **`veterinary_subscription`**: `id uuid PK`, `veterinary_id uuid FK → veterinary`, `plan varchar`, `start_date date`, `end_date date`, `active bool`, `created_at timestamptz`. Todas `NOT NULL`.
 - **`user_veterinary_link`**: `id uuid PK`, `user_id uuid`, `veterinary_id uuid FK → veterinary`, `status varchar`, `linked_at timestamptz`. Todas `NOT NULL`.
 
