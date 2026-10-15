@@ -15,6 +15,6 @@ public class RestAccessDeniedHandler implements AccessDeniedHandler {
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response,
                         AccessDeniedException accessDeniedException) throws IOException {
-        SecurityErrorResponseWriter.write(response, HttpStatus.FORBIDDEN, accessDeniedException.getMessage());
+        SecurityErrorResponseWriter.write(response, HttpStatus.FORBIDDEN, accessDeniedException.getMessage(), "INSUFFICIENT_PERMISSION");
     }
 }

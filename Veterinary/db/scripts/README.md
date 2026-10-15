@@ -36,3 +36,4 @@ El esquema de la base de datos (Supabase/Postgres, esquema `public`) se maneja *
 | `001_clinic_status_and_profile.sql` | VET-09, VET-10, VET-12 | 2026-10-08 | Luis Santiago Gonzalezrubio |
 | `002_employee_roles_and_ownership.sql` | VET-09, VET-10 | 2026-10-08 | Luis Santiago Gonzalezrubio |
 | `003_enable_rls.sql` | VET-09 (mantenimiento) | 2026-10-08 | Luis Santiago Gonzalezrubio |
+| `004_verification.sql` | Fase 2B Parte 1 | 2026-10-15 | Luis Santiago Gonzalezrubio |

@@ -62,6 +62,16 @@ app:
     issuer: myanimalog-user-service
     audience: myanimalog-api
     internal-api-key: ${INTERNAL_API_KEY}
+  storage:
+    logos-bucket: veterinary-logos
+    verification-bucket: verification-documents
+  support-email: ${SUPPORT_EMAIL:}
+  ai:
+    verification-enabled: ${AI_VERIFICATION_ENABLED:false}
+    service-url: ${IA_SERVICE_URL:}
+  legal:
+    data-policy-version: ${LEGAL_DATA_POLICY_VERSION:2026-10-v1}
+    terms-version: ${LEGAL_TERMS_VERSION:2026-10-v1}
 
 management:
   endpoints:

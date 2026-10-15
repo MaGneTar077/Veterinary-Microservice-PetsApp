@@ -46,12 +46,17 @@ Swagger/OpenAPI UI is available at `/swagger-ui.html` (raw spec at `/api-docs`) 
 | `GCP_PROJECT_ID` | Solo si `EVENTS_ENABLED=true` contra un proyecto real | — | Proyecto de Google Cloud para Pub/Sub |
 | `JWT_JWKS_URI` | Sí | — | URL del JWKS del User service (`GET {USER_SERVICE_URL}/.well-known/jwks.json`), usada por `NimbusJwtDecoder` |
 | `INTERNAL_API_KEY` | Sí | — | Llave compartida para `X-Internal-Api-Key` en rutas `/internal/**` (debe ser idéntica en todos los servicios) |
+| `SUPPORT_EMAIL` | No | `` (vacío) | Destinatario del evento `VERIFICATION_SUBMITTED` (Fase 2B Parte 2+) |
+| `AI_VERIFICATION_ENABLED` | No | `false` | Prende el puerto de verificación por IA (`CONTRATOS_COMPARTIDOS.md` §13); apagado hoy, `ai_status` queda siempre `NOT_RUN` |
+| `IA_SERVICE_URL` | Solo si `AI_VERIFICATION_ENABLED=true` | — | URL del servicio de IA de verificación |
+| `LEGAL_DATA_POLICY_VERSION` | No | `2026-10-v1` | Versión vigente del consentimiento `DATA_TREATMENT` (`legal_consents`); un consentimiento con una versión distinta → `409 CONSENT_VERSION_OUTDATED` |
+| `LEGAL_TERMS_VERSION` | No | `2026-10-v1` | Versión vigente del consentimiento `TERMS` |
 
 **Importante para desarrollo local**: con `EVENTS_ENABLED` sin definir (default `true`) y sin `GCP_PROJECT_ID`, la app **no arranca** — la autoconfiguración de `spring-cloud-gcp-starter-pubsub` intenta construir un `PublisherFactory` real y falla con `IllegalArgumentException: The project ID can't be null or empty`. En local, deja `EVENTS_ENABLED=false` en `.env` (ya está así) a menos que de verdad vayas a publicar a un proyecto GCP real.
 
 ## Architecture
 
-This service follows **hexagonal architecture (ports & adapters)**, organized by **business module** (`clinic`, `staff`, `subscription`, `patients`), strictly one-feature-per-slice within each module: every use case gets its own request/response DTO pair, inbound port, service, and controller.
+This service follows **hexagonal architecture (ports & adapters)**, organized by **business module** (`clinic`, `staff`, `subscription`, `patients`, and since **Fase 2B Parte 1**: `legal`, `professional`, `verification`), strictly one-feature-per-slice within each module: every use case gets its own request/response DTO pair, inbound port, service, and controller.
 
 ```
 domain/
@@ -67,7 +72,11 @@ application/
   <module>/ports/out/     repository interface(s) that module's services depend on
                           (VeterinaryRepositoryPort [clinic], VeterinaryEmployeeRepositoryPort [staff],
                           VeterinarySubscriptionRepositoryPort [subscription],
-                          UserVeterinaryLinkRepositoryPort [patients])
+                          UserVeterinaryLinkRepositoryPort [patients],
+                          LegalConsentRepositoryPort [legal], ProfessionalProfileRepositoryPort [professional],
+                          VerificationRequestRepositoryPort / VerificationDocumentRepositoryPort [verification] —
+                          these 3 have entities/mappers/repositories/adapters since Fase 2B Parte 1 but no
+                          *UseCase/*Service/controller yet, pending Partes 2-3)
   <module>/services/      one *Service per use case; implements the matching *UseCase; validates input,
                           loads/checks domain state, applies the change, persists via the out-port, maps
                           to the response DTO. All business rules live here. Services commonly import
@@ -87,6 +96,9 @@ infrastructure/
                           RestAccessDeniedHandler, JwtTokenValidator, ImportSecurityConfig
   config/                 GlobalExceptionHandler (module-agnostic, imports exceptions from every
                           domain/<module>/exceptions and domain/shared/exceptions)
+  storage/                SupabaseStorageAdapter (implements FileStoragePort over the Supabase
+                          Storage REST API), StorageProperties, Sha256 — see "Almacenamiento de
+                          archivos" below (Fase 2B Parte 1)
 
 domain/security/          Permission, RolePermissions — framework-free (no Spring types), shared
                           by every module's future authorization checks
@@ -162,7 +174,49 @@ Real JWT auth as of VET-05/06/07/11, per `CONTRATOS_COMPARTIDOS.md` §1–3. As 
 
 ### Error handling
 
-`GlobalExceptionHandler` (`infrastructure/config`, `@RestControllerAdvice`) maps each domain exception to an HTTP status and a uniform JSON body (`timestamp`, `status`, `error`, `message`), with one explicit import per exception class (no wildcard imports — every module's `domain/<module>/exceptions` plus `domain/shared/exceptions`). Any new domain exception needs a corresponding `@ExceptionHandler` method added there, or it falls through to the generic 500 handler.
+`GlobalExceptionHandler` (`infrastructure/config`, `@RestControllerAdvice`) maps each domain exception to an HTTP status and a uniform JSON body (`timestamp`, `status`, `error`, `message`, `code`), with one explicit import per exception class (no wildcard imports — every module's `domain/<module>/exceptions` plus `domain/shared/exceptions`). Any new domain exception needs a corresponding `@ExceptionHandler` method added there (status **and** `code`), or it falls through to the generic 500 handler (`code=INTERNAL_ERROR`). Since **Fase 2B Parte 1**, the same `{timestamp, status, error, message, code}` shape is also used by:
+
+- `MethodArgumentNotValidException` (Spring's `@Valid` binding errors) → 400, `code=VALIDATION_ERROR`, `message` is a `field: defaultMessage` list joined with `; `.
+- `NoResourceFoundException` / `NoHandlerFoundException` (a route with no matching handler) → 404, `code=NOT_FOUND`. This fixes the previously-known bug where an unmapped route fell through to the catch-all `Exception` handler and returned 500 instead of 404 (see former "Deuda técnica conocida" entry, now resolved).
+- The generic catch-all `Exception.class` → 500, `code=INTERNAL_ERROR`.
+- `RestAuthenticationEntryPoint` (401, no/invalid JWT) and `RestAccessDeniedHandler` (403, filter-chain `hasAuthority(...)` rejection) — resolved by Spring Security *before* `@RestControllerAdvice` ever runs, so they write the same JSON shape themselves via `SecurityErrorResponseWriter.write(response, status, message, code)`: `code=UNAUTHENTICATED` for the entry point, `code=INSUFFICIENT_PERMISSION` for the access-denied handler.
+
+**Code table** (one stable `code` per domain exception; `?` marks codes that don't appear in `FASE_2B_VERIFICACION.md` §8 and were assigned here to keep every exception covered):
+
+| HTTP | `code` | Exception(s) |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | `InvalidVeterinaryNameException`, `InvalidVeterinaryEmailException`, `MethodArgumentNotValidException` |
+| 400 | `INVALID_NIT` | `InvalidNitException` |
+| 400 | `INVALID_EMPLOYEE_ROLE` ? | `InvalidEmployeeRoleException` |
+| 400 | `INVALID_INVITE_CODE` ? | `InvalidInviteCodeException` |
+| 401 | `UNAUTHENTICATED` | `UnauthenticatedException`, Spring Security entry point |
+| 403 | `EMAIL_NOT_VERIFIED` | `EmailNotVerifiedException` |
+| 403 | `TENANT_MISMATCH` | `TenantMismatchException` |
+| 403 | `INSUFFICIENT_PERMISSION` | `InsufficientPermissionException`, Spring Security access-denied handler |
+| 403 | `PLATFORM_ADMIN_REQUIRED` | `PlatformAdminRequiredException` |
+| 403 | `CANNOT_MODIFY_SELF` | `CannotModifySelfException` |
+| 403 | `CANNOT_MODIFY_OWNER` | `CannotModifyOwnerException` |
+| 403 | `CANNOT_MODIFY_PEER_ADMIN` ? | `CannotModifyPeerAdminException` |
+| 403 | `CLINIC_CONTEXT_REQUIRED` ? | `ClinicContextRequiredException` |
+| 404 | `VETERINARY_NOT_FOUND` | `VeterinaryNotFoundException` |
+| 404 | `EMPLOYEE_NOT_FOUND` ? | `EmployeeNotFoundException` |
+| 404 | `SUBSCRIPTION_NOT_FOUND` ? | `SubscriptionNotFoundException` |
+| 404 | `NO_ACTIVE_SUBSCRIPTION` ? | `NoActiveSubscriptionException` |
+| 404 | `USER_NOT_LINKED` ? | `UserNotLinkedException` |
+| 404 | `NOT_FOUND` ? | `NoResourceFoundException`, `NoHandlerFoundException` (unmapped route) |
+| 409 | `VETERINARY_NAME_TAKEN` | `VeterinaryAlreadyExistsException` |
+| 409 | `VETERINARY_EMAIL_TAKEN` | `VeterinaryEmailAlreadyExistsException` |
+| 409 | `NIT_TAKEN` | `VeterinaryNitAlreadyExistsException` |
+| 409 | `OWNER_CLINIC_LIMIT_REACHED` | `TooManyOwnedVeterinariesException` |
+| 409 | `VETERINARY_NOT_ACTIVE` | `VeterinaryNotActiveException` |
+| 409 | `INVALID_VERIFICATION_STATE` | `InvalidVeterinaryStatusTransitionException` (reused — this exception is actually about `VeterinaryStatus` transitions in `Suspend`/`ReactivateVeterinary`, not a verification-request state; a future dedicated code can split them if that stops being accurate) |
+| 409 | `EMPLOYEE_ALREADY_EXISTS` ? | `EmployeeAlreadyExistsException` |
+| 409 | `ACTIVE_SUBSCRIPTION_ALREADY_EXISTS` ? | `ActiveSubscriptionAlreadyExistsException` |
+| 409 | `USER_ALREADY_LINKED` ? | `UserAlreadyLinkedException` |
+| 503 | `EXTERNAL_SERVICE_UNAVAILABLE` | `ExternalServiceUnavailableException` (`domain/shared/exceptions`, thrown by `SupabaseStorageAdapter` on any Supabase Storage REST failure) |
+| 500 | `INTERNAL_ERROR` | generic catch-all |
+
+Codes from `FASE_2B_VERIFICACION.md` §8 not yet wired to an exception (`CONSENT_REQUIRED`, `TRUTHFULNESS_DECLARATION_REQUIRED`, `INVALID_FILE_TYPE`, `REGISTRY_CHECK_REQUIRED`, `MISSING_REQUIRED_DOCUMENTS`, `NOT_VETERINARY_OWNER`, `DOCUMENT_NOT_FOUND`, `PROFESSIONAL_PROFILE_NOT_FOUND`, `VERIFICATION_REQUEST_NOT_FOUND`, `LICENSE_NUMBER_TAKEN`, `CONSENT_VERSION_OUTDATED`, `VERIFICATION_LOCKED`, `VERIFICATION_ATTEMPTS_EXHAUSTED`, `FILE_TOO_LARGE`) will get their exceptions and handlers in Fase 2B Partes 2-4, when the use cases that throw them are implemented.
 
 ### `.gitignore` gotcha: don't add a bare `out/` rule
 
@@ -175,6 +229,9 @@ Real JWT auth as of VET-05/06/07/11, per `CONTRATOS_COMPARTIDOS.md` §1–3. As 
 - `VeterinaryEmployee` — staff member (`veterinaryId` + `userId` + `EmployeeRole` + `active`). Exactly one active `OWNER` per clinic (DB constraint `ux_one_owner_per_vet`, VET-09).
 - `VeterinarySubscription` — a plan period (`veterinaryId`, `plan`, `startDate`/`endDate`, `active`); only one active subscription per veterinary is allowed at a time (enforced in `CreatePlanService`).
 - `UserVeterinaryLink` — join between an app user and a clinic, created via invite code/URL (`LinkByCodeService` / `LinkByUrlService`), removable via `UnlinkService`.
+- `LegalConsent` (`domain/legal/model`, Fase 2B Parte 1) — one row per acceptance of `DATA_TREATMENT` or `TERMS` (`userId`, optional `veterinaryId`, `version`, `acceptedAt`). No use case writes these yet.
+- `ProfessionalProfile` (`domain/professional/model`, Fase 2B Parte 1) — the vet's professional license, one per **person** (`userId` unique, not per employment — `ux_professional_profiles_user`), with its own `licenseStatus` (`NOT_SUBMITTED`/`PENDING`/`VERIFIED`/`REJECTED`) independent of any clinic's verification. No use case writes/reads these yet.
+- `VerificationRequest` / `VerificationDocument` (`domain/verification/model`, Fase 2B Parte 1) — a request is either `subjectType=CLINIC` (`subjectId`=`veterinary.id`) or `PROFESSIONAL` (`subjectId`=`professional_profiles.id`); at most one non-final (`DRAFT`/`UNDER_REVIEW`/`NEEDS_CORRECTION`) request per subject (`ux_verification_requests_open_subject`). `VerificationRequest.aiReport` is a raw JSON string (`jsonb`, mapped via Hibernate's `@JdbcTypeCode(SqlTypes.JSON)`); `correctionDocumentTypes` is a `text[]` (`@JdbcTypeCode(SqlTypes.ARRAY)`). No use case writes/reads these yet — entities/mappers/repositories only, per `004_verification.sql`.
 
 ### Key business rules worth knowing before changing a service
 
@@ -185,16 +242,30 @@ Real JWT auth as of VET-05/06/07/11, per `CONTRATOS_COMPARTIDOS.md` §1–3. As 
 - `ActivateEmployeeService` is a simple state toggle via `toBuilder()`. `UpdateEmployeeRoleService`/`DeActivateEmployeeService` additionally re-fetch the acting employee fresh from the DB (via the token's `employeeId`) and block self-modification, modifying the `OWNER`, or an `ADMIN` modifying another `ADMIN` — see the permission table above.
 - `SuspendVeterinaryService`/`ReactivateVeterinaryService` (VET-13): status-transition guards (`InvalidVeterinaryStatusTransitionException` on an invalid `from` state) plus `VeterinaryStatus.impliesActiveFlag()` to keep `active` in sync. `GetVeterinaryProfileService`/`UpdateVeterinarySettingsService`/`GetMyVeterinariesService` (VET-12) are straightforward reads/partial-updates behind the permission checks in the table above.
 
+## Almacenamiento de archivos (Supabase Storage)
+
+Infraestructura lista desde **Fase 2B Parte 1** para el logo de la clínica y los documentos de verificación (`FASE_2B_VERIFICACION.md` §4-5). **Todavía ningún caso de uso sube/borra archivos** — eso llega en las Partes 2-3.
+
+- **Puerto**: `FileStoragePort` (`application/shared/ports/out`) — `uploadPublic(bucket, path, bytes, contentType)` devuelve la URL pública; `uploadPrivate(...)` no devuelve nada (el archivo solo se lee después con una URL firmada); `createSignedUrl(bucket, path, ttl)` devuelve una URL temporal; `delete(bucket, path)`.
+- **Adaptador**: `SupabaseStorageAdapter` (`infrastructure/storage`), sobre `RestClient` (Spring, no `RestTemplate`) contra la API REST de Supabase Storage (`${supabase.url}/storage/v1`), autenticado con `${supabase.key}` (el service role que ya usa el resto de la app — nunca las claves anon/auth) en las cabeceras `apikey` y `Authorization: Bearer`. **La key nunca se loguea** — los `catch` solo registran `bucket`/`path`, nunca el cuerpo de la petición ni las cabeceras. Cualquier fallo de red o respuesta de error de Supabase se traduce a `ExternalServiceUnavailableException` (`domain/shared/exceptions`, 503, `code=EXTERNAL_SERVICE_UNAVAILABLE`).
+- **Buckets**: `app.storage.logos-bucket` (default `veterinary-logos`, público) y `app.storage.verification-bucket` (default `verification-documents`, privado — solo URLs firmadas de corta duración, nunca una URL pública directa). Configurables vía `StorageProperties` (`@ConfigurationProperties(prefix = "app.storage")`); se crean a mano en el panel de Supabase, no por código.
+- **`Sha256`** (`infrastructure/storage`): utilidad `hex(byte[])` para calcular el hash de un archivo subido — se guarda en `verification_documents.sha256` para detectar el mismo archivo reusado en otra clínica (regla 3 de `FASE_2B_VERIFICACION.md` §6; es una alerta informativa, no bloquea).
+- **Tests**: `SupabaseStorageAdapterTest` levanta un `com.sun.net.httpserver.HttpServer` real en un puerto libre (no llama a Supabase) y verifica método/ruta/cuerpo de cada operación más el mapeo a `ExternalServiceUnavailableException` cuando el servidor fake responde 5xx.
+
 ## Base de datos
 
 El esquema vive en Supabase/Postgres (`public`) y se administra **a mano** en el SQL Editor de Supabase — no hay Flyway ni ningún otro motor de migraciones. `spring.jpa.hibernate.ddl-auto` se mantiene en `none` en todos los perfiles salvo el de tests.
 
 ### Esquema real actual
 
-- **`veterinary`**: `id uuid PK`, `name varchar NOT NULL`, `city varchar NOT NULL`, `phone varchar NULL`, `email varchar NULL UNIQUE`, `invite_code varchar NULL UNIQUE`, `invite_link text NULL`, `tenant_id varchar NOT NULL`, `active bool NOT NULL` (compatibilidad, ver nota de `VeterinaryStatus` arriba), `created_at timestamp NOT NULL` (sin zona horaria), `updated_at timestamptz NULL`. Desde `001_clinic_status_and_profile.sql` (VET-09/10/12) además: `status varchar(30) NOT NULL DEFAULT 'PENDING_DOCUMENTS'`, `legal_name varchar NULL`, `nit varchar(20) NULL UNIQUE parcial` (índice único solo `WHERE nit IS NOT NULL`), `address varchar NULL`, `department varchar NULL`, `latitude/longitude numeric(9,6) NULL`, `timezone varchar NOT NULL DEFAULT 'America/Bogota'`, `currency varchar(3) NOT NULL DEFAULT 'COP'`, `default_appointment_minutes int NOT NULL DEFAULT 30`, `allow_online_booking/booking_requires_confirmation/directory_visible bool NOT NULL DEFAULT true`, `cancellation_min_hours int NOT NULL DEFAULT 4`, `created_by uuid NULL`, `approved_at timestamptz NULL`. RLS activado desde `003_enable_rls.sql`.
+- **`veterinary`**: `id uuid PK`, `name varchar NOT NULL`, `city varchar NOT NULL`, `phone varchar NULL`, `email varchar NULL UNIQUE`, `invite_code varchar NULL UNIQUE`, `invite_link text NULL`, `tenant_id varchar NOT NULL`, `active bool NOT NULL` (compatibilidad, ver nota de `VeterinaryStatus` arriba), `created_at timestamp NOT NULL` (sin zona horaria), `updated_at timestamptz NULL`. Desde `001_clinic_status_and_profile.sql` (VET-09/10/12) además: `status varchar(30) NOT NULL DEFAULT 'PENDING_DOCUMENTS'`, `legal_name varchar NULL`, `nit varchar(20) NULL UNIQUE parcial` (índice único solo `WHERE nit IS NOT NULL`), `address varchar NULL`, `department varchar NULL`, `latitude/longitude numeric(9,6) NULL`, `timezone varchar NOT NULL DEFAULT 'America/Bogota'`, `currency varchar(3) NOT NULL DEFAULT 'COP'`, `default_appointment_minutes int NOT NULL DEFAULT 30`, `allow_online_booking/booking_requires_confirmation/directory_visible bool NOT NULL DEFAULT true`, `cancellation_min_hours int NOT NULL DEFAULT 4`, `created_by uuid NULL`, `approved_at timestamptz NULL`. Desde `004_verification.sql` (Fase 2B Parte 1) además: `legal_rep_is_owner bool NULL`, `legal_rep_name varchar(200) NULL`, `legal_rep_document_type varchar(10) NULL` (CHECK `IN ('CC','CE','PPT')` o `NULL`), `legal_rep_document_number varchar(30) NULL`, `logo_url text NULL`. RLS activado desde `003_enable_rls.sql`.
 - **`veterinary_employee`**: `id uuid PK`, `veterinary_id uuid FK → veterinary`, `user_id uuid`, `role varchar` (CHECK `IN ('OWNER','ADMIN','VETERINARIAN','ASSISTANT','RECEPTIONIST')` desde `002_employee_roles_and_ownership.sql`), `active bool`, `created_at timestamptz`. Todas `NOT NULL`. Índices únicos: `ux_one_owner_per_vet` (parcial, `WHERE role='OWNER'`, un solo OWNER por clínica) y `ux_employee_user_per_vet` (`veterinary_id, user_id`) — hay además un `uq_veterinary_employee` preexistente que probablemente duplica a este último, pendiente de limpieza (ver `db/scripts/README.md`). RLS activado desde `003_enable_rls.sql`.
 - **`veterinary_subscription`**: `id uuid PK`, `veterinary_id uuid FK → veterinary`, `plan varchar`, `start_date date`, `end_date date`, `active bool`, `created_at timestamptz`. Todas `NOT NULL`.
 - **`user_veterinary_link`**: `id uuid PK`, `user_id uuid`, `veterinary_id uuid FK → veterinary`, `status varchar`, `linked_at timestamptz`. Todas `NOT NULL`.
+- **`legal_consents`** (desde `004_verification.sql`, Fase 2B Parte 1): `id uuid PK DEFAULT gen_random_uuid()`, `user_id uuid NOT NULL`, `veterinary_id uuid NULL FK → veterinary`, `consent_type varchar(20) NOT NULL` (CHECK `IN ('DATA_TREATMENT','TERMS')`), `version varchar(20) NOT NULL`, `accepted_at timestamptz NOT NULL DEFAULT now()`. RLS activado. Sin uso todavía (entidad/mapper/repositorio listos, sin caso de uso).
+- **`professional_profiles`** (desde `004_verification.sql`): `id uuid PK DEFAULT gen_random_uuid()`, `user_id uuid NOT NULL` (único — la licencia es de la persona, no del empleo), `full_name varchar(200) NOT NULL`, `document_type varchar(10) NOT NULL` (CHECK `IN ('CC','CE','PPT')`), `document_number varchar(30) NOT NULL`, `license_number varchar(50) NOT NULL UNIQUE`, `profession varchar(10) NOT NULL` (CHECK `IN ('MV','MVZ')`), `specialty varchar(120) NULL`, `university varchar(200) NULL`, `signature_url text NULL`, `license_status varchar(20) NOT NULL DEFAULT 'NOT_SUBMITTED'` (CHECK `IN ('NOT_SUBMITTED','PENDING','VERIFIED','REJECTED')`), `rejection_reason text NULL`, `verified_at timestamptz NULL`, `verified_by uuid NULL`, `created_at/updated_at timestamptz NOT NULL DEFAULT now()`. RLS activado. Sin uso todavía.
+- **`verification_requests`** (desde `004_verification.sql`): `id uuid PK DEFAULT gen_random_uuid()`, `subject_type varchar(20) NOT NULL` (CHECK `IN ('CLINIC','PROFESSIONAL')`), `subject_id uuid NOT NULL`, `status varchar(30) NOT NULL` (CHECK `IN ('DRAFT','UNDER_REVIEW','NEEDS_CORRECTION','APPROVED','REJECTED')`), `attempt_number int NOT NULL DEFAULT 1`, `submitted_by uuid NOT NULL`, `submitted_at timestamptz NULL`, `truthfulness_declared_at timestamptz NULL`, `ai_status varchar(20) NOT NULL DEFAULT 'NOT_RUN'` (CHECK `IN ('NOT_RUN','RUNNING','DONE','FAILED')`), `ai_report jsonb NULL`, `ai_risk_level varchar(10) NULL` (CHECK `IN ('LOW','MEDIUM','HIGH')` o `NULL`), `reviewer_id uuid NULL`, `reviewer_notes text NULL`, `decided_at timestamptz NULL`, `registry_checked bool NOT NULL DEFAULT false`, `correction_document_types text[] NULL`, `correction_requested_at timestamptz NULL`, `created_at timestamptz NOT NULL DEFAULT now()`. Índice único `ux_verification_requests_open_subject` (`subject_type, subject_id` `WHERE status IN ('DRAFT','UNDER_REVIEW','NEEDS_CORRECTION')`) — máximo una solicitud no final por sujeto. RLS activado. Sin uso todavía — hay una fila por cada clínica existente desde el backfill de `004` (`APPROVED` si la clínica estaba `ACTIVE`, `DRAFT` en cualquier otro caso).
+- **`verification_documents`** (desde `004_verification.sql`): `id uuid PK DEFAULT gen_random_uuid()`, `request_id uuid NOT NULL FK → verification_requests ON DELETE CASCADE`, `document_type varchar(40) NOT NULL`, `storage_path text NOT NULL`, `mime_type varchar(100) NOT NULL`, `file_size_bytes bigint NOT NULL`, `sha256 varchar(64) NOT NULL`, `uploaded_at timestamptz NOT NULL DEFAULT now()`. Índice único `(request_id, document_type)`. RLS activado. Sin uso todavía.
 
 Nota: los modelos de dominio (`domain/model`) no exponen todas estas restricciones (p. ej. nulabilidad) — son el esquema simplificado en memoria, no un espejo 1:1 de las columnas. Antes de asumir que una columna es `NOT NULL` o nullable, confía en esta tabla, no en el `@Data`/`@Builder` del modelo.
 
@@ -236,7 +307,6 @@ Infraestructura de eventos según el sobre de `CONTRATOS_COMPARTIDOS.md §4`. **
 
 ## Deuda técnica conocida
 
-- **`GlobalExceptionHandler.handleGeneric` (catch-all `Exception.class`) se traga el 404 de Spring para rutas sin handler mapeado**, convirtiéndolo en `500 Unexpected error: No static resource ...` o `500` genérico, sin importar el método HTTP. Se descubrió al escribir `SecurityFilterChainTest` (VET-05): una request a una ruta `/admin/**` sin controlador que la atienda, con token `PLATFORM_ADMIN` válido (pasa la autorización), debería dar `404`, pero da `500`. Pendiente: que `handleGeneric` reconozca `NoResourceFoundException`/`NoHandlerFoundException` (o excepciones que ya traen su propio `HttpStatusCode`, p. ej. `ErrorResponseException`) y respete su status en vez de forzar 500 siempre. No se tocó en VET-05 porque es un comportamiento preexistente ajeno a seguridad.
 - **`CreatePlanService` lanza la excepción equivocada al validar el nombre del plan.** En `application/subscription/services/CreatePlanService.java`, la validación `if (request.getPlan() == null || request.getPlan().isBlank())` lanza `InvalidVeterinaryNameException("Plan name is required")` — la excepción de `domain/shared/exceptions` pensada para el *nombre de la clínica* (la usan `RegisterVeterinaryService`/`UpdateVeterinaryService` de `clinic` para ese mismo propósito), no para el nombre del plan de suscripción. Por eso terminó en `domain/shared/exceptions` en VET-02 (la usan dos módulos) en vez de quedarse en `domain/subscription/exceptions`. El comportamiento HTTP actual es correcto por coincidencia (400 + mensaje "Plan name is required", manejado por el mismo `@ExceptionHandler` en `GlobalExceptionHandler`), pero el acoplamiento es conceptualmente incorrecto. Pendiente: crear una excepción propia (p. ej. `InvalidSubscriptionPlanException`) en `domain/subscription/exceptions`, lanzarla en su lugar, agregar su `@ExceptionHandler`, y evaluar si `InvalidVeterinaryNameException` puede volver a `domain/clinic/exceptions` una vez que ya no la use ningún otro módulo. No se tocó en VET-02 porque esa tarea era solo mover clases, no cambiar lógica.
 
 ## Testing conventions

@@ -17,7 +17,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -66,14 +65,14 @@ class SecurityFilterChainTest {
     }
 
     @Test
-    void adminEndpoint_shouldPassAuthorizationGate_whenTokenHasPlatformAdminAuthority() throws Exception {
+    void adminEndpoint_shouldReturn404WithCode_whenTokenHasPlatformAdminAuthority() throws Exception {
         // No /admin/** controller exists yet (comes in a later task), so there is no handler to
-        // route to. GlobalExceptionHandler's catch-all `Exception.class` handler (pre-existing,
-        // out of scope here) turns Spring's "no handler found" into a 500 instead of a 404 — so
-        // we only assert that the authorization gate itself did not block the request (no 403),
-        // rather than asserting a specific downstream status.
+        // route to. The authorization gate passes (PLATFORM_ADMIN), and GlobalExceptionHandler's
+        // NoResourceFoundException/NoHandlerFoundException handler (Fase 2B Parte 1) now turns
+        // that into a real 404 instead of falling through to the catch-all 500.
         mockMvc.perform(post("/admin/anything")
                         .with(jwt().authorities(new SimpleGrantedAuthority("PLATFORM_ADMIN"))))
-                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(403));
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
 }
