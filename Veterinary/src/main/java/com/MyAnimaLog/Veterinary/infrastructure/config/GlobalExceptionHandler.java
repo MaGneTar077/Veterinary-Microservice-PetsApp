@@ -29,9 +29,26 @@ import com.MyAnimaLog.Veterinary.domain.shared.exceptions.PlatformAdminRequiredE
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.TenantMismatchException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.UnauthenticatedException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.ExternalServiceUnavailableException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.NotVeterinaryOwnerException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VerificationLockedException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InvalidFileTypeException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.FileTooLargeException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.ConsentRequiredException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.ConsentVersionOutdatedException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidVeterinaryFieldException;
+import com.MyAnimaLog.Veterinary.domain.verification.exceptions.InvalidLegalRepresentativeException;
+import com.MyAnimaLog.Veterinary.domain.verification.exceptions.InvalidDocumentTypeException;
+import com.MyAnimaLog.Veterinary.domain.verification.exceptions.TruthfulnessDeclarationRequiredException;
+import com.MyAnimaLog.Veterinary.domain.verification.exceptions.MissingRequiredDocumentsException;
+import com.MyAnimaLog.Veterinary.domain.verification.exceptions.InvalidVerificationStateException;
+import com.MyAnimaLog.Veterinary.domain.verification.exceptions.VerificationAttemptsExhaustedException;
+import com.MyAnimaLog.Veterinary.domain.verification.exceptions.VerificationDocumentNotFoundException;
+import com.MyAnimaLog.Veterinary.domain.verification.exceptions.VerificationRequestNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -45,6 +62,8 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     private ResponseEntity<Map<String, Object>> build(HttpStatus status, String message, String code) {
         Map<String, Object> body = new LinkedHashMap<>();
@@ -201,6 +220,81 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), "EXTERNAL_SERVICE_UNAVAILABLE");
     }
 
+    @ExceptionHandler(NotVeterinaryOwnerException.class)
+    public ResponseEntity<Map<String, Object>> handleNotVeterinaryOwner(NotVeterinaryOwnerException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage(), "NOT_VETERINARY_OWNER");
+    }
+
+    @ExceptionHandler(VerificationLockedException.class)
+    public ResponseEntity<Map<String, Object>> handleVerificationLocked(VerificationLockedException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), "VERIFICATION_LOCKED");
+    }
+
+    @ExceptionHandler(InvalidFileTypeException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidFileType(InvalidFileTypeException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "INVALID_FILE_TYPE");
+    }
+
+    @ExceptionHandler(FileTooLargeException.class)
+    public ResponseEntity<Map<String, Object>> handleFileTooLarge(FileTooLargeException ex) {
+        return build(HttpStatus.PAYLOAD_TOO_LARGE, ex.getMessage(), "FILE_TOO_LARGE");
+    }
+
+    @ExceptionHandler(ConsentRequiredException.class)
+    public ResponseEntity<Map<String, Object>> handleConsentRequired(ConsentRequiredException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "CONSENT_REQUIRED");
+    }
+
+    @ExceptionHandler(ConsentVersionOutdatedException.class)
+    public ResponseEntity<Map<String, Object>> handleConsentVersionOutdated(ConsentVersionOutdatedException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), "CONSENT_VERSION_OUTDATED");
+    }
+
+    @ExceptionHandler(InvalidVeterinaryFieldException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidVeterinaryField(InvalidVeterinaryFieldException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "VALIDATION_ERROR");
+    }
+
+    @ExceptionHandler(InvalidLegalRepresentativeException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidLegalRepresentative(InvalidLegalRepresentativeException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "VALIDATION_ERROR");
+    }
+
+    @ExceptionHandler(InvalidDocumentTypeException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidDocumentType(InvalidDocumentTypeException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "VALIDATION_ERROR");
+    }
+
+    @ExceptionHandler(TruthfulnessDeclarationRequiredException.class)
+    public ResponseEntity<Map<String, Object>> handleTruthfulnessDeclarationRequired(TruthfulnessDeclarationRequiredException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "TRUTHFULNESS_DECLARATION_REQUIRED");
+    }
+
+    @ExceptionHandler(MissingRequiredDocumentsException.class)
+    public ResponseEntity<Map<String, Object>> handleMissingRequiredDocuments(MissingRequiredDocumentsException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "MISSING_REQUIRED_DOCUMENTS");
+    }
+
+    @ExceptionHandler(InvalidVerificationStateException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidVerificationState(InvalidVerificationStateException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), "INVALID_VERIFICATION_STATE");
+    }
+
+    @ExceptionHandler(VerificationAttemptsExhaustedException.class)
+    public ResponseEntity<Map<String, Object>> handleVerificationAttemptsExhausted(VerificationAttemptsExhaustedException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), "VERIFICATION_ATTEMPTS_EXHAUSTED");
+    }
+
+    @ExceptionHandler(VerificationDocumentNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleVerificationDocumentNotFound(VerificationDocumentNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage(), "DOCUMENT_NOT_FOUND");
+    }
+
+    @ExceptionHandler(VerificationRequestNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleVerificationRequestNotFound(VerificationRequestNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage(), "VERIFICATION_REQUEST_NOT_FOUND");
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
         String message = ex.getBindingResult().getFieldErrors().stream()
@@ -217,8 +311,15 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, "No handler found for this route", "NOT_FOUND");
     }
 
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        log.error("Data integrity violation", ex);
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno, intenta de nuevo", "INTERNAL_ERROR");
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneric(Exception ex) {
-        return build(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error: " + ex.getMessage(), "INTERNAL_ERROR");
+        log.error("Unexpected error", ex);
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno, intenta de nuevo", "INTERNAL_ERROR");
     }
 }

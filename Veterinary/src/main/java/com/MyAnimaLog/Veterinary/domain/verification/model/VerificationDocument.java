@@ -20,5 +20,6 @@ public class VerificationDocument {
     private String mimeType;
     private Long fileSizeBytes;
     private String sha256;
-    private LocalDateTime uploadedAt;
+    @Builder.Default
+    private LocalDateTime uploadedAt = LocalDateTime.now();
 }

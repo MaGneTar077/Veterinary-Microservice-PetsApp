@@ -19,5 +19,6 @@ public class LegalConsent {
     private UUID veterinaryId;
     private ConsentType consentType;
     private String version;
-    private LocalDateTime acceptedAt;
+    @Builder.Default
+    private LocalDateTime acceptedAt = LocalDateTime.now();
 }

@@ -3,28 +3,38 @@ package com.MyAnimaLog.Veterinary.application.clinic.services;
 import com.MyAnimaLog.Veterinary.application.clinic.dto.RegisterVeterinaryRequest;
 import com.MyAnimaLog.Veterinary.application.clinic.dto.RegisterVeterinaryResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.legal.ports.out.LegalConsentRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.shared.dto.AuthenticatedUser;
 import com.MyAnimaLog.Veterinary.application.shared.ports.out.AuthenticatedUserPort;
+import com.MyAnimaLog.Veterinary.application.shared.ports.out.EventPublisherPort;
 import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationRequestRepositoryPort;
 import com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.ConsentRequiredException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.ConsentVersionOutdatedException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.EmailNotVerifiedException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidNitException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidVeterinaryEmailException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidVeterinaryFieldException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.TooManyOwnedVeterinariesException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.VeterinaryNitAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InvalidVeterinaryNameException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.VeterinaryAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.VeterinaryEmailAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
+import com.MyAnimaLog.Veterinary.domain.legal.model.LegalConsent;
 import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
 import com.MyAnimaLog.Veterinary.domain.staff.model.VeterinaryEmployee;
+import com.MyAnimaLog.Veterinary.domain.verification.model.VerificationRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -39,6 +49,8 @@ class RegisterVeterinaryServiceTest {
 
     // Self-consistent with Nit's DIAN check-digit algorithm (not a real-world NIT).
     private static final String VALID_NIT = "123456789-6";
+    private static final String DATA_POLICY_VERSION = "2026-10-v1";
+    private static final String TERMS_VERSION = "2026-10-v1";
 
     @Mock
     private VeterinaryRepositoryPort veterinaryRepositoryPort;
@@ -47,7 +59,16 @@ class RegisterVeterinaryServiceTest {
     private VeterinaryEmployeeRepositoryPort employeeRepositoryPort;
 
     @Mock
+    private LegalConsentRepositoryPort legalConsentRepositoryPort;
+
+    @Mock
+    private VerificationRequestRepositoryPort verificationRequestRepositoryPort;
+
+    @Mock
     private AuthenticatedUserPort authenticatedUserPort;
+
+    @Mock
+    private EventPublisherPort eventPublisherPort;
 
     @InjectMocks
     private RegisterVeterinaryService registerVeterinaryService;
@@ -58,16 +79,24 @@ class RegisterVeterinaryServiceTest {
 
     @BeforeEach
     void setUp() {
+        ReflectionTestUtils.setField(registerVeterinaryService, "currentDataPolicyVersion", DATA_POLICY_VERSION);
+        ReflectionTestUtils.setField(registerVeterinaryService, "currentTermsVersion", TERMS_VERSION);
+
         callerId = UUID.randomUUID();
         when(authenticatedUserPort.current()).thenReturn(
                 new AuthenticatedUser(callerId, "caller@example.com", true, false, Optional.empty()));
 
         validRequest = RegisterVeterinaryRequest.builder()
                 .name("Clínica El Bosque")
+                .legalName("Clínica El Bosque SAS")
                 .city("Cartagena")
                 .phone("3001234567")
                 .email("elbosque@veterinaria.com")
                 .nit(VALID_NIT)
+                .department("Bolívar")
+                .address("Calle 1 # 2-3")
+                .acceptedDataPolicyVersion(DATA_POLICY_VERSION)
+                .acceptedTermsVersion(TERMS_VERSION)
                 .build();
 
         savedVeterinary = Veterinary.builder()
@@ -84,6 +113,11 @@ class RegisterVeterinaryServiceTest {
 
         lenient().when(employeeRepositoryPort.findByUserIdAndRole(callerId, EmployeeRole.OWNER))
                 .thenReturn(List.of());
+        lenient().when(veterinaryRepositoryPort.save(any(Veterinary.class))).thenReturn(savedVeterinary);
+        lenient().when(legalConsentRepositoryPort.save(any(LegalConsent.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(verificationRequestRepositoryPort.save(any(VerificationRequest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
@@ -91,7 +125,6 @@ class RegisterVeterinaryServiceTest {
         when(veterinaryRepositoryPort.existsByName(any())).thenReturn(false);
         when(veterinaryRepositoryPort.existsByEmail(any())).thenReturn(false);
         when(veterinaryRepositoryPort.existsByNit(any())).thenReturn(false);
-        when(veterinaryRepositoryPort.save(any(Veterinary.class))).thenReturn(savedVeterinary);
 
         RegisterVeterinaryResponse response = registerVeterinaryService.registerVeterinary(validRequest);
 
@@ -102,6 +135,143 @@ class RegisterVeterinaryServiceTest {
         assertThat(response.getStatus()).isEqualTo(VeterinaryStatus.PENDING_DOCUMENTS);
         assertThat(response.getTenantId()).isNotNull();
         assertThat(response.getCreatedAt()).isNotNull();
+    }
+
+    @Test
+    void registerVeterinary_shouldSucceed_whenLatitudeAndLongitudeAreNotProvided() {
+        when(veterinaryRepositoryPort.existsByName(any())).thenReturn(false);
+        when(veterinaryRepositoryPort.existsByEmail(any())).thenReturn(false);
+        when(veterinaryRepositoryPort.existsByNit(any())).thenReturn(false);
+        assertThat(validRequest.getLatitude()).isNull();
+        assertThat(validRequest.getLongitude()).isNull();
+
+        assertThatNoException().isThrownBy(() -> registerVeterinaryService.registerVeterinary(validRequest));
+    }
+
+    @Test
+    void registerVeterinary_shouldCreateTwoLegalConsents_andOneDraftVerificationRequest() {
+        when(veterinaryRepositoryPort.existsByName(any())).thenReturn(false);
+        when(veterinaryRepositoryPort.existsByEmail(any())).thenReturn(false);
+        when(veterinaryRepositoryPort.existsByNit(any())).thenReturn(false);
+
+        registerVeterinaryService.registerVeterinary(validRequest);
+
+        verify(legalConsentRepositoryPort, times(2)).save(any(LegalConsent.class));
+        verify(verificationRequestRepositoryPort, times(1)).save(argThat((VerificationRequest r) ->
+                r.getSubjectId().equals(savedVeterinary.getId())
+                        && r.getAttemptNumber() == 1
+                        && r.getStatus().name().equals("DRAFT")));
+        verify(eventPublisherPort, times(1)).publish(any());
+    }
+
+    @Test
+    void registerVeterinary_shouldThrowConsentRequiredException_whenDataPolicyVersionMissing() {
+        validRequest.setAcceptedDataPolicyVersion(null);
+
+        assertThatThrownBy(() -> registerVeterinaryService.registerVeterinary(validRequest))
+                .isInstanceOf(ConsentRequiredException.class);
+    }
+
+    @Test
+    void registerVeterinary_shouldThrowConsentRequiredException_whenTermsVersionMissing() {
+        validRequest.setAcceptedTermsVersion(null);
+
+        assertThatThrownBy(() -> registerVeterinaryService.registerVeterinary(validRequest))
+                .isInstanceOf(ConsentRequiredException.class);
+    }
+
+    @Test
+    void registerVeterinary_shouldThrowConsentVersionOutdatedException_whenDataPolicyVersionDoesNotMatch() {
+        validRequest.setAcceptedDataPolicyVersion("2020-01-v1");
+
+        assertThatThrownBy(() -> registerVeterinaryService.registerVeterinary(validRequest))
+                .isInstanceOf(ConsentVersionOutdatedException.class);
+    }
+
+    @Test
+    void registerVeterinary_shouldThrowInvalidVeterinaryFieldException_whenLegalNameIsBlank() {
+        validRequest.setLegalName("  ");
+
+        assertThatThrownBy(() -> registerVeterinaryService.registerVeterinary(validRequest))
+                .isInstanceOf(InvalidVeterinaryFieldException.class);
+    }
+
+    @Test
+    void registerVeterinary_shouldThrowInvalidVeterinaryFieldException_whenCityIsBlank() {
+        validRequest.setCity(null);
+
+        assertThatThrownBy(() -> registerVeterinaryService.registerVeterinary(validRequest))
+                .isInstanceOf(InvalidVeterinaryFieldException.class);
+    }
+
+    @Test
+    void registerVeterinary_shouldThrowInvalidVeterinaryFieldException_whenDepartmentIsBlank() {
+        validRequest.setDepartment(null);
+
+        assertThatThrownBy(() -> registerVeterinaryService.registerVeterinary(validRequest))
+                .isInstanceOf(InvalidVeterinaryFieldException.class);
+    }
+
+    @Test
+    void registerVeterinary_shouldThrowInvalidVeterinaryFieldException_whenAddressIsBlank() {
+        validRequest.setAddress(null);
+
+        assertThatThrownBy(() -> registerVeterinaryService.registerVeterinary(validRequest))
+                .isInstanceOf(InvalidVeterinaryFieldException.class);
+    }
+
+    @Test
+    void registerVeterinary_shouldThrowInvalidVeterinaryFieldException_whenPhoneHasLetters() {
+        validRequest.setPhone("abc12345");
+
+        assertThatThrownBy(() -> registerVeterinaryService.registerVeterinary(validRequest))
+                .isInstanceOf(InvalidVeterinaryFieldException.class);
+    }
+
+    @Test
+    void registerVeterinary_shouldThrowInvalidVeterinaryFieldException_whenPhoneTooShort() {
+        validRequest.setPhone("123");
+
+        assertThatThrownBy(() -> registerVeterinaryService.registerVeterinary(validRequest))
+                .isInstanceOf(InvalidVeterinaryFieldException.class);
+    }
+
+    @Test
+    void registerVeterinary_shouldAcceptPhoneWithLeadingPlus() {
+        when(veterinaryRepositoryPort.existsByName(any())).thenReturn(false);
+        when(veterinaryRepositoryPort.existsByEmail(any())).thenReturn(false);
+        when(veterinaryRepositoryPort.existsByNit(any())).thenReturn(false);
+        validRequest.setPhone("+573001234567");
+
+        assertThatNoException().isThrownBy(() -> registerVeterinaryService.registerVeterinary(validRequest));
+    }
+
+    @Test
+    void registerVeterinary_shouldThrowInvalidVeterinaryFieldException_whenOnlyLatitudeProvided() {
+        validRequest.setLatitude(BigDecimal.valueOf(10.5));
+
+        assertThatThrownBy(() -> registerVeterinaryService.registerVeterinary(validRequest))
+                .isInstanceOf(InvalidVeterinaryFieldException.class);
+    }
+
+    @Test
+    void registerVeterinary_shouldThrowInvalidVeterinaryFieldException_whenLatitudeOutOfRange() {
+        validRequest.setLatitude(BigDecimal.valueOf(500));
+        validRequest.setLongitude(BigDecimal.valueOf(10));
+
+        assertThatThrownBy(() -> registerVeterinaryService.registerVeterinary(validRequest))
+                .isInstanceOf(InvalidVeterinaryFieldException.class);
+    }
+
+    @Test
+    void registerVeterinary_shouldAcceptValidLatitudeAndLongitude() {
+        when(veterinaryRepositoryPort.existsByName(any())).thenReturn(false);
+        when(veterinaryRepositoryPort.existsByEmail(any())).thenReturn(false);
+        when(veterinaryRepositoryPort.existsByNit(any())).thenReturn(false);
+        validRequest.setLatitude(BigDecimal.valueOf(10.4));
+        validRequest.setLongitude(BigDecimal.valueOf(-75.5));
+
+        assertThatNoException().isThrownBy(() -> registerVeterinaryService.registerVeterinary(validRequest));
     }
 
     @Test
@@ -235,7 +405,6 @@ class RegisterVeterinaryServiceTest {
         when(veterinaryRepositoryPort.existsByName(any())).thenReturn(false);
         when(veterinaryRepositoryPort.existsByEmail(any())).thenReturn(false);
         when(veterinaryRepositoryPort.existsByNit(any())).thenReturn(false);
-        when(veterinaryRepositoryPort.save(any(Veterinary.class))).thenReturn(savedVeterinary);
 
         List<VeterinaryEmployee> ownedRows = List.of(
                 ownerRowFor(UUID.randomUUID()), ownerRowFor(UUID.randomUUID()), ownerRowFor(UUID.randomUUID()));
@@ -257,7 +426,6 @@ class RegisterVeterinaryServiceTest {
         when(veterinaryRepositoryPort.existsByName(any())).thenReturn(false);
         when(veterinaryRepositoryPort.existsByEmail(any())).thenReturn(false);
         when(veterinaryRepositoryPort.existsByNit(any())).thenReturn(false);
-        when(veterinaryRepositoryPort.save(any(Veterinary.class))).thenReturn(savedVeterinary);
 
         registerVeterinaryService.registerVeterinary(validRequest);
 
@@ -269,7 +437,6 @@ class RegisterVeterinaryServiceTest {
         when(veterinaryRepositoryPort.existsByName(any())).thenReturn(false);
         when(veterinaryRepositoryPort.existsByEmail(any())).thenReturn(false);
         when(veterinaryRepositoryPort.existsByNit(any())).thenReturn(false);
-        when(veterinaryRepositoryPort.save(any(Veterinary.class))).thenReturn(savedVeterinary);
 
         registerVeterinaryService.registerVeterinary(validRequest);
 
@@ -298,7 +465,6 @@ class RegisterVeterinaryServiceTest {
         when(veterinaryRepositoryPort.existsByName(any())).thenReturn(false);
         when(veterinaryRepositoryPort.existsByEmail(any())).thenReturn(false);
         when(veterinaryRepositoryPort.existsByNit(any())).thenReturn(false);
-        when(veterinaryRepositoryPort.save(any(Veterinary.class))).thenReturn(savedVeterinary);
 
         registerVeterinaryService.registerVeterinary(validRequest);
 

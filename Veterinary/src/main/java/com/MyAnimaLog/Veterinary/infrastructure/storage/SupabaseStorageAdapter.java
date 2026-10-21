@@ -12,6 +12,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.HttpStatusCodeException;
 
 import java.time.Duration;
 import java.util.List;
@@ -59,12 +60,23 @@ public class SupabaseStorageAdapter implements FileStoragePort {
             restClient.post()
                     .uri("/object/" + bucket + "/" + path)
                     .header(HttpHeaders.CONTENT_TYPE, contentType)
+                    .header("x-upsert", "true")
                     .body(bytes)
                     .retrieve()
                     .toBodilessEntity();
         } catch (RestClientException ex) {
-            log.error("Supabase storage upload failed for bucket={}, path={}", bucket, path);
+            logFailure("upload", bucket, path, ex);
             throw new ExternalServiceUnavailableException("Supabase storage upload failed", ex);
+        }
+    }
+
+    private void logFailure(String operation, String bucket, String path, RestClientException ex) {
+        if (ex instanceof HttpStatusCodeException httpEx) {
+            log.error("Supabase storage {} failed for baseUrl={}, bucket={}, path={}, status={}, body={}",
+                    operation, storagePublicBaseUrl, bucket, path, httpEx.getStatusCode(), httpEx.getResponseBodyAsString());
+        } else {
+            log.error("Supabase storage {} failed for baseUrl={}, bucket={}, path={} (connection error)",
+                    operation, storagePublicBaseUrl, bucket, path, ex);
         }
     }
 
@@ -82,7 +94,7 @@ public class SupabaseStorageAdapter implements FileStoragePort {
             }
             return storagePublicBaseUrl + response.signedURL();
         } catch (RestClientException ex) {
-            log.error("Supabase storage signed URL request failed for bucket={}, path={}", bucket, path);
+            logFailure("signed URL request", bucket, path, ex);
             throw new ExternalServiceUnavailableException("Supabase storage signed URL request failed", ex);
         }
     }
@@ -97,7 +109,7 @@ public class SupabaseStorageAdapter implements FileStoragePort {
                     .retrieve()
                     .toBodilessEntity();
         } catch (RestClientException ex) {
-            log.error("Supabase storage delete failed for bucket={}, path={}", bucket, path);
+            logFailure("delete", bucket, path, ex);
             throw new ExternalServiceUnavailableException("Supabase storage delete failed", ex);
         }
     }

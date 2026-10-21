@@ -18,4 +18,6 @@ public class RegisterVeterinaryRequest {
     private String department;
     private BigDecimal latitude;
     private BigDecimal longitude;
+    private String acceptedDataPolicyVersion;
+    private String acceptedTermsVersion;
 }

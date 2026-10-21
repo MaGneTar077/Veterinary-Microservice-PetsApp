@@ -22,18 +22,22 @@ public class VerificationRequest {
     private SubjectType subjectType;
     private UUID subjectId;
     private VerificationRequestStatus status;
-    private Integer attemptNumber;
+    @Builder.Default
+    private Integer attemptNumber = 1;
     private UUID submittedBy;
     private LocalDateTime submittedAt;
     private LocalDateTime truthfulnessDeclaredAt;
-    private AiStatus aiStatus;
+    @Builder.Default
+    private AiStatus aiStatus = AiStatus.NOT_RUN;
     private String aiReport;
     private AiRiskLevel aiRiskLevel;
     private UUID reviewerId;
     private String reviewerNotes;
     private LocalDateTime decidedAt;
-    private Boolean registryChecked;
+    @Builder.Default
+    private Boolean registryChecked = false;
     private List<String> correctionDocumentTypes;
     private LocalDateTime correctionRequestedAt;
-    private LocalDateTime createdAt;
+    @Builder.Default
+    private LocalDateTime createdAt = LocalDateTime.now();
 }

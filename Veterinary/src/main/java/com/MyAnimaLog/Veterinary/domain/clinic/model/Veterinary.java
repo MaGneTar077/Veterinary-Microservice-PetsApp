@@ -43,4 +43,10 @@ public class Veterinary {
     private Boolean directoryVisible;
     private UUID createdBy;
     private LocalDateTime approvedAt;
+
+    private Boolean legalRepIsOwner;
+    private String legalRepName;
+    private String legalRepDocumentType;
+    private String legalRepDocumentNumber;
+    private String logoUrl;
 }

@@ -4,6 +4,8 @@ import com.MyAnimaLog.Veterinary.application.clinic.dto.RegisterVeterinaryReques
 import com.MyAnimaLog.Veterinary.application.clinic.dto.RegisterVeterinaryResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.in.RegisterVeterinaryUseCase;
 import com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.ConsentRequiredException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.ConsentVersionOutdatedException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.EmailNotVerifiedException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidNitException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidVeterinaryEmailException;
@@ -55,10 +57,15 @@ class RegisterVeterinaryControllerTest {
     void setUp() {
         validRequest = RegisterVeterinaryRequest.builder()
                 .name("Clínica El Bosque")
+                .legalName("Clínica El Bosque SAS")
                 .city("Cartagena")
                 .phone("3001234567")
                 .email("elbosque@veterinaria.com")
                 .nit("123456789-6")
+                .department("Bolívar")
+                .address("Calle 1 # 2-3")
+                .acceptedDataPolicyVersion("2026-10-v1")
+                .acceptedTermsVersion("2026-10-v1")
                 .build();
 
         validResponse = RegisterVeterinaryResponse.builder()
@@ -199,6 +206,34 @@ class RegisterVeterinaryControllerTest {
                         .with(csrf())
                         .with(jwt()))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void register_shouldReturn400_whenConsentIsMissing() throws Exception {
+        when(registerVeterinaryUseCase.registerVeterinary(any(RegisterVeterinaryRequest.class)))
+                .thenThrow(new ConsentRequiredException());
+
+        mockMvc.perform(post("/api/veterinary/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest))
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("CONSENT_REQUIRED"));
+    }
+
+    @Test
+    void register_shouldReturn409_whenConsentVersionIsOutdated() throws Exception {
+        when(registerVeterinaryUseCase.registerVeterinary(any(RegisterVeterinaryRequest.class)))
+                .thenThrow(new ConsentVersionOutdatedException());
+
+        mockMvc.perform(post("/api/veterinary/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validRequest))
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CONSENT_VERSION_OUTDATED"));
     }
 
     @Test

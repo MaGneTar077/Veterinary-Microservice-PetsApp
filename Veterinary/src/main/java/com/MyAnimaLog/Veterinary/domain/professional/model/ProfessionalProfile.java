@@ -26,10 +26,13 @@ public class ProfessionalProfile {
     private String specialty;
     private String university;
     private String signatureUrl;
-    private LicenseStatus licenseStatus;
+    @Builder.Default
+    private LicenseStatus licenseStatus = LicenseStatus.NOT_SUBMITTED;
     private String rejectionReason;
     private LocalDateTime verifiedAt;
     private UUID verifiedBy;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    @Builder.Default
+    private LocalDateTime createdAt = LocalDateTime.now();
+    @Builder.Default
+    private LocalDateTime updatedAt = LocalDateTime.now();
 }

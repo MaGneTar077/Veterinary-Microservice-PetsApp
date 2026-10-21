@@ -37,6 +37,11 @@ public class VeterinaryMapper {
                 .directoryVisible(domain.getDirectoryVisible())
                 .createdBy(domain.getCreatedBy())
                 .approvedAt(domain.getApprovedAt())
+                .legalRepIsOwner(domain.getLegalRepIsOwner())
+                .legalRepName(domain.getLegalRepName())
+                .legalRepDocumentType(domain.getLegalRepDocumentType())
+                .legalRepDocumentNumber(domain.getLegalRepDocumentNumber())
+                .logoUrl(domain.getLogoUrl())
                 .build();
     }
 
@@ -69,6 +74,11 @@ public class VeterinaryMapper {
                 .directoryVisible(entity.getDirectoryVisible())
                 .createdBy(entity.getCreatedBy())
                 .approvedAt(entity.getApprovedAt())
+                .legalRepIsOwner(entity.getLegalRepIsOwner())
+                .legalRepName(entity.getLegalRepName())
+                .legalRepDocumentType(entity.getLegalRepDocumentType())
+                .legalRepDocumentNumber(entity.getLegalRepDocumentNumber())
+                .logoUrl(entity.getLogoUrl())
                 .build();
     }
 }

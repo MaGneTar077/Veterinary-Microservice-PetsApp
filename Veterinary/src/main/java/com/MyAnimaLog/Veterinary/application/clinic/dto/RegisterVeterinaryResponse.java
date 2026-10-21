@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -24,5 +25,10 @@ public class RegisterVeterinaryResponse {
     private VeterinaryStatus status;
     private String legalName;
     private String nit;
+    private String department;
+    private String address;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
+    private String logoUrl;
     private LocalDateTime createdAt;
 }

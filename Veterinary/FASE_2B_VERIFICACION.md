@@ -280,11 +280,17 @@ Formato: `{ timestamp, status, error, message, code }`. Se agrega `code` a **tod
 
 ## 9. Partes de implementación
 
-| Parte | Contenido |
-|---|---|
-| 1 · Bases | Este documento en el repo, `code` en errores, puerto de almacenamiento (Supabase Storage), script SQL |
-| 2 · Asistente de la clínica | Registro con consentimientos, representante, logo, documentos, consulta, envío, reintento |
-| 3 · Perfil profesional | Perfil, documentos, firma, envío, `licensed` en el endpoint de miembros |
-| 4 · Revisión y IA | Panel admin, aprobar/rechazar/corregir, prueba PRO, quitar atajo de reactivate, puerto IA apagado, eventos, job de limpieza |
+| Parte | Contenido | Estado |
+|---|---|---|
+| 1 · Bases | Este documento en el repo, `code` en errores, puerto de almacenamiento (Supabase Storage), script SQL | ☑ Hecho (2026-10-15) |
+| 2 · Asistente de la clínica | Registro con consentimientos, representante, logo, documentos, consulta, envío, reintento | ☑ Hecho (2026-10-15) |
+| 3 · Perfil profesional | Perfil, documentos, firma, envío, `licensed` en el endpoint de miembros | ☐ Pendiente |
+| 4 · Revisión y IA | Panel admin, aprobar/rechazar/corregir, prueba PRO, quitar atajo de reactivate, puerto IA apagado, eventos, job de limpieza | ☐ Pendiente |
+
+Notas de la Parte 2 (diferencias menores de nombres respecto a este documento, por consistencia con el resto del código):
+- Endpoints de `GET`/`POST`/`DELETE` sobre `.../verification` implementados como `GetClinicVerification`/`SubmitClinicVerification`/`RetryClinicVerification` (en vez de un nombre genérico "Verification"), dejando el prefijo `Clinic` libre para el equivalente de perfil profesional en la Parte 3.
+- `legal_rep_document_type`/`legal_rep_document_number` se guardan como `String` simple en el dominio (no un enum compartido con `professional_profiles.document_type`), para no acoplar los módulos `clinic` y `professional` a nivel de dominio; la validación `CC`/`CE`/`PPT` vive en `UpdateLegalRepresentativeService`.
+- `rejectionReason` en la respuesta de `GET .../verification` siempre es `null` por ahora — la tabla `verification_requests` no tiene una columna separada de esa; cuando se implemente `reject` en la Parte 4 se decidirá si reusa `reviewer_notes` o se agrega la columna.
+- El `fileName` que ve la clínica en `GET .../verification` y en la respuesta de subida es el nombre generado en storage (`{documentId}.<ext>`), no el nombre original del archivo — `verification_documents` no tiene columna para el nombre original (ver sección 4), y no se pidió agregarla en esta parte.
 
 Variables nuevas: `SUPABASE_URL`, `SUPABASE_KEY` (service role, solo backend), `SUPPORT_EMAIL`, `AI_VERIFICATION_ENABLED` (default `false`), `IA_SERVICE_URL`, `LEGAL_DATA_POLICY_VERSION`, `LEGAL_TERMS_VERSION`.

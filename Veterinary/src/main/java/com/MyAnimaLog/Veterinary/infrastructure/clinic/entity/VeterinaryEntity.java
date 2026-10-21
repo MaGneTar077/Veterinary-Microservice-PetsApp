@@ -100,4 +100,19 @@ public class VeterinaryEntity {
 
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
+
+    @Column(name = "legal_rep_is_owner")
+    private Boolean legalRepIsOwner;
+
+    @Column(name = "legal_rep_name")
+    private String legalRepName;
+
+    @Column(name = "legal_rep_document_type")
+    private String legalRepDocumentType;
+
+    @Column(name = "legal_rep_document_number")
+    private String legalRepDocumentNumber;
+
+    @Column(name = "logo_url")
+    private String logoUrl;
 }
