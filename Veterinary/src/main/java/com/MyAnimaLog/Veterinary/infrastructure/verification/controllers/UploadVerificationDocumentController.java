@@ -34,7 +34,7 @@ public class UploadVerificationDocumentController {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        UploadVerificationDocumentResponse response = uploadVerificationDocumentUseCase.uploadDocument(veterinaryId, documentType, content);
+        UploadVerificationDocumentResponse response = uploadVerificationDocumentUseCase.uploadDocument(veterinaryId, documentType, content, file.getOriginalFilename());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }

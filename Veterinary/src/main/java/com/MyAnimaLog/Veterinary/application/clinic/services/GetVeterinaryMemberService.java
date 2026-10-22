@@ -3,10 +3,12 @@ package com.MyAnimaLog.Veterinary.application.clinic.services;
 import com.MyAnimaLog.Veterinary.application.clinic.dto.GetVeterinaryMemberResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.in.GetVeterinaryMemberUseCase;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.professional.ports.out.ProfessionalProfileRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.subscription.ports.out.VeterinarySubscriptionRepositoryPort;
 import com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
+import com.MyAnimaLog.Veterinary.domain.professional.enums.LicenseStatus;
 import com.MyAnimaLog.Veterinary.domain.staff.model.VeterinaryEmployee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -28,6 +30,7 @@ public class GetVeterinaryMemberService implements GetVeterinaryMemberUseCase {
     private final VeterinaryRepositoryPort veterinaryRepositoryPort;
     private final VeterinaryEmployeeRepositoryPort employeeRepositoryPort;
     private final VeterinarySubscriptionRepositoryPort subscriptionRepositoryPort;
+    private final ProfessionalProfileRepositoryPort professionalProfileRepositoryPort;
 
     @Override
     public GetVeterinaryMemberResponse getMember(UUID veterinaryId, UUID userId) {
@@ -56,14 +59,15 @@ public class GetVeterinaryMemberService implements GetVeterinaryMemberUseCase {
         }
 
         VeterinaryEmployee veterinaryEmployee = employee.get();
+        boolean licensed = professionalProfileRepositoryPort.findByUserId(userId)
+                .map(profile -> profile.getLicenseStatus() == LicenseStatus.VERIFIED)
+                .orElse(false);
         return GetVeterinaryMemberResponse.builder()
                 .member(true)
                 .employeeId(veterinaryEmployee.getId())
                 .role(veterinaryEmployee.getRole())
                 .active(veterinaryEmployee.getActive())
-                // TODO(profesional): hoy no existe perfil profesional; vet_licensed siempre false
-                // hasta que exista una verificación real de tarjeta profesional.
-                .licensed(false)
+                .licensed(licensed)
                 .veterinaryStatus(status)
                 .subscriptionStatus(subscriptionStatus)
                 .build();

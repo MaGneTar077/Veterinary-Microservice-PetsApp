@@ -44,6 +44,9 @@ import com.MyAnimaLog.Veterinary.domain.verification.exceptions.InvalidVerificat
 import com.MyAnimaLog.Veterinary.domain.verification.exceptions.VerificationAttemptsExhaustedException;
 import com.MyAnimaLog.Veterinary.domain.verification.exceptions.VerificationDocumentNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.verification.exceptions.VerificationRequestNotFoundException;
+import com.MyAnimaLog.Veterinary.domain.professional.exceptions.ProfessionalProfileNotFoundException;
+import com.MyAnimaLog.Veterinary.domain.professional.exceptions.LicenseNumberAlreadyExistsException;
+import com.MyAnimaLog.Veterinary.domain.professional.exceptions.InvalidProfessionalProfileException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -293,6 +296,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(VerificationRequestNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleVerificationRequestNotFound(VerificationRequestNotFoundException ex) {
         return build(HttpStatus.NOT_FOUND, ex.getMessage(), "VERIFICATION_REQUEST_NOT_FOUND");
+    }
+
+    @ExceptionHandler(ProfessionalProfileNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleProfessionalProfileNotFound(ProfessionalProfileNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage(), "PROFESSIONAL_PROFILE_NOT_FOUND");
+    }
+
+    @ExceptionHandler(LicenseNumberAlreadyExistsException.class)
+    public ResponseEntity<Map<String, Object>> handleLicenseNumberAlreadyExists(LicenseNumberAlreadyExistsException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), "LICENSE_NUMBER_TAKEN");
+    }
+
+    @ExceptionHandler(InvalidProfessionalProfileException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidProfessionalProfile(InvalidProfessionalProfileException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "VALIDATION_ERROR");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

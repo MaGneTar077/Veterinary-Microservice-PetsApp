@@ -132,4 +132,31 @@ class Fase2BNewTablesPersistenceIntegrationTest {
 
         assertThat(saved.getUploadedAt()).isNotNull();
     }
+
+    @Test
+    void verificationDocument_shouldPersistAndReadBackOriginalFileName() {
+        VerificationRequest request = verificationRequestRepositoryPort.save(VerificationRequest.builder()
+                .id(UUID.randomUUID())
+                .subjectType(SubjectType.PROFESSIONAL)
+                .subjectId(UUID.randomUUID())
+                .status(VerificationRequestStatus.DRAFT)
+                .submittedBy(UUID.randomUUID())
+                .build());
+
+        VerificationDocument document = VerificationDocument.builder()
+                .id(UUID.randomUUID())
+                .requestId(request.getId())
+                .documentType("PROFESSIONAL_CARD")
+                .storagePath("verifications/" + request.getId() + "/doc.pdf")
+                .mimeType("application/pdf")
+                .fileSizeBytes(1024L)
+                .sha256("0".repeat(64))
+                .originalFileName("tarjeta profesional.pdf")
+                .build();
+
+        VerificationDocument saved = verificationDocumentRepositoryPort.save(document);
+
+        assertThat(saved.getOriginalFileName()).isEqualTo("tarjeta profesional.pdf");
+        assertThat(saved.displayFileName()).isEqualTo("tarjeta profesional.pdf");
+    }
 }

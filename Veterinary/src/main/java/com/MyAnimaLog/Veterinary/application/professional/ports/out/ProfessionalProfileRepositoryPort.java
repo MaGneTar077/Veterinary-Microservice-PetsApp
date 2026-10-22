@@ -9,5 +9,6 @@ public interface ProfessionalProfileRepositoryPort {
     Optional<ProfessionalProfile> findById(UUID id);
     Optional<ProfessionalProfile> findByUserId(UUID userId);
     boolean existsByLicenseNumber(String licenseNumber);
+    boolean existsByLicenseNumberAndUserIdNot(String licenseNumber, UUID userId);
     ProfessionalProfile save(ProfessionalProfile profile);
 }

@@ -70,16 +70,23 @@ class UploadVerificationDocumentServiceTest {
 
     @Test
     void uploadDocument_shouldSucceed_forPdfRut() {
-        UploadVerificationDocumentResponse response = service.uploadDocument(veterinaryId, "RUT", PDF_BYTES);
+        UploadVerificationDocumentResponse response = service.uploadDocument(veterinaryId, "RUT", PDF_BYTES, "rut.pdf");
 
         assertThat(response.getDocumentType()).isEqualTo("RUT");
-        assertThat(response.getFileName()).endsWith(".pdf");
+        assertThat(response.getFileName()).isEqualTo("rut.pdf");
         verify(fileStoragePort, times(1)).uploadPrivate(eq("verification-documents"), any(), any(), any());
     }
 
     @Test
+    void uploadDocument_shouldFallBackToGeneratedFileName_whenOriginalFileNameIsNull() {
+        UploadVerificationDocumentResponse response = service.uploadDocument(veterinaryId, "RUT", PDF_BYTES, null);
+
+        assertThat(response.getFileName()).endsWith(".pdf");
+    }
+
+    @Test
     void uploadDocument_shouldThrowInvalidFileType_whenContentIsNotARealDocument() {
-        assertThatThrownBy(() -> service.uploadDocument(veterinaryId, "RUT", NOT_A_FILE))
+        assertThatThrownBy(() -> service.uploadDocument(veterinaryId, "RUT", NOT_A_FILE, "rut.pdf"))
                 .isInstanceOf(InvalidFileTypeException.class);
 
         verify(fileStoragePort, never()).uploadPrivate(any(), any(), any(), any());
@@ -90,13 +97,13 @@ class UploadVerificationDocumentServiceTest {
         byte[] big = new byte[10 * 1024 * 1024 + 1];
         System.arraycopy(PDF_BYTES, 0, big, 0, PDF_BYTES.length);
 
-        assertThatThrownBy(() -> service.uploadDocument(veterinaryId, "RUT", big))
+        assertThatThrownBy(() -> service.uploadDocument(veterinaryId, "RUT", big, "rut.pdf"))
                 .isInstanceOf(FileTooLargeException.class);
     }
 
     @Test
     void uploadDocument_shouldThrowInvalidDocumentType_whenTypeIsUnknown() {
-        assertThatThrownBy(() -> service.uploadDocument(veterinaryId, "PASSPORT", PDF_BYTES))
+        assertThatThrownBy(() -> service.uploadDocument(veterinaryId, "PASSPORT", PDF_BYTES, "rut.pdf"))
                 .isInstanceOf(InvalidDocumentTypeException.class);
     }
 
@@ -106,7 +113,7 @@ class UploadVerificationDocumentServiceTest {
                 .thenReturn(Optional.of(VerificationRequest.builder().id(UUID.randomUUID())
                         .status(VerificationRequestStatus.UNDER_REVIEW).build()));
 
-        assertThatThrownBy(() -> service.uploadDocument(veterinaryId, "RUT", PDF_BYTES))
+        assertThatThrownBy(() -> service.uploadDocument(veterinaryId, "RUT", PDF_BYTES, "rut.pdf"))
                 .isInstanceOf(VerificationLockedException.class);
     }
 
@@ -114,7 +121,7 @@ class UploadVerificationDocumentServiceTest {
     void uploadDocument_shouldPropagateNotVeterinaryOwner() {
         doThrow(new NotVeterinaryOwnerException()).when(authorizationService).requireVeterinaryOwner(veterinaryId);
 
-        assertThatThrownBy(() -> service.uploadDocument(veterinaryId, "RUT", PDF_BYTES))
+        assertThatThrownBy(() -> service.uploadDocument(veterinaryId, "RUT", PDF_BYTES, "rut.pdf"))
                 .isInstanceOf(NotVeterinaryOwnerException.class);
     }
 
@@ -128,7 +135,7 @@ class UploadVerificationDocumentServiceTest {
                 .build();
         when(verificationDocumentRepositoryPort.findByRequestId(openRequest.getId())).thenReturn(List.of(existing));
 
-        service.uploadDocument(veterinaryId, "RUT", PDF_BYTES);
+        service.uploadDocument(veterinaryId, "RUT", PDF_BYTES, "rut.pdf");
 
         verify(verificationDocumentRepositoryPort, times(1)).deleteById(existing.getId());
         verify(fileStoragePort, times(1)).delete("verification-documents", existing.getStoragePath());
@@ -139,7 +146,7 @@ class UploadVerificationDocumentServiceTest {
         when(verificationDocumentRepositoryPort.save(any(VerificationDocument.class)))
                 .thenThrow(new RuntimeException("db down"));
 
-        assertThatThrownBy(() -> service.uploadDocument(veterinaryId, "RUT", PDF_BYTES))
+        assertThatThrownBy(() -> service.uploadDocument(veterinaryId, "RUT", PDF_BYTES, "rut.pdf"))
                 .isInstanceOf(RuntimeException.class);
 
         verify(fileStoragePort, times(1)).delete(eq("verification-documents"), any());

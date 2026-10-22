@@ -2,10 +2,13 @@ package com.MyAnimaLog.Veterinary.application.clinic.services;
 
 import com.MyAnimaLog.Veterinary.application.clinic.dto.GetVeterinaryMemberResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.professional.ports.out.ProfessionalProfileRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.subscription.ports.out.VeterinarySubscriptionRepositoryPort;
 import com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
+import com.MyAnimaLog.Veterinary.domain.professional.enums.LicenseStatus;
+import com.MyAnimaLog.Veterinary.domain.professional.model.ProfessionalProfile;
 import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
 import com.MyAnimaLog.Veterinary.domain.staff.model.VeterinaryEmployee;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +24,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,6 +40,9 @@ class GetVeterinaryMemberServiceTest {
 
     @Mock
     private VeterinarySubscriptionRepositoryPort subscriptionRepositoryPort;
+
+    @Mock
+    private ProfessionalProfileRepositoryPort professionalProfileRepositoryPort;
 
     @InjectMocks
     private GetVeterinaryMemberService getVeterinaryMemberService;
@@ -59,6 +66,8 @@ class GetVeterinaryMemberServiceTest {
                 .status(VeterinaryStatus.ACTIVE)
                 .createdAt(LocalDateTime.now())
                 .build();
+
+        lenient().when(professionalProfileRepositoryPort.findByUserId(any())).thenReturn(Optional.empty());
     }
 
     @Test
@@ -141,6 +150,48 @@ class GetVeterinaryMemberServiceTest {
         assertThat(response.getSubscriptionStatus()).isNull();
         verify(employeeRepositoryPort, never()).findByVeterinaryIdAndUserId(any(), any());
         verify(subscriptionRepositoryPort, never()).existsActiveByVeterinaryId(any());
+    }
+
+    @Test
+    void getMember_returnsLicensedTrue_whenEmployeeHasVerifiedProfessionalProfile() {
+        when(veterinaryRepositoryPort.findById(veterinaryId)).thenReturn(Optional.of(activeVeterinary));
+        when(subscriptionRepositoryPort.existsActiveByVeterinaryId(veterinaryId)).thenReturn(true);
+        VeterinaryEmployee employee = VeterinaryEmployee.builder()
+                .id(UUID.randomUUID())
+                .veterinaryId(veterinaryId)
+                .userId(userId)
+                .role(EmployeeRole.VETERINARIAN)
+                .active(true)
+                .build();
+        when(employeeRepositoryPort.findByVeterinaryIdAndUserId(veterinaryId, userId))
+                .thenReturn(Optional.of(employee));
+        when(professionalProfileRepositoryPort.findByUserId(userId)).thenReturn(Optional.of(
+                ProfessionalProfile.builder().userId(userId).licenseStatus(LicenseStatus.VERIFIED).build()));
+
+        GetVeterinaryMemberResponse response = getVeterinaryMemberService.getMember(veterinaryId, userId);
+
+        assertThat(response.isLicensed()).isTrue();
+    }
+
+    @Test
+    void getMember_returnsLicensedFalse_whenProfessionalProfileIsNotVerifiedYet() {
+        when(veterinaryRepositoryPort.findById(veterinaryId)).thenReturn(Optional.of(activeVeterinary));
+        when(subscriptionRepositoryPort.existsActiveByVeterinaryId(veterinaryId)).thenReturn(true);
+        VeterinaryEmployee employee = VeterinaryEmployee.builder()
+                .id(UUID.randomUUID())
+                .veterinaryId(veterinaryId)
+                .userId(userId)
+                .role(EmployeeRole.VETERINARIAN)
+                .active(true)
+                .build();
+        when(employeeRepositoryPort.findByVeterinaryIdAndUserId(veterinaryId, userId))
+                .thenReturn(Optional.of(employee));
+        when(professionalProfileRepositoryPort.findByUserId(userId)).thenReturn(Optional.of(
+                ProfessionalProfile.builder().userId(userId).licenseStatus(LicenseStatus.PENDING).build()));
+
+        GetVeterinaryMemberResponse response = getVeterinaryMemberService.getMember(veterinaryId, userId);
+
+        assertThat(response.isLicensed()).isFalse();
     }
 
     @Test

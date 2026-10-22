@@ -5,5 +5,5 @@ import com.MyAnimaLog.Veterinary.application.verification.dto.UploadVerification
 import java.util.UUID;
 
 public interface UploadVerificationDocumentUseCase {
-    UploadVerificationDocumentResponse uploadDocument(UUID veterinaryId, String documentType, byte[] content);
+    UploadVerificationDocumentResponse uploadDocument(UUID veterinaryId, String documentType, byte[] content, String originalFileName);
 }

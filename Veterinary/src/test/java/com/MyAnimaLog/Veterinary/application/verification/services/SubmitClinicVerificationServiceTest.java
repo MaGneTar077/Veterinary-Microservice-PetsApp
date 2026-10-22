@@ -1,8 +1,13 @@
 package com.MyAnimaLog.Veterinary.application.verification.services;
 
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.professional.dto.SubmitProfessionalProfileResponse;
+import com.MyAnimaLog.Veterinary.application.professional.services.ProfessionalProfileSubmissionService;
+import com.MyAnimaLog.Veterinary.application.shared.dto.AuthenticatedUser;
+import com.MyAnimaLog.Veterinary.application.shared.ports.out.AuthenticatedUserPort;
 import com.MyAnimaLog.Veterinary.application.shared.ports.out.EventPublisherPort;
 import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
+import com.MyAnimaLog.Veterinary.domain.professional.exceptions.ProfessionalProfileNotFoundException;
 import com.MyAnimaLog.Veterinary.application.verification.dto.SubmitClinicVerificationRequest;
 import com.MyAnimaLog.Veterinary.application.verification.dto.SubmitClinicVerificationResponse;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationDocumentRepositoryPort;
@@ -54,6 +59,12 @@ class SubmitClinicVerificationServiceTest {
     @Mock
     private EventPublisherPort eventPublisherPort;
 
+    @Mock
+    private AuthenticatedUserPort authenticatedUserPort;
+
+    @Mock
+    private ProfessionalProfileSubmissionService professionalProfileSubmissionService;
+
     @InjectMocks
     private SubmitClinicVerificationService service;
 
@@ -89,6 +100,10 @@ class SubmitClinicVerificationServiceTest {
 
     private SubmitClinicVerificationRequest requestBody(boolean declared) {
         return SubmitClinicVerificationRequest.builder().truthfulnessDeclared(declared).build();
+    }
+
+    private SubmitClinicVerificationRequest requestBodyWithProfile(boolean declared) {
+        return SubmitClinicVerificationRequest.builder().truthfulnessDeclared(declared).includeProfessionalProfile(true).build();
     }
 
     @Test
@@ -169,5 +184,51 @@ class SubmitClinicVerificationServiceTest {
 
         assertThatThrownBy(() -> service.submit(veterinaryId, requestBody(true)))
                 .isInstanceOf(NotVeterinaryOwnerException.class);
+    }
+
+    @Test
+    void submit_shouldAlsoSubmitProfessionalProfile_whenIncludeProfessionalProfileIsTrue() {
+        UUID callerId = UUID.randomUUID();
+        when(authenticatedUserPort.current()).thenReturn(
+                new AuthenticatedUser(callerId, "owner@example.com", true, false, java.util.Optional.empty()));
+        when(professionalProfileSubmissionService.submitForUser(callerId))
+                .thenReturn(SubmitProfessionalProfileResponse.builder().build());
+
+        service.submit(veterinaryId, requestBodyWithProfile(true));
+
+        verify(professionalProfileSubmissionService, times(1)).submitForUser(callerId);
+        verify(veterinaryRepositoryPort).save(argThat((Veterinary v) -> v.getStatus() == VeterinaryStatus.UNDER_REVIEW));
+    }
+
+    @Test
+    void submit_shouldFailEntirely_whenProfessionalProfileIsNotReady() {
+        UUID callerId = UUID.randomUUID();
+        when(authenticatedUserPort.current()).thenReturn(
+                new AuthenticatedUser(callerId, "owner@example.com", true, false, java.util.Optional.empty()));
+        when(professionalProfileSubmissionService.submitForUser(callerId))
+                .thenThrow(new MissingRequiredDocumentsException("Missing required: PROFESSIONAL_CARD"));
+
+        assertThatThrownBy(() -> service.submit(veterinaryId, requestBodyWithProfile(true)))
+                .isInstanceOf(MissingRequiredDocumentsException.class);
+
+        // The clinic's own veterinary-status update and event never happen either — since this
+        // all runs inside the same @Transactional method, Spring rolls the whole thing back,
+        // including the verification_request save that already ran before this check.
+        verify(veterinaryRepositoryPort, never()).save(any());
+        verify(eventPublisherPort, never()).publish(any());
+    }
+
+    @Test
+    void submit_shouldFailEntirely_whenCallerHasNoProfessionalProfile() {
+        UUID callerId = UUID.randomUUID();
+        when(authenticatedUserPort.current()).thenReturn(
+                new AuthenticatedUser(callerId, "owner@example.com", true, false, java.util.Optional.empty()));
+        when(professionalProfileSubmissionService.submitForUser(callerId))
+                .thenThrow(new ProfessionalProfileNotFoundException());
+
+        assertThatThrownBy(() -> service.submit(veterinaryId, requestBodyWithProfile(true)))
+                .isInstanceOf(ProfessionalProfileNotFoundException.class);
+
+        verify(veterinaryRepositoryPort, never()).save(any());
     }
 }

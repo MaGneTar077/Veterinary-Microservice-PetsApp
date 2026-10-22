@@ -1,9 +1,12 @@
 package com.MyAnimaLog.Veterinary.application.verification.services;
 
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.professional.services.ProfessionalProfileSubmissionService;
+import com.MyAnimaLog.Veterinary.application.shared.dto.AuthenticatedUser;
 import com.MyAnimaLog.Veterinary.application.shared.dto.DomainEvent;
 import com.MyAnimaLog.Veterinary.application.shared.dto.EventMetadata;
 import com.MyAnimaLog.Veterinary.application.shared.dto.Recipient;
+import com.MyAnimaLog.Veterinary.application.shared.ports.out.AuthenticatedUserPort;
 import com.MyAnimaLog.Veterinary.application.shared.ports.out.EventPublisherPort;
 import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.application.verification.dto.SubmitClinicVerificationRequest;
@@ -45,6 +48,8 @@ public class SubmitClinicVerificationService implements SubmitClinicVerification
     private final VerificationDocumentRepositoryPort verificationDocumentRepositoryPort;
     private final VeterinaryAuthorizationService authorizationService;
     private final EventPublisherPort eventPublisherPort;
+    private final AuthenticatedUserPort authenticatedUserPort;
+    private final ProfessionalProfileSubmissionService professionalProfileSubmissionService;
 
     @Value("${app.support-email}")
     private String supportEmail;
@@ -94,8 +99,10 @@ public class SubmitClinicVerificationService implements SubmitClinicVerification
                 .build();
         VerificationRequest savedRequest = verificationRequestRepositoryPort.save(updatedRequest);
 
-        // TODO(Parte 3): includeProfessionalProfile should also submit the caller's professional
-        // profile for review when true; ignored for now.
+        if (Boolean.TRUE.equals(request.getIncludeProfessionalProfile())) {
+            AuthenticatedUser caller = authenticatedUserPort.current();
+            professionalProfileSubmissionService.submitForUser(caller.userId());
+        }
 
         veterinaryRepositoryPort.save(veterinary.toBuilder()
                 .status(VeterinaryStatus.UNDER_REVIEW)

@@ -33,6 +33,11 @@ public class ProfessionalProfileRepositoryAdapter implements ProfessionalProfile
     }
 
     @Override
+    public boolean existsByLicenseNumberAndUserIdNot(String licenseNumber, UUID userId) {
+        return jpaRepository.existsByLicenseNumberAndUserIdNot(licenseNumber, userId);
+    }
+
+    @Override
     public ProfessionalProfile save(ProfessionalProfile profile) {
         return mapper.toDomain(jpaRepository.save(mapper.toEntity(profile)));
     }

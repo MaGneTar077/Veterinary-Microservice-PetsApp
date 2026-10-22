@@ -9,4 +9,5 @@ import java.util.UUID;
 public interface ProfessionalProfileJpaRepository extends JpaRepository<ProfessionalProfileEntity, UUID> {
     Optional<ProfessionalProfileEntity> findByUserId(UUID userId);
     boolean existsByLicenseNumber(String licenseNumber);
+    boolean existsByLicenseNumberAndUserIdNot(String licenseNumber, UUID userId);
 }

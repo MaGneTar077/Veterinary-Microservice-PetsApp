@@ -38,7 +38,7 @@ class UploadVerificationDocumentControllerTest {
     @Test
     void upload_shouldReturn201_whenCallerIsOwner() throws Exception {
         UUID veterinaryId = UUID.randomUUID();
-        when(uploadVerificationDocumentUseCase.uploadDocument(eq(veterinaryId), eq("RUT"), any()))
+        when(uploadVerificationDocumentUseCase.uploadDocument(eq(veterinaryId), eq("RUT"), any(), any()))
                 .thenReturn(UploadVerificationDocumentResponse.builder()
                         .documentId(UUID.randomUUID())
                         .documentType("RUT")
@@ -59,7 +59,7 @@ class UploadVerificationDocumentControllerTest {
     @Test
     void upload_shouldReturn403_whenCallerIsNotOwner() throws Exception {
         UUID veterinaryId = UUID.randomUUID();
-        when(uploadVerificationDocumentUseCase.uploadDocument(eq(veterinaryId), eq("RUT"), any()))
+        when(uploadVerificationDocumentUseCase.uploadDocument(eq(veterinaryId), eq("RUT"), any(), any()))
                 .thenThrow(new NotVeterinaryOwnerException());
 
         MockMultipartFile file = new MockMultipartFile("file", "rut.pdf", "application/pdf", new byte[]{1, 2, 3});
@@ -75,7 +75,7 @@ class UploadVerificationDocumentControllerTest {
     @Test
     void upload_shouldReturn409_whenVerificationIsLocked() throws Exception {
         UUID veterinaryId = UUID.randomUUID();
-        when(uploadVerificationDocumentUseCase.uploadDocument(eq(veterinaryId), eq("RUT"), any()))
+        when(uploadVerificationDocumentUseCase.uploadDocument(eq(veterinaryId), eq("RUT"), any(), any()))
                 .thenThrow(new VerificationLockedException());
 
         MockMultipartFile file = new MockMultipartFile("file", "rut.pdf", "application/pdf", new byte[]{1, 2, 3});

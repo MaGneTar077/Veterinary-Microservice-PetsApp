@@ -44,4 +44,7 @@ public class VerificationDocumentEntity {
 
     @Column(name = "uploaded_at", nullable = false)
     private LocalDateTime uploadedAt;
+
+    @Column(name = "original_file_name")
+    private String originalFileName;
 }

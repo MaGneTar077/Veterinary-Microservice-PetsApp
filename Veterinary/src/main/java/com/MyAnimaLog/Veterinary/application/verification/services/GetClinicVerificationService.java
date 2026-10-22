@@ -78,7 +78,7 @@ public class GetClinicVerificationService implements GetClinicVerificationUseCas
                     .required(type.isRequired())
                     .status(status)
                     .documentId(doc != null ? doc.getId() : null)
-                    .fileName(doc != null ? fileName(doc.getStoragePath()) : null)
+                    .fileName(doc != null ? doc.displayFileName() : null)
                     .uploadedAt(doc != null ? doc.getUploadedAt() : null)
                     .build());
         }
@@ -142,10 +142,5 @@ public class GetClinicVerificationService implements GetClinicVerificationUseCas
                 && veterinary.getLegalRepName() != null && !veterinary.getLegalRepName().isBlank()
                 && veterinary.getLegalRepDocumentType() != null && !veterinary.getLegalRepDocumentType().isBlank()
                 && veterinary.getLegalRepDocumentNumber() != null && !veterinary.getLegalRepDocumentNumber().isBlank();
-    }
-
-    private String fileName(String storagePath) {
-        int slash = storagePath.lastIndexOf('/');
-        return slash >= 0 ? storagePath.substring(slash + 1) : storagePath;
     }
 }

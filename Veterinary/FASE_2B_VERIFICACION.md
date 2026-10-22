@@ -284,13 +284,19 @@ Formato: `{ timestamp, status, error, message, code }`. Se agrega `code` a **tod
 |---|---|---|
 | 1 · Bases | Este documento en el repo, `code` en errores, puerto de almacenamiento (Supabase Storage), script SQL | ☑ Hecho (2026-10-15) |
 | 2 · Asistente de la clínica | Registro con consentimientos, representante, logo, documentos, consulta, envío, reintento | ☑ Hecho (2026-10-15) |
-| 3 · Perfil profesional | Perfil, documentos, firma, envío, `licensed` en el endpoint de miembros | ☐ Pendiente |
+| 3 · Perfil profesional | Perfil, documentos, firma, envío, `licensed` en el endpoint de miembros | ☑ Hecho (2026-10-21) |
 | 4 · Revisión y IA | Panel admin, aprobar/rechazar/corregir, prueba PRO, quitar atajo de reactivate, puerto IA apagado, eventos, job de limpieza | ☐ Pendiente |
 
 Notas de la Parte 2 (diferencias menores de nombres respecto a este documento, por consistencia con el resto del código):
 - Endpoints de `GET`/`POST`/`DELETE` sobre `.../verification` implementados como `GetClinicVerification`/`SubmitClinicVerification`/`RetryClinicVerification` (en vez de un nombre genérico "Verification"), dejando el prefijo `Clinic` libre para el equivalente de perfil profesional en la Parte 3.
 - `legal_rep_document_type`/`legal_rep_document_number` se guardan como `String` simple en el dominio (no un enum compartido con `professional_profiles.document_type`), para no acoplar los módulos `clinic` y `professional` a nivel de dominio; la validación `CC`/`CE`/`PPT` vive en `UpdateLegalRepresentativeService`.
 - `rejectionReason` en la respuesta de `GET .../verification` siempre es `null` por ahora — la tabla `verification_requests` no tiene una columna separada de esa; cuando se implemente `reject` en la Parte 4 se decidirá si reusa `reviewer_notes` o se agrega la columna.
-- El `fileName` que ve la clínica en `GET .../verification` y en la respuesta de subida es el nombre generado en storage (`{documentId}.<ext>`), no el nombre original del archivo — `verification_documents` no tiene columna para el nombre original (ver sección 4), y no se pidió agregarla en esta parte.
+- El `fileName` que ve la clínica en `GET .../verification` y en la respuesta de subida era el nombre generado en storage (`{documentId}.<ext>`) — **resuelto en la Parte 3** con `005_original_file_name.sql` (ver sus notas abajo).
+
+Notas de la Parte 3:
+- `005_original_file_name.sql` agrega `verification_documents.original_file_name` (nullable, filas existentes en `NULL`). `VerificationDocument.displayFileName()` devuelve ese valor saneado (sin ruta, máx. 255 — `FileNameSanitizer`) cuando existe, y si no cae al nombre generado por storage; usado tanto por los documentos de la clínica como por los del perfil profesional.
+- Los documentos del perfil profesional reusan el mismo par `VerificationDocument`/`VerificationRequest` (`subjectType=PROFESSIONAL`, `subjectId=professional_profiles.id`) y el mismo `FileStoragePort`/`FileSignatureDetector` que los de la clínica — solo cambia el enum de tipos (`ProfessionalDocumentType` en vez de `ClinicDocumentType`) y de dónde sale el sujeto (perfil del token, no el `veterinaryId` del path).
+- El envío (`POST .../me/professional-profile/submit`) y el envío conjunto (`SubmitClinicVerification` con `includeProfessionalProfile=true`) comparten la misma transición vía `ProfessionalProfileSubmissionService` — no hay dos implementaciones de "qué significa enviar un perfil profesional".
+- `GetEmployeeProfessionalProfileResponse` nunca incluye `documentType`/`documentNumber` (documento de identidad) ni rutas de documentos/firma — solo lo explícitamente pedido en la sección 6: nombre, profesión, tarjeta, especialidad, universidad, `licenseStatus`.
 
 Variables nuevas: `SUPABASE_URL`, `SUPABASE_KEY` (service role, solo backend), `SUPPORT_EMAIL`, `AI_VERIFICATION_ENABLED` (default `false`), `IA_SERVICE_URL`, `LEGAL_DATA_POLICY_VERSION`, `LEGAL_TERMS_VERSION`.

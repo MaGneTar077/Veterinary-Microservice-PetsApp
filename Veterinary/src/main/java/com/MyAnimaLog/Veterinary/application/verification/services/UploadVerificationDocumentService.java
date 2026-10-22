@@ -15,6 +15,7 @@ import com.MyAnimaLog.Veterinary.domain.verification.enums.VerificationRequestSt
 import com.MyAnimaLog.Veterinary.domain.verification.exceptions.InvalidDocumentTypeException;
 import com.MyAnimaLog.Veterinary.domain.verification.model.VerificationDocument;
 import com.MyAnimaLog.Veterinary.domain.verification.model.VerificationRequest;
+import com.MyAnimaLog.Veterinary.infrastructure.storage.FileNameSanitizer;
 import com.MyAnimaLog.Veterinary.infrastructure.storage.FileSignatureDetector;
 import com.MyAnimaLog.Veterinary.infrastructure.storage.FileSignatureDetector.DetectedType;
 import com.MyAnimaLog.Veterinary.infrastructure.storage.Sha256;
@@ -41,7 +42,7 @@ public class UploadVerificationDocumentService implements UploadVerificationDocu
     private final StorageProperties storageProperties;
 
     @Override
-    public UploadVerificationDocumentResponse uploadDocument(UUID veterinaryId, String documentType, byte[] content) {
+    public UploadVerificationDocumentResponse uploadDocument(UUID veterinaryId, String documentType, byte[] content, String originalFileName) {
         authorizationService.requireVeterinaryOwner(veterinaryId);
 
         ClinicDocumentType type = parseDocumentType(documentType);
@@ -77,6 +78,7 @@ public class UploadVerificationDocumentService implements UploadVerificationDocu
                 .fileSizeBytes((long) content.length)
                 .sha256(Sha256.hex(content))
                 .uploadedAt(LocalDateTime.now())
+                .originalFileName(FileNameSanitizer.sanitize(originalFileName))
                 .build();
 
         try {
@@ -95,7 +97,7 @@ public class UploadVerificationDocumentService implements UploadVerificationDocu
                 .documentId(document.getId())
                 .requestId(document.getRequestId())
                 .documentType(document.getDocumentType())
-                .fileName(fileName(document.getStoragePath()))
+                .fileName(document.displayFileName())
                 .uploadedAt(document.getUploadedAt())
                 .build();
     }
@@ -107,10 +109,5 @@ public class UploadVerificationDocumentService implements UploadVerificationDocu
             throw new InvalidDocumentTypeException(
                     "documentType must be one of RUT, CHAMBER_OF_COMMERCE, LEGAL_REP_ID, FACADE_PHOTO");
         }
-    }
-
-    private String fileName(String storagePath) {
-        int slash = storagePath.lastIndexOf('/');
-        return slash >= 0 ? storagePath.substring(slash + 1) : storagePath;
     }
 }

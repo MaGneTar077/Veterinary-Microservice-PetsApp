@@ -17,6 +17,7 @@ public class VerificationDocumentMapper {
                 .fileSizeBytes(domain.getFileSizeBytes())
                 .sha256(domain.getSha256())
                 .uploadedAt(domain.getUploadedAt())
+                .originalFileName(domain.getOriginalFileName())
                 .build();
     }
 
@@ -30,6 +31,7 @@ public class VerificationDocumentMapper {
                 .fileSizeBytes(entity.getFileSizeBytes())
                 .sha256(entity.getSha256())
                 .uploadedAt(entity.getUploadedAt())
+                .originalFileName(entity.getOriginalFileName())
                 .build();
     }
 }
