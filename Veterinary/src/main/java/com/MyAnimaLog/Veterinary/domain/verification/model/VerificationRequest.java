@@ -2,6 +2,7 @@ package com.MyAnimaLog.Veterinary.domain.verification.model;
 
 import com.MyAnimaLog.Veterinary.domain.verification.enums.AiRiskLevel;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.AiStatus;
+import com.MyAnimaLog.Veterinary.domain.verification.enums.RejectionReasonCode;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.SubjectType;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.VerificationRequestStatus;
 import lombok.AllArgsConstructor;
@@ -33,6 +34,7 @@ public class VerificationRequest {
     private AiRiskLevel aiRiskLevel;
     private UUID reviewerId;
     private String reviewerNotes;
+    private RejectionReasonCode rejectionReasonCode;
     private LocalDateTime decidedAt;
     @Builder.Default
     private Boolean registryChecked = false;

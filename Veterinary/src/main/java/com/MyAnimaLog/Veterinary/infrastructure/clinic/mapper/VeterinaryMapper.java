@@ -42,6 +42,8 @@ public class VeterinaryMapper {
                 .legalRepDocumentType(domain.getLegalRepDocumentType())
                 .legalRepDocumentNumber(domain.getLegalRepDocumentNumber())
                 .logoUrl(domain.getLogoUrl())
+                .suspendedAt(domain.getSuspendedAt())
+                .suspensionReason(domain.getSuspensionReason())
                 .build();
     }
 
@@ -79,6 +81,8 @@ public class VeterinaryMapper {
                 .legalRepDocumentType(entity.getLegalRepDocumentType())
                 .legalRepDocumentNumber(entity.getLegalRepDocumentNumber())
                 .logoUrl(entity.getLogoUrl())
+                .suspendedAt(entity.getSuspendedAt())
+                .suspensionReason(entity.getSuspensionReason())
                 .build();
     }
 }

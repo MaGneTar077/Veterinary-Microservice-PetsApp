@@ -49,4 +49,7 @@ public class Veterinary {
     private String legalRepDocumentType;
     private String legalRepDocumentNumber;
     private String logoUrl;
+
+    private LocalDateTime suspendedAt;
+    private String suspensionReason;
 }

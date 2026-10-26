@@ -2,6 +2,7 @@ package com.MyAnimaLog.Veterinary.infrastructure.verification.entity;
 
 import com.MyAnimaLog.Veterinary.domain.verification.enums.AiRiskLevel;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.AiStatus;
+import com.MyAnimaLog.Veterinary.domain.verification.enums.RejectionReasonCode;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.SubjectType;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.VerificationRequestStatus;
 import jakarta.persistence.Column;
@@ -73,6 +74,10 @@ public class VerificationRequestEntity {
 
     @Column(name = "reviewer_notes")
     private String reviewerNotes;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "rejection_reason_code")
+    private RejectionReasonCode rejectionReasonCode;
 
     @Column(name = "decided_at")
     private LocalDateTime decidedAt;

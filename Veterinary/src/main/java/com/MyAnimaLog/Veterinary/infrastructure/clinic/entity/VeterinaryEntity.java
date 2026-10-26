@@ -115,4 +115,10 @@ public class VeterinaryEntity {
 
     @Column(name = "logo_url")
     private String logoUrl;
+
+    @Column(name = "suspended_at")
+    private LocalDateTime suspendedAt;
+
+    @Column(name = "suspension_reason")
+    private String suspensionReason;
 }
