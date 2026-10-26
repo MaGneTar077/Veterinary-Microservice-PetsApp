@@ -31,6 +31,13 @@ public class VerificationDocumentRepositoryAdapter implements VerificationDocume
     }
 
     @Override
+    public List<VerificationDocument> findBySha256(String sha256) {
+        return jpaRepository.findBySha256(sha256).stream()
+                .map(mapper::toDomain)
+                .toList();
+    }
+
+    @Override
     public VerificationDocument save(VerificationDocument document) {
         return mapper.toDomain(jpaRepository.save(mapper.toEntity(document)));
     }

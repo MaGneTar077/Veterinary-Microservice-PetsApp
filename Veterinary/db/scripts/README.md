@@ -37,9 +37,7 @@ El esquema de la base de datos (Supabase/Postgres, esquema `public`) se maneja *
 | `002_employee_roles_and_ownership.sql` | VET-09, VET-10 | 2026-10-08 | Luis Santiago Gonzalezrubio |
 | `003_enable_rls.sql` | VET-09 (mantenimiento) | 2026-10-08 | Luis Santiago Gonzalezrubio |
 | `004_verification.sql` | Fase 2B Parte 1 | 2026-10-15 | Luis Santiago Gonzalezrubio |
-| `005_original_file_name.sql` | Fase 2B Parte 3 | **pendiente de ejecutar** | — |
-| `006_admin_review.sql` | Fase 2B Parte 4A | **pendiente de ejecutar** | — |
+| `005_original_file_name.sql` | Fase 2B Parte 3 | confirmado aplicado (fecha exacta sin registrar) | — |
+| `006_admin_review.sql` | Fase 2B Parte 4A | 2026-10-26 | Luis Santiago Gonzalezrubio |
 
-`005_original_file_name.sql` todavía no se ha corrido en Supabase. No se ha ejecutado nada contra la base de datos desde este entorno. Hasta que se aplique, cualquier operación que lea/escriba `public.verification_documents` (subir/listar/borrar documentos de la clínica o del perfil profesional, incluido el test de integración `Fase2BNewTablesPersistenceIntegrationTest`) falla con `column original_file_name does not exist` — confirmado corriendo `./mvnw test` (555/556, el único error es justo ese). Queda pendiente que una persona lo corra en el SQL Editor y actualice esta fila.
-
-`006_admin_review.sql` tampoco se ha corrido todavía. Hasta que se aplique, cualquier operación que lea/escriba `public.verification_requests` (incluida la cola/detalle/decisiones del admin y el test de integración) falla con `column rejection_reason_code does not exist`, y cualquier operación sobre `public.veterinary` que ahora mapea `suspended_at`/`suspension_reason` falla igual si esas columnas no existen.
+`005_original_file_name.sql`: la fila de arriba decía "pendiente de ejecutar" desde la Parte 3, pero `./mvnw test` del 2026-10-26 (557/557, 0 fallos) incluye `Fase2BNewTablesPersistenceIntegrationTest.verificationDocument_shouldPersistAndReadBackOriginalFileName`, que solo pasa si la columna existe — así que ya estaba aplicado en Supabase; solo faltaba actualizar este registro. Si alguien recuerda la fecha/quién lo corrió, reemplazar el texto de la celda.

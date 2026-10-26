@@ -72,6 +72,11 @@ app:
   legal:
     data-policy-version: ${LEGAL_DATA_POLICY_VERSION:2026-10-v1}
     terms-version: ${LEGAL_TERMS_VERSION:2026-10-v1}
+  user-service:
+    base-url: ${USER_SERVICE_URL:}
+  verification:
+    rues-url: ${RUES_URL:https://www.rues.org.co/}
+    comvezcol-url: ${COMVEZCOL_URL:https://consejoprofesionalmvz.gov.co/consulta-de-profesionales/}
 
 management:
   endpoints:

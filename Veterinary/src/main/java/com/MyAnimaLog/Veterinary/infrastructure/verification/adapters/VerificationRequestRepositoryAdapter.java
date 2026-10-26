@@ -2,13 +2,18 @@ package com.MyAnimaLog.Veterinary.infrastructure.verification.adapters;
 
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationRequestRepositoryPort;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.SubjectType;
+import com.MyAnimaLog.Veterinary.domain.verification.enums.VerificationRequestStatus;
 import com.MyAnimaLog.Veterinary.domain.verification.model.VerificationRequest;
 import com.MyAnimaLog.Veterinary.infrastructure.verification.mapper.VerificationRequestMapper;
 import com.MyAnimaLog.Veterinary.infrastructure.verification.repositories.VerificationRequestJpaRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -34,5 +39,22 @@ public class VerificationRequestRepositoryAdapter implements VerificationRequest
     @Override
     public VerificationRequest save(VerificationRequest request) {
         return mapper.toDomain(jpaRepository.save(mapper.toEntity(request)));
+    }
+
+    @Override
+    public AdminQueuePage findForAdminQueue(VerificationRequestStatus status, SubjectType subjectType, int page, int size) {
+        Page<com.MyAnimaLog.Veterinary.infrastructure.verification.entity.VerificationRequestEntity> result =
+                jpaRepository.findForAdminQueue(status, subjectType, PageRequest.of(page, size));
+        List<VerificationRequest> items = result.getContent().stream().map(mapper::toDomain).toList();
+        return new AdminQueuePage(items, result.getTotalElements());
+    }
+
+    @Override
+    public Map<VerificationRequestStatus, Long> countByStatusForAdminQueue(SubjectType subjectType) {
+        Map<VerificationRequestStatus, Long> counts = new EnumMap<>(VerificationRequestStatus.class);
+        for (VerificationRequestJpaRepository.StatusCount row : jpaRepository.countByStatusForAdminQueue(subjectType)) {
+            counts.put(row.getStatus(), row.getTotal());
+        }
+        return counts;
     }
 }

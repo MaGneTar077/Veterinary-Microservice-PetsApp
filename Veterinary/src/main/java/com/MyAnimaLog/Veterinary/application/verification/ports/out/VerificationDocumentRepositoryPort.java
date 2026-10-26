@@ -9,6 +9,7 @@ import java.util.UUID;
 public interface VerificationDocumentRepositoryPort {
     Optional<VerificationDocument> findById(UUID id);
     List<VerificationDocument> findByRequestId(UUID requestId);
+    List<VerificationDocument> findBySha256(String sha256);
     VerificationDocument save(VerificationDocument document);
     void deleteById(UUID id);
 }

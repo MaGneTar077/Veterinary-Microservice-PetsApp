@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface VerificationDocumentJpaRepository extends JpaRepository<VerificationDocumentEntity, UUID> {
     List<VerificationDocumentEntity> findByRequestId(UUID requestId);
+    List<VerificationDocumentEntity> findBySha256(String sha256);
 }
