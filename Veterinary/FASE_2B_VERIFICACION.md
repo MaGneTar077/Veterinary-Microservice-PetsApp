@@ -138,6 +138,7 @@ La firma (PNG) **no** va en el registro: se sube después desde "Mi perfil profe
 | `PENDING` | No hay archivo de ese tipo |
 | `READY` | Hay archivo y no está pedido en corrección (o se subió después de pedirla) |
 | `NEEDS_CORRECTION` | Su tipo está en `correction_document_types` y se subió antes de `correction_requested_at` |
+| `REVIEWED` | La solicitud está en `NEEDS_CORRECTION` pero este tipo de documento **no** fue pedido — ya quedó aprobado en la revisión anterior, no se puede resubir ni borrar (`409 DOCUMENT_NOT_IN_CORRECTION` si se intenta) |
 
 ### Perfil profesional (`license_status`)
 
@@ -191,6 +192,7 @@ Respuesta de `GET …/verification`:
   "submittedAt": "…", "decidedAt": null,
   "reviewerNotes": "La Cámara de Comercio tiene más de 30 días",
   "rejectionReason": null,
+  "rejectionReasonCode": null,
   "legalRepresentative": { "isOwner": true, "fullName": "…", "documentType": "CC", "documentNumber": "…" },
   "documents": [
     { "documentType": "RUT", "required": true, "status": "READY", "documentId": "uuid",
@@ -223,12 +225,15 @@ Nunca incluye el reporte de la IA ni el nivel de riesgo. `documentsDeletionDate`
 
 | Método | Ruta | Para qué |
 |---|---|---|
-| GET | `/api/veterinary/admin/verifications?status=&subjectType=&page=&size=` | Bandeja |
-| GET | `/api/veterinary/admin/verifications/{requestId}` | Detalle: datos, documentos con URL firmada (10 min), reporte IA, alerta de `sha256` repetido en otra clínica, historial de intentos |
-| POST | `…/{requestId}/approve` | `{ "registryChecked": true, "notes"? }` — sin `registryChecked` → `400 REGISTRY_CHECK_REQUIRED` |
-| POST | `…/{requestId}/reject` | `{ "reason" }` obligatorio |
-| POST | `…/{requestId}/request-correction` | `{ "notes", "documentTypes": [] }` obligatorios |
-| POST | `…/{requestId}/rerun-ai` | Volver a correr la IA |
+| GET | `/api/veterinary/admin/verifications?status=&subjectType=&page=&size=` | Bandeja. `status` default `UNDER_REVIEW`; `page` default `0`, `size` default `20`. Respuesta: `{ items, page, size, total, counts: { UNDER_REVIEW, NEEDS_CORRECTION, APPROVED, REJECTED } }` — `counts` respeta el filtro `subjectType` pero no el de `status` |
+| GET | `/api/veterinary/admin/verifications/{requestId}` | Detalle: datos declarados, `account` (del User service, con `{ id }` si el User service falla), documentos con `signedUrl` (10 min), `ai` (`aiStatus`/`aiRiskLevel`/`report` parseado), `duplicates` (otro sujeto con el mismo `sha256`), `history` (intentos anteriores), `registryLookupUrl` |
+| GET | `…/{requestId}/documents/{documentId}/signed-url` | Renueva la URL firmada de un documento cuando venció en el visor del admin |
+| POST | `…/{requestId}/approve` | `{ "registryChecked": true, "notes"? }` — sin `registryChecked: true` → `400 REGISTRY_CHECK_REQUIRED` |
+| POST | `…/{requestId}/reject` | `{ "reasonCode": "NOT_IN_REGISTRY"\|"DATA_MISMATCH"\|"DOCUMENT_INVALID"\|"OTHER", "notes" }` — ambos obligatorios, `notes` máx. 1000 |
+| POST | `…/{requestId}/request-correction` | `{ "notes", "documentTypes": [] }` — ambos obligatorios, `notes` máx. 1000, los tipos deben pertenecer al sujeto (`ClinicDocumentType`/`ProfessionalDocumentType`) → si no, `400 VALIDATION_ERROR` |
+| POST | `…/{requestId}/rerun-ai` | Vuelve a correr la IA (mismo flujo async que el envío); con `AI_VERIFICATION_ENABLED=false` → `409 AI_VERIFICATION_DISABLED` |
+
+Las tres decisiones (`approve`/`reject`/`request-correction`) solo son válidas con la solicitud en `UNDER_REVIEW` → si no, `409 INVALID_VERIFICATION_STATE` (incluye el caso de que otro admin ya decidió mientras tanto — UPDATE condicional por `id`+`status`, nunca una carrera). Un admin no puede decidir una solicitud que él mismo envió (`submitted_by = caller`) → `403 CANNOT_REVIEW_OWN_REQUEST`.
 
 ### Interno
 
@@ -247,18 +252,21 @@ Nunca incluye el reporte de la IA ni el nivel de riesgo. `documentsDeletionDate`
 5. Aprobar perfil: `license_status = VERIFIED`, `verified_at`, `verified_by`.
 6. Las URLs firmadas solo las ve el admin. La clínica ve nombre, tipo, estado y fecha de sus documentos, no un enlace.
 7. Documentos y datos extraídos nunca se escriben en logs.
+8. Con la solicitud en `NEEDS_CORRECTION`, solo se puede subir o borrar un documento cuyo tipo esté en `correction_document_types` — cualquier otro tipo → `409 DOCUMENT_NOT_IN_CORRECTION` (aplica igual a la clínica y al perfil profesional).
+9. El análisis de IA corre **después del commit** del envío (`@TransactionalEventListener(AFTER_COMMIT)` + `@Async`), nunca dentro de la misma transacción que crea/actualiza la solicitud — así un envío conjunto que falla (clínica + perfil) nunca deja un análisis de IA corriendo para algo que en realidad se revirtió. La IA nunca cambia `verification_requests.status`.
 
 ---
 
 ## 7. Eventos (ya en `VeterinaryEventType`)
 
-| Evento | Destinatario |
-|---|---|
-| `VETERINARY_REGISTERED` | Creador |
-| `VERIFICATION_SUBMITTED` | `null` + `recipient.email` = `SUPPORT_EMAIL` |
-| `VERIFICATION_APPROVED` | Quien envió (payload: `subjectType`, `veterinaryName`, `trialEndsAt`) |
-| `VERIFICATION_REJECTED` | Quien envió (`reason`, `attemptsRemaining`) |
-| `VERIFICATION_CORRECTION_REQUESTED` | Quien envió (`notes`, `documentTypes`) |
+| Evento | Destinatario | Payload |
+|---|---|---|
+| `VETERINARY_REGISTERED` | Creador | `veterinaryId`, `name` |
+| `VERIFICATION_SUBMITTED` | `null` + `recipient.email` = `SUPPORT_EMAIL` | `veterinaryId`/`requestId`/`attemptNumber` (clínica) o `subjectType`/`profileId`/`requestId` (perfil) |
+| `VERIFICATION_APPROVED` | Quien envió (`submitted_by`) | `subjectType`, `name` (nombre de la clínica o del profesional), `trialEndsAt` (solo si se creó una prueba nueva) |
+| `SUBSCRIPTION_TRIAL_STARTED` | Quien envió la clínica aprobada | `veterinaryId`, `trialEndsAt` — solo se publica si al aprobar no había ya una suscripción activa |
+| `VERIFICATION_REJECTED` | Quien envió | `subjectType`, `reasonCode`, `notes`, `attemptsRemaining`, `documentsDeletionDate` |
+| `VERIFICATION_CORRECTION_REQUESTED` | Quien envió | `subjectType`, `notes`, `documentTypes` |
 
 ---
 
@@ -270,9 +278,9 @@ Formato: `{ timestamp, status, error, message, code }`. Se agrega `code` a **tod
 |---|---|
 | 400 | `VALIDATION_ERROR`, `INVALID_NIT`, `CONSENT_REQUIRED`, `TRUTHFULNESS_DECLARATION_REQUIRED`, `INVALID_FILE_TYPE`, `REGISTRY_CHECK_REQUIRED`, `MISSING_REQUIRED_DOCUMENTS` |
 | 401 | `UNAUTHENTICATED` |
-| 403 | `EMAIL_NOT_VERIFIED`, `NOT_VETERINARY_OWNER`, `TENANT_MISMATCH`, `INSUFFICIENT_PERMISSION`, `PLATFORM_ADMIN_REQUIRED`, `CANNOT_MODIFY_SELF`, `CANNOT_MODIFY_OWNER` |
+| 403 | `EMAIL_NOT_VERIFIED`, `NOT_VETERINARY_OWNER`, `TENANT_MISMATCH`, `INSUFFICIENT_PERMISSION`, `PLATFORM_ADMIN_REQUIRED`, `CANNOT_MODIFY_SELF`, `CANNOT_MODIFY_OWNER`, `CANNOT_REVIEW_OWN_REQUEST` |
 | 404 | `VETERINARY_NOT_FOUND`, `DOCUMENT_NOT_FOUND`, `PROFESSIONAL_PROFILE_NOT_FOUND`, `VERIFICATION_REQUEST_NOT_FOUND` |
-| 409 | `VETERINARY_NAME_TAKEN`, `VETERINARY_EMAIL_TAKEN`, `NIT_TAKEN`, `LICENSE_NUMBER_TAKEN`, `CONSENT_VERSION_OUTDATED`, `VERIFICATION_LOCKED`, `INVALID_VERIFICATION_STATE`, `VERIFICATION_ATTEMPTS_EXHAUSTED`, `OWNER_CLINIC_LIMIT_REACHED`, `VETERINARY_NOT_ACTIVE` |
+| 409 | `VETERINARY_NAME_TAKEN`, `VETERINARY_EMAIL_TAKEN`, `NIT_TAKEN`, `LICENSE_NUMBER_TAKEN`, `CONSENT_VERSION_OUTDATED`, `VERIFICATION_LOCKED`, `INVALID_VERIFICATION_STATE`, `VERIFICATION_ATTEMPTS_EXHAUSTED`, `OWNER_CLINIC_LIMIT_REACHED`, `VETERINARY_NOT_ACTIVE`, `DOCUMENT_NOT_IN_CORRECTION`, `AI_VERIFICATION_DISABLED` |
 | 413 | `FILE_TOO_LARGE` |
 | 503 | `EXTERNAL_SERVICE_UNAVAILABLE` |
 
@@ -285,7 +293,8 @@ Formato: `{ timestamp, status, error, message, code }`. Se agrega `code` a **tod
 | 1 · Bases | Este documento en el repo, `code` en errores, puerto de almacenamiento (Supabase Storage), script SQL | ☑ Hecho (2026-10-15) |
 | 2 · Asistente de la clínica | Registro con consentimientos, representante, logo, documentos, consulta, envío, reintento | ☑ Hecho (2026-10-15) |
 | 3 · Perfil profesional | Perfil, documentos, firma, envío, `licensed` en el endpoint de miembros | ☑ Hecho (2026-10-21) |
-| 4 · Revisión y IA | Panel admin, aprobar/rechazar/corregir, prueba PRO, quitar atajo de reactivate, puerto IA apagado, eventos, job de limpieza | ☐ Pendiente |
+| 4A · Revisión, decisiones e IA | Cola, detalle, aprobar/rechazar/corregir (concurrencia + conflicto de interés), prueba PRO, regla de corrección (`REVIEWED`/`DOCUMENT_NOT_IN_CORRECTION`), quitar atajo de `reactivate`, puerto IA + adaptadores NoOp/HTTP, disparo async tras commit, `rerun-ai`, eventos, job de limpieza | ☑ Hecho (2026-10-27) |
+| 4B · Panel admin de clínicas y lista de profesionales | Pantalla de clínicas del admin (listar/filtrar, ver detalle no ligado a una solicitud, suspender/reactivar desde el panel) y lista de profesionales (buscar por licencia/nombre, ver estado) | ☐ Pendiente |
 
 Notas de la Parte 2 (diferencias menores de nombres respecto a este documento, por consistencia con el resto del código):
 - Endpoints de `GET`/`POST`/`DELETE` sobre `.../verification` implementados como `GetClinicVerification`/`SubmitClinicVerification`/`RetryClinicVerification` (en vez de un nombre genérico "Verification"), dejando el prefijo `Clinic` libre para el equivalente de perfil profesional en la Parte 3.
@@ -299,4 +308,47 @@ Notas de la Parte 3:
 - El envío (`POST .../me/professional-profile/submit`) y el envío conjunto (`SubmitClinicVerification` con `includeProfessionalProfile=true`) comparten la misma transición vía `ProfessionalProfileSubmissionService` — no hay dos implementaciones de "qué significa enviar un perfil profesional".
 - `GetEmployeeProfessionalProfileResponse` nunca incluye `documentType`/`documentNumber` (documento de identidad) ni rutas de documentos/firma — solo lo explícitamente pedido en la sección 6: nombre, profesión, tarjeta, especialidad, universidad, `licenseStatus`.
 
-Variables nuevas: `SUPABASE_URL`, `SUPABASE_KEY` (service role, solo backend), `SUPPORT_EMAIL`, `AI_VERIFICATION_ENABLED` (default `false`), `IA_SERVICE_URL`, `LEGAL_DATA_POLICY_VERSION`, `LEGAL_TERMS_VERSION`.
+Notas de la Parte 4A:
+- `006_admin_review.sql` agrega `verification_requests.rejection_reason_code` y `veterinary.suspended_at`/`suspension_reason` (estas dos últimas las usará la Parte 4B, pero viajaron en el mismo script).
+- Concurrencia: decidir una solicitud (`approve`/`reject`/`request-correction`) hace un `UPDATE` condicional (`WHERE id = ? AND status = 'UNDER_REVIEW'`) antes de guardar el resto de los campos — si otro admin ya decidió, el `UPDATE` afecta 0 filas y el segundo admin recibe `409 INVALID_VERIFICATION_STATE`, nunca una condición de carrera silenciosa.
+- `GetAdminVerificationDetailService` resuelve `account` llamando a `UserServicePort` (`GET {USER_SERVICE_URL}/internal/users/{id}`, adaptador `UserServiceRestAdapter`, timeout 3 s); si falla, cae a `{ id }` sin romper el resto del detalle.
+- `IaVerificationPort.isEnabled()` (no solo la property `AI_VERIFICATION_ENABLED`) es lo que de verdad decide si `VerificationAiAnalysisListener` llama al adaptador — `NoOpIaVerificationAdapter` siempre devuelve `false`; esto es lo que hace que `ai_status` nunca salga de `NOT_RUN` con la IA apagada, sin repetir el nombre de la property en varios sitios.
+- El análisis de IA vive enteramente en `VerificationAiAnalysisListener`, disparado por un evento interno de Spring (`VerificationSubmittedEvent`, no un `DomainEvent`/Pub-Sub) que tanto `SubmitClinicVerificationService` como `ProfessionalProfileSubmissionService` publican al terminar; `rerun-ai` publica el mismo evento. `@TransactionalEventListener(AFTER_COMMIT)` + `@Async` (habilitado en `AsyncConfig`) asegura que nunca corre si la transacción que envió se revierte.
+- `CorrectionGate` (`application/verification/services`) centraliza la regla "solo se puede subir/borrar un documento pedido en corrección" para los 4 servicios de documentos (clínica y perfil, subir y borrar); `VerificationDocumentStatusCalculator` centraliza el cálculo de `PENDING`/`READY`/`NEEDS_CORRECTION`/`REVIEWED` para los `GET` de clínica y de perfil — ninguna de las dos lógicas está duplicada entre módulos.
+
+Variables nuevas: `SUPABASE_URL`, `SUPABASE_KEY` (service role, solo backend), `SUPPORT_EMAIL`, `AI_VERIFICATION_ENABLED` (default `false`), `IA_SERVICE_URL`, `LEGAL_DATA_POLICY_VERSION`, `LEGAL_TERMS_VERSION`, `USER_SERVICE_URL` (Parte 4A, usado por el detalle del admin), `RUES_URL`/`COMVEZCOL_URL` (Parte 4A, opcionales — tienen default).
+
+---
+
+## 10. Todos los endpoints de la Fase 2B (para el frontend)
+
+> Tabla acumulada de las Partes 1 a 4A. `{{base}}` = `/api/veterinary`. "Token normal" = el que devuelve el login (`ctx: USER`); también se acepta un token de clínica cuyo `vet_id` coincida con el de la ruta, salvo donde se diga lo contrario. Los 404/401/403 genéricos (sin token, `NOT_FOUND` de ruta inexistente) no se repiten fila por fila — ver sección 8.
+
+| Método | Ruta | Token / permiso | Para qué |
+|---|---|---|---|
+| POST | `{{base}}/register` | Token normal + `email_verified=true` | Registrar la clínica (paso 2) + consentimientos; crea al creador como `OWNER` y la primera `verification_request` `CLINIC` en `DRAFT` |
+| PUT | `{{base}}/{veterinaryId}/legal-representative` | Token normal, OWNER verificado en base (D1) | Representante legal (paso 3); solo con la solicitud `DRAFT`/`NEEDS_CORRECTION` |
+| PUT | `{{base}}/{veterinaryId}/logo` | OWNER (D1) u OWNER/ADMIN con `CLINIC_CONFIGURE` | Subir logo (multipart `file`; PNG/JPEG/WEBP ≤2 MB) |
+| DELETE | `{{base}}/{veterinaryId}/logo` | OWNER (D1) u OWNER/ADMIN con `CLINIC_CONFIGURE` | Quitar logo |
+| GET | `{{base}}/{veterinaryId}/verification` | OWNER (D1) | Estado completo de la verificación para el asistente y las pantallas de estado |
+| POST | `{{base}}/{veterinaryId}/verification/documents` | OWNER (D1) | Subir o reemplazar documento de la clínica (multipart `documentType`, `file`) |
+| DELETE | `{{base}}/{veterinaryId}/verification/documents/{documentId}` | OWNER (D1) | Borrar documento de la clínica |
+| POST | `{{base}}/{veterinaryId}/verification/submit` | OWNER (D1) | Enviar a revisión (paso 6); `includeProfessionalProfile` opcional |
+| POST | `{{base}}/{veterinaryId}/verification/retry` | OWNER (D1) | Nuevo intento tras rechazo (máx. 3 en total) |
+| GET | `{{base}}/me/professional-profile` | Token normal | Ver mi perfil profesional (404 si no existe) |
+| PUT | `{{base}}/me/professional-profile` | Token normal | Crear o editar mi perfil (paso 5) |
+| POST | `{{base}}/me/professional-profile/documents` | Token normal | Subir o reemplazar documento del perfil |
+| DELETE | `{{base}}/me/professional-profile/documents/{documentId}` | Token normal | Borrar documento del perfil |
+| PUT | `{{base}}/me/professional-profile/signature` | Token normal | Firma (PNG ≤1 MB, bucket privado) |
+| POST | `{{base}}/me/professional-profile/submit` | Token normal | Enviar mi perfil a revisión (si no se envió junto con la clínica) |
+| GET | `{{base}}/{veterinaryId}/employees/{employeeId}/professional-profile` | Miembro de la clínica (`requireMember`) | Ver el perfil profesional de un empleado — nunca documento de identidad, documentos ni firma |
+| GET | `{{base}}/admin/verifications?status=&subjectType=&page=&size=` | `PLATFORM_ADMIN` | Cola de revisión, con `counts` por estado |
+| GET | `{{base}}/admin/verifications/{requestId}` | `PLATFORM_ADMIN` | Detalle completo (datos, documentos con `signedUrl`, IA, duplicados, historial) |
+| GET | `{{base}}/admin/verifications/{requestId}/documents/{documentId}/signed-url` | `PLATFORM_ADMIN` | Renovar la URL firmada de un documento |
+| POST | `{{base}}/admin/verifications/{requestId}/approve` | `PLATFORM_ADMIN` | Aprobar (clínica → `ACTIVE` + prueba PRO 30 días; perfil → `VERIFIED`) |
+| POST | `{{base}}/admin/verifications/{requestId}/reject` | `PLATFORM_ADMIN` | Rechazar con `reasonCode` + `notes` |
+| POST | `{{base}}/admin/verifications/{requestId}/request-correction` | `PLATFORM_ADMIN` | Pedir corrección de documentos específicos |
+| POST | `{{base}}/admin/verifications/{requestId}/rerun-ai` | `PLATFORM_ADMIN` | Volver a correr el análisis de IA (`409` si está apagada) |
+| POST | `/internal/jobs/verification-documents/cleanup` | `X-Internal-Api-Key` (servicio a servicio, no un usuario) | Borra documentos de solicitudes `REJECTED` con más de 90 días |
+
+No están en esta tabla (pre-existentes, fuera de Fase 2B pero relacionados): `GET /internal/veterinaries/{id}/members/{userId}` (ahora devuelve `licensed` real, Parte 3) y `PATCH {{base}}/admin/veterinaries/{id}/reactivate` (ya no acepta `PENDING_DOCUMENTS`/`UNDER_REVIEW`, Parte 4A).

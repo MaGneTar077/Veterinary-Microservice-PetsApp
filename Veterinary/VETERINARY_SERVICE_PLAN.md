@@ -837,17 +837,17 @@ APP_BASE_URL, SUPPORT_EMAIL
 - ☑ **VET-10** `RegisterVeterinary` 🔧: el creador queda `OWNER` (no hay verificación `DRAFT` separada todavía — el estado inicial es directamente `PENDING_DOCUMENTS`), value object `Nit` con dígito de verificación DIAN, máximo 3 clínicas no-`REJECTED` por `OWNER`, requiere `email_verified=true`.
 - ☐ **VET-11** Endpoint interno `members` (§5.5). *Desbloquea USER-03.*
 - ☑ **VET-12 (parcial)** `GetVeterinaryProfile` (`GET /api/veterinary/{id}`), `UpdateVeterinarySettings`, `DeleteInviteCode` (el plan lo llama `RevokeInviteCode`), `GetMyVeterinaries` (`GET /api/veterinary/me`) — hechos. **Falta el logo** (`FileStoragePort`/bucket, Fase 2B, junto con la verificación de documentos).
-- ☑ **VET-13** `Activate`/`DeActivate` reemplazados por `SuspendVeterinary`/`ReactivateVeterinary`, bajo `/api/veterinary/admin/veterinaries/{id}/suspend|reactivate` (no bajo `/admin/**`: el gateway solo enruta `/api/veterinary/**` a este servicio — ver CLAUDE.md "Admin routing convention"). `ReactivateVeterinary` acepta temporalmente `PENDING_DOCUMENTS`/`UNDER_REVIEW → ACTIVE` además de `SUSPENDED → ACTIVE` (`TODO(VET-17)`, hasta que exista el flujo de verificación real).
-- ☐ **VET-14** Scripts 004 y 005. `FileStoragePort` con bucket privado y URLs firmadas.
-- ☐ **VET-15** Verificación de clínica: subir/borrar documentos, `Submit`, estados (§5.3).
-- ☐ **VET-16** Perfil profesional completo (§5.4).
-- ☐ **VET-17** Panel admin de verificación: listar, detalle con URLs firmadas, aprobar/rechazar/pedir corrección. Aprobar clínica inicia la prueba (depende de VET-36 para el plan; mientras tanto, crear la suscripción `TRIAL` directo).
-- ☐ **VET-18** Análisis asíncrono con `IaVerificationPort` + `rerun-ai` *(requiere IA-01)*. Si IA no está lista, dejar el adaptador devolviendo `FAILED` y seguir.
-- ☐ **VET-19** Eventos de verificación y clínica.
+- ☑ **VET-13** `Activate`/`DeActivate` reemplazados por `SuspendVeterinary`/`ReactivateVeterinary`, bajo `/api/veterinary/admin/veterinaries/{id}/suspend|reactivate` (no bajo `/admin/**`: el gateway solo enruta `/api/veterinary/**` a este servicio — ver CLAUDE.md "Admin routing convention"). El atajo temporal que aceptaba también `PENDING_DOCUMENTS`/`UNDER_REVIEW → ACTIVE` (`TODO(VET-17)`) se quitó en VET-17/Fase 2B Parte 4A — `ReactivateVeterinary` solo acepta `SUSPENDED → ACTIVE`.
+- ☑ **VET-14** Scripts 004 y 005 (Fase 2B Partes 1 y 3). `FileStoragePort` con bucket privado y URLs firmadas.
+- ☑ **VET-15** Verificación de clínica: subir/borrar documentos, `Submit`, `Retry`, estados (§5.3) — Fase 2B Parte 2.
+- ☑ **VET-16** Perfil profesional completo (§5.4) — Fase 2B Parte 3.
+- ☑ **VET-17** Panel admin de verificación: cola, detalle con URLs firmadas, aprobar/rechazar/pedir corrección — Fase 2B Parte 4A. Aprobar clínica crea la suscripción `PRO_TRIAL` directo sobre la tabla actual (D9 de `FASE_2B_VERIFICACION.md`; se migra al modelo de planes en VET-36/Fase 6, no antes). **La pantalla de clínicas del admin y la lista de profesionales quedan pendientes como Fase 2B Parte 4B** — no estaban en el alcance de 4A.
+- ☑ **VET-18** Análisis asíncrono con `IaVerificationPort` + `rerun-ai` — Fase 2B Parte 4A. A diferencia de lo que dice esta fila, el adaptador sin IA (`NoOpIaVerificationAdapter`) no "devuelve `FAILED`" — simplemente no se llama (`isEnabled()=false`), así que `ai_status` se queda en `NOT_RUN`; `FAILED` es solo el resultado de un fallo real del adaptador HTTP cuando la IA sí está encendida.
+- ☑ **VET-19** Eventos de verificación y clínica — `VERIFICATION_SUBMITTED` (Fase 2B Parte 2/3), `VERIFICATION_APPROVED`/`VERIFICATION_REJECTED`/`VERIFICATION_CORRECTION_REQUESTED`/`SUBSCRIPTION_TRIAL_STARTED` (Fase 2B Parte 4A).
 
 ### Fase 3 — Personal
 
-- ☐ **VET-20** Script 006. `UserServicePort` *(requiere USER-06)*.
+- ☐ **VET-20** Script 006 (**numeración ya usada**: `006_admin_review.sql` se consumió en Fase 2B Parte 4A para `rejection_reason_code`/`suspended_at`/`suspension_reason` — el script de este ítem será `007_...sql`). `UserServicePort` *(requiere USER-06)* — **ya existe** (`application/shared/ports/out/UserServicePort`, adaptador `UserServiceRestAdapter`), adelantado en Fase 2B Parte 4A para resolver `account` en el detalle del admin; este ítem solo necesita reusarlo, no crearlo de nuevo.
 - ☐ **VET-21** Invitaciones de empleado: invitar, listar, reenviar, cancelar, mis invitaciones, aceptar, rechazar.
 - ☐ **VET-22** `ListEmployees`, `GetEmployee` (enriquecidos), reglas nuevas de `UpdateEmployeeRole`/`Activate`/`Deactivate`.
 - ☐ **VET-23** `TransferOwnership`, `LeaveVeterinary`. Deprecar el endpoint público `CreateVeterinaryEmployee`.
