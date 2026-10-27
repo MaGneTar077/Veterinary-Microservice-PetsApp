@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -39,4 +40,6 @@ public interface VerificationRequestJpaRepository extends JpaRepository<Verifica
     int updateStatusIfCurrentlyIs(@Param("id") UUID id,
                                    @Param("expectedStatus") VerificationRequestStatus expectedStatus,
                                    @Param("newStatus") VerificationRequestStatus newStatus);
+
+    List<VerificationRequestEntity> findByStatusAndDecidedAtBefore(VerificationRequestStatus status, LocalDateTime cutoff);
 }

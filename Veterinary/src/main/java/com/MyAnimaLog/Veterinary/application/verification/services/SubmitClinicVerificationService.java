@@ -11,6 +11,7 @@ import com.MyAnimaLog.Veterinary.application.shared.ports.out.EventPublisherPort
 import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.application.verification.dto.SubmitClinicVerificationRequest;
 import com.MyAnimaLog.Veterinary.application.verification.dto.SubmitClinicVerificationResponse;
+import com.MyAnimaLog.Veterinary.application.verification.dto.VerificationSubmittedEvent;
 import com.MyAnimaLog.Veterinary.application.verification.ports.in.SubmitClinicVerificationUseCase;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationDocumentRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationRequestRepositoryPort;
@@ -29,6 +30,7 @@ import com.MyAnimaLog.Veterinary.domain.verification.model.VerificationDocument;
 import com.MyAnimaLog.Veterinary.domain.verification.model.VerificationRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,6 +52,7 @@ public class SubmitClinicVerificationService implements SubmitClinicVerification
     private final EventPublisherPort eventPublisherPort;
     private final AuthenticatedUserPort authenticatedUserPort;
     private final ProfessionalProfileSubmissionService professionalProfileSubmissionService;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Value("${app.support-email}")
     private String supportEmail;
@@ -115,6 +118,8 @@ public class SubmitClinicVerificationService implements SubmitClinicVerification
                 new Recipient(supportEmail, null, null),
                 Map.of("veterinaryId", veterinaryId, "requestId", savedRequest.getId(), "attemptNumber", savedRequest.getAttemptNumber()),
                 EventMetadata.of(veterinaryId, null)));
+
+        applicationEventPublisher.publishEvent(new VerificationSubmittedEvent(savedRequest.getId()));
 
         return SubmitClinicVerificationResponse.builder()
                 .veterinaryId(veterinaryId)

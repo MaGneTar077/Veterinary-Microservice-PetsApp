@@ -6,6 +6,7 @@ import com.MyAnimaLog.Veterinary.application.shared.dto.DomainEvent;
 import com.MyAnimaLog.Veterinary.application.shared.dto.EventMetadata;
 import com.MyAnimaLog.Veterinary.application.shared.dto.Recipient;
 import com.MyAnimaLog.Veterinary.application.shared.ports.out.EventPublisherPort;
+import com.MyAnimaLog.Veterinary.application.verification.dto.VerificationSubmittedEvent;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationDocumentRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationRequestRepositoryPort;
 import com.MyAnimaLog.Veterinary.domain.professional.enums.LicenseStatus;
@@ -22,6 +23,7 @@ import com.MyAnimaLog.Veterinary.domain.verification.model.VerificationDocument;
 import com.MyAnimaLog.Veterinary.domain.verification.model.VerificationRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -47,6 +49,7 @@ public class ProfessionalProfileSubmissionService {
     private final VerificationRequestRepositoryPort verificationRequestRepositoryPort;
     private final VerificationDocumentRepositoryPort verificationDocumentRepositoryPort;
     private final EventPublisherPort eventPublisherPort;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Value("${app.support-email}")
     private String supportEmail;
@@ -86,6 +89,8 @@ public class ProfessionalProfileSubmissionService {
                 new Recipient(supportEmail, null, null),
                 Map.of("subjectType", "PROFESSIONAL", "profileId", savedProfile.getId(), "requestId", savedRequest.getId()),
                 EventMetadata.of(null, null)));
+
+        applicationEventPublisher.publishEvent(new VerificationSubmittedEvent(savedRequest.getId()));
 
         return SubmitProfessionalProfileResponse.builder()
                 .profileId(savedProfile.getId())

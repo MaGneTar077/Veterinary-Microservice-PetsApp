@@ -11,6 +11,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -61,5 +62,12 @@ public class VerificationRequestRepositoryAdapter implements VerificationRequest
             counts.put(row.getStatus(), row.getTotal());
         }
         return counts;
+    }
+
+    @Override
+    public List<VerificationRequest> findRejectedDecidedBefore(LocalDateTime cutoff) {
+        return jpaRepository.findByStatusAndDecidedAtBefore(VerificationRequestStatus.REJECTED, cutoff).stream()
+                .map(mapper::toDomain)
+                .toList();
     }
 }

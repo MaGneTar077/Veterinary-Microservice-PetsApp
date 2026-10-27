@@ -48,6 +48,7 @@ import com.MyAnimaLog.Veterinary.domain.verification.exceptions.RegistryCheckReq
 import com.MyAnimaLog.Veterinary.domain.verification.exceptions.InvalidReviewDecisionException;
 import com.MyAnimaLog.Veterinary.domain.verification.exceptions.CannotReviewOwnRequestException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.DocumentNotInCorrectionException;
+import com.MyAnimaLog.Veterinary.domain.verification.exceptions.AiVerificationDisabledException;
 import com.MyAnimaLog.Veterinary.domain.professional.exceptions.ProfessionalProfileNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.professional.exceptions.LicenseNumberAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.professional.exceptions.InvalidProfessionalProfileException;
@@ -335,6 +336,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DocumentNotInCorrectionException.class)
     public ResponseEntity<Map<String, Object>> handleDocumentNotInCorrection(DocumentNotInCorrectionException ex) {
         return build(HttpStatus.CONFLICT, ex.getMessage(), "DOCUMENT_NOT_IN_CORRECTION");
+    }
+
+    @ExceptionHandler(AiVerificationDisabledException.class)
+    public ResponseEntity<Map<String, Object>> handleAiVerificationDisabled(AiVerificationDisabledException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), "AI_VERIFICATION_DISABLED");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

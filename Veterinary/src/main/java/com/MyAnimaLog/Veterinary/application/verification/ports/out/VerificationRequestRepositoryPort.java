@@ -4,6 +4,7 @@ import com.MyAnimaLog.Veterinary.domain.verification.enums.SubjectType;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.VerificationRequestStatus;
 import com.MyAnimaLog.Veterinary.domain.verification.model.VerificationRequest;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,6 +34,9 @@ public interface VerificationRequestRepositoryPort {
      * the caller should treat that as a conflict, not silently continue.
      */
     boolean claimForDecision(UUID requestId, VerificationRequestStatus expectedStatus, VerificationRequestStatus newStatus);
+
+    /** REJECTED requests decided before {@code cutoff} — used by the 90-day document retention job. */
+    List<VerificationRequest> findRejectedDecidedBefore(LocalDateTime cutoff);
 
     record AdminQueuePage(List<VerificationRequest> items, long total) {
     }
