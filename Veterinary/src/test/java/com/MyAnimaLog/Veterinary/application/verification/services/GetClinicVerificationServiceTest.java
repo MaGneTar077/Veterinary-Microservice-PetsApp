@@ -12,6 +12,7 @@ import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
 import com.MyAnimaLog.Veterinary.domain.professional.enums.LicenseStatus;
 import com.MyAnimaLog.Veterinary.domain.professional.model.ProfessionalProfile;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.NotVeterinaryOwnerException;
+import com.MyAnimaLog.Veterinary.domain.verification.enums.RejectionReasonCode;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.SubjectType;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.VerificationRequestStatus;
 import com.MyAnimaLog.Veterinary.domain.verification.exceptions.VerificationRequestNotFoundException;
@@ -160,6 +161,43 @@ class GetClinicVerificationServiceTest {
 
         assertThat(response.getProfessionalProfile().getExists()).isTrue();
         assertThat(response.getProfessionalProfile().getLicenseStatus()).isEqualTo(LicenseStatus.PENDING);
+    }
+
+    @Test
+    void getVerification_shouldMarkUnrequestedDocumentReviewed_whenNeedsCorrection() {
+        LocalDateTime uploadedAt = LocalDateTime.now().minusDays(2);
+        LocalDateTime correctionRequestedAt = LocalDateTime.now().minusDays(1);
+        VerificationRequest needsCorrection = request.toBuilder()
+                .status(VerificationRequestStatus.NEEDS_CORRECTION)
+                .correctionDocumentTypes(List.of("RUT"))
+                .correctionRequestedAt(correctionRequestedAt)
+                .build();
+        when(verificationRequestRepositoryPort.findLatestBySubject(SubjectType.CLINIC, veterinaryId))
+                .thenReturn(Optional.of(needsCorrection));
+        VerificationDocument chamberOfCommerce = VerificationDocument.builder()
+                .id(UUID.randomUUID()).requestId(needsCorrection.getId()).documentType("CHAMBER_OF_COMMERCE")
+                .storagePath("verifications/req/doc.pdf").uploadedAt(uploadedAt).build();
+        when(verificationDocumentRepositoryPort.findByRequestId(needsCorrection.getId())).thenReturn(List.of(chamberOfCommerce));
+
+        GetClinicVerificationResponse response = service.getVerification(veterinaryId);
+
+        String status = response.getDocuments().stream()
+                .filter(d -> d.getDocumentType().equals("CHAMBER_OF_COMMERCE")).findFirst().orElseThrow().getStatus();
+        assertThat(status).isEqualTo("REVIEWED");
+    }
+
+    @Test
+    void getVerification_shouldExposeRejectionReasonCode_whenRejected() {
+        VerificationRequest rejected = request.toBuilder()
+                .status(VerificationRequestStatus.REJECTED)
+                .rejectionReasonCode(RejectionReasonCode.NOT_IN_REGISTRY)
+                .build();
+        when(verificationRequestRepositoryPort.findLatestBySubject(SubjectType.CLINIC, veterinaryId))
+                .thenReturn(Optional.of(rejected));
+
+        GetClinicVerificationResponse response = service.getVerification(veterinaryId);
+
+        assertThat(response.getRejectionReasonCode()).isEqualTo(RejectionReasonCode.NOT_IN_REGISTRY);
     }
 
     @Test

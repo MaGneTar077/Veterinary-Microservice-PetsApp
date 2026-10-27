@@ -5,6 +5,7 @@ import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthoriza
 import com.MyAnimaLog.Veterinary.application.verification.dto.UploadVerificationDocumentResponse;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationDocumentRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationRequestRepositoryPort;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.DocumentNotInCorrectionException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.FileTooLargeException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InvalidFileTypeException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.NotVeterinaryOwnerException;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -139,6 +141,38 @@ class UploadVerificationDocumentServiceTest {
 
         verify(verificationDocumentRepositoryPort, times(1)).deleteById(existing.getId());
         verify(fileStoragePort, times(1)).delete("verification-documents", existing.getStoragePath());
+    }
+
+    @Test
+    void uploadDocument_shouldThrowDocumentNotInCorrection_whenTypeWasNotRequested() {
+        VerificationRequest needsCorrection = openRequest.toBuilder()
+                .status(VerificationRequestStatus.NEEDS_CORRECTION)
+                .correctionDocumentTypes(List.of("LEGAL_REP_ID"))
+                .correctionRequestedAt(LocalDateTime.now())
+                .build();
+        when(verificationRequestRepositoryPort.findLatestBySubject(SubjectType.CLINIC, veterinaryId))
+                .thenReturn(Optional.of(needsCorrection));
+
+        assertThatThrownBy(() -> service.uploadDocument(veterinaryId, "RUT", PDF_BYTES, "rut.pdf"))
+                .isInstanceOf(DocumentNotInCorrectionException.class);
+
+        verify(fileStoragePort, never()).uploadPrivate(any(), any(), any(), any());
+    }
+
+    @Test
+    void uploadDocument_shouldSucceed_whenTypeWasRequestedForCorrection() {
+        VerificationRequest needsCorrection = openRequest.toBuilder()
+                .status(VerificationRequestStatus.NEEDS_CORRECTION)
+                .correctionDocumentTypes(List.of("RUT"))
+                .correctionRequestedAt(LocalDateTime.now())
+                .build();
+        when(verificationRequestRepositoryPort.findLatestBySubject(SubjectType.CLINIC, veterinaryId))
+                .thenReturn(Optional.of(needsCorrection));
+        when(verificationDocumentRepositoryPort.findByRequestId(needsCorrection.getId())).thenReturn(List.of());
+
+        UploadVerificationDocumentResponse response = service.uploadDocument(veterinaryId, "RUT", PDF_BYTES, "rut.pdf");
+
+        assertThat(response.getDocumentType()).isEqualTo("RUT");
     }
 
     @Test

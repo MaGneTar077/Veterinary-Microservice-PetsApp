@@ -9,6 +9,7 @@ import com.MyAnimaLog.Veterinary.application.verification.ports.out.Verification
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationRequestRepositoryPort;
 import com.MyAnimaLog.Veterinary.domain.professional.exceptions.ProfessionalProfileNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.professional.model.ProfessionalProfile;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.DocumentNotInCorrectionException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InvalidFileTypeException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VerificationLockedException;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.SubjectType;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -108,6 +110,22 @@ class UploadProfessionalDocumentServiceTest {
     void uploadDocument_shouldThrowInvalidFileType_whenContentIsNotARealDocument() {
         assertThatThrownBy(() -> service.uploadDocument("ID_DOCUMENT", NOT_A_FILE, "cedula.pdf"))
                 .isInstanceOf(InvalidFileTypeException.class);
+    }
+
+    @Test
+    void uploadDocument_shouldThrowDocumentNotInCorrection_whenTypeWasNotRequested() {
+        VerificationRequest needsCorrection = openRequest.toBuilder()
+                .status(VerificationRequestStatus.NEEDS_CORRECTION)
+                .correctionDocumentTypes(List.of("DEGREE"))
+                .correctionRequestedAt(LocalDateTime.now())
+                .build();
+        when(verificationRequestRepositoryPort.findLatestBySubject(SubjectType.PROFESSIONAL, profile.getId()))
+                .thenReturn(Optional.of(needsCorrection));
+
+        assertThatThrownBy(() -> service.uploadDocument("PROFESSIONAL_CARD", PDF_BYTES, "tarjeta.pdf"))
+                .isInstanceOf(DocumentNotInCorrectionException.class);
+
+        verify(fileStoragePort, never()).uploadPrivate(any(), any(), any(), any());
     }
 
     @Test

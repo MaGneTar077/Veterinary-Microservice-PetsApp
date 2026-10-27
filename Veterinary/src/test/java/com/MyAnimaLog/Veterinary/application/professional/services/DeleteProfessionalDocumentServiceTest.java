@@ -7,6 +7,7 @@ import com.MyAnimaLog.Veterinary.application.shared.ports.out.FileStoragePort;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationDocumentRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationRequestRepositoryPort;
 import com.MyAnimaLog.Veterinary.domain.professional.model.ProfessionalProfile;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.DocumentNotInCorrectionException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VerificationLockedException;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.SubjectType;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.VerificationRequestStatus;
@@ -20,6 +21,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -59,6 +62,7 @@ class DeleteProfessionalDocumentServiceTest {
         profile = ProfessionalProfile.builder().id(UUID.randomUUID()).userId(userId).build();
         openRequest = VerificationRequest.builder().id(UUID.randomUUID()).status(VerificationRequestStatus.DRAFT).build();
         document = VerificationDocument.builder().id(UUID.randomUUID()).requestId(openRequest.getId())
+                .documentType("PROFESSIONAL_CARD")
                 .storagePath("verifications/" + openRequest.getId() + "/doc.pdf").build();
 
         lenient().when(authenticatedUserPort.current()).thenReturn(
@@ -85,6 +89,23 @@ class DeleteProfessionalDocumentServiceTest {
 
         assertThatThrownBy(() -> service.deleteDocument(document.getId()))
                 .isInstanceOf(VerificationDocumentNotFoundException.class);
+    }
+
+    @Test
+    void deleteDocument_shouldThrowDocumentNotInCorrection_whenTypeWasNotRequested() {
+        VerificationRequest needsCorrection = openRequest.toBuilder()
+                .status(VerificationRequestStatus.NEEDS_CORRECTION)
+                .correctionDocumentTypes(List.of("DEGREE"))
+                .correctionRequestedAt(LocalDateTime.now())
+                .build();
+        when(verificationRequestRepositoryPort.findLatestBySubject(SubjectType.PROFESSIONAL, profile.getId()))
+                .thenReturn(Optional.of(needsCorrection));
+        when(verificationDocumentRepositoryPort.findById(document.getId())).thenReturn(Optional.of(document));
+
+        assertThatThrownBy(() -> service.deleteDocument(document.getId()))
+                .isInstanceOf(DocumentNotInCorrectionException.class);
+
+        verify(verificationDocumentRepositoryPort, never()).deleteById(any());
     }
 
     @Test

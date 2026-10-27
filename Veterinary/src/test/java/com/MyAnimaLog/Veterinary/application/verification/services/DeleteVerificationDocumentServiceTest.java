@@ -4,6 +4,7 @@ import com.MyAnimaLog.Veterinary.application.shared.ports.out.FileStoragePort;
 import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationDocumentRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationRequestRepositoryPort;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.DocumentNotInCorrectionException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.NotVeterinaryOwnerException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VerificationLockedException;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.SubjectType;
@@ -18,6 +19,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -53,6 +56,7 @@ class DeleteVerificationDocumentServiceTest {
         document = VerificationDocument.builder()
                 .id(UUID.randomUUID())
                 .requestId(openRequest.getId())
+                .documentType("RUT")
                 .storagePath("verifications/" + openRequest.getId() + "/doc.pdf")
                 .build();
 
@@ -95,6 +99,23 @@ class DeleteVerificationDocumentServiceTest {
 
         assertThatThrownBy(() -> service.deleteDocument(veterinaryId, document.getId()))
                 .isInstanceOf(VerificationLockedException.class);
+    }
+
+    @Test
+    void deleteDocument_shouldThrowDocumentNotInCorrection_whenTypeWasNotRequested() {
+        VerificationRequest needsCorrection = openRequest.toBuilder()
+                .status(VerificationRequestStatus.NEEDS_CORRECTION)
+                .correctionDocumentTypes(List.of("LEGAL_REP_ID"))
+                .correctionRequestedAt(LocalDateTime.now())
+                .build();
+        when(verificationRequestRepositoryPort.findLatestBySubject(SubjectType.CLINIC, veterinaryId))
+                .thenReturn(Optional.of(needsCorrection));
+        when(verificationDocumentRepositoryPort.findById(document.getId())).thenReturn(Optional.of(document));
+
+        assertThatThrownBy(() -> service.deleteDocument(veterinaryId, document.getId()))
+                .isInstanceOf(DocumentNotInCorrectionException.class);
+
+        verify(verificationDocumentRepositoryPort, never()).deleteById(any());
     }
 
     @Test

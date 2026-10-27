@@ -1,6 +1,7 @@
 package com.MyAnimaLog.Veterinary.application.verification.dto;
 
 import com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus;
+import com.MyAnimaLog.Veterinary.domain.verification.enums.RejectionReasonCode;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.VerificationRequestStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -27,6 +28,7 @@ public class GetClinicVerificationResponse {
     private LocalDateTime decidedAt;
     private String reviewerNotes;
     private String rejectionReason;
+    private RejectionReasonCode rejectionReasonCode;
     private LegalRepresentativeInfo legalRepresentative;
     private List<VerificationDocumentStatusInfo> documents;
     private ProfessionalProfileSummary professionalProfile;

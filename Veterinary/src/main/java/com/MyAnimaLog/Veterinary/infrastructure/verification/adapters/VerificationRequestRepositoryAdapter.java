@@ -50,6 +50,11 @@ public class VerificationRequestRepositoryAdapter implements VerificationRequest
     }
 
     @Override
+    public boolean claimForDecision(UUID requestId, VerificationRequestStatus expectedStatus, VerificationRequestStatus newStatus) {
+        return jpaRepository.updateStatusIfCurrentlyIs(requestId, expectedStatus, newStatus) == 1;
+    }
+
+    @Override
     public Map<VerificationRequestStatus, Long> countByStatusForAdminQueue(SubjectType subjectType) {
         Map<VerificationRequestStatus, Long> counts = new EnumMap<>(VerificationRequestStatus.class);
         for (VerificationRequestJpaRepository.StatusCount row : jpaRepository.countByStatusForAdminQueue(subjectType)) {

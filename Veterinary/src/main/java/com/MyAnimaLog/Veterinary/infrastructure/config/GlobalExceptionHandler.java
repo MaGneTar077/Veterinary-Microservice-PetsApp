@@ -44,6 +44,10 @@ import com.MyAnimaLog.Veterinary.domain.verification.exceptions.InvalidVerificat
 import com.MyAnimaLog.Veterinary.domain.verification.exceptions.VerificationAttemptsExhaustedException;
 import com.MyAnimaLog.Veterinary.domain.verification.exceptions.VerificationDocumentNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.verification.exceptions.VerificationRequestNotFoundException;
+import com.MyAnimaLog.Veterinary.domain.verification.exceptions.RegistryCheckRequiredException;
+import com.MyAnimaLog.Veterinary.domain.verification.exceptions.InvalidReviewDecisionException;
+import com.MyAnimaLog.Veterinary.domain.verification.exceptions.CannotReviewOwnRequestException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.DocumentNotInCorrectionException;
 import com.MyAnimaLog.Veterinary.domain.professional.exceptions.ProfessionalProfileNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.professional.exceptions.LicenseNumberAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.professional.exceptions.InvalidProfessionalProfileException;
@@ -311,6 +315,26 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidProfessionalProfileException.class)
     public ResponseEntity<Map<String, Object>> handleInvalidProfessionalProfile(InvalidProfessionalProfileException ex) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "VALIDATION_ERROR");
+    }
+
+    @ExceptionHandler(RegistryCheckRequiredException.class)
+    public ResponseEntity<Map<String, Object>> handleRegistryCheckRequired(RegistryCheckRequiredException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "REGISTRY_CHECK_REQUIRED");
+    }
+
+    @ExceptionHandler(InvalidReviewDecisionException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidReviewDecision(InvalidReviewDecisionException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "VALIDATION_ERROR");
+    }
+
+    @ExceptionHandler(CannotReviewOwnRequestException.class)
+    public ResponseEntity<Map<String, Object>> handleCannotReviewOwnRequest(CannotReviewOwnRequestException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage(), "CANNOT_REVIEW_OWN_REQUEST");
+    }
+
+    @ExceptionHandler(DocumentNotInCorrectionException.class)
+    public ResponseEntity<Map<String, Object>> handleDocumentNotInCorrection(DocumentNotInCorrectionException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), "DOCUMENT_NOT_IN_CORRECTION");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

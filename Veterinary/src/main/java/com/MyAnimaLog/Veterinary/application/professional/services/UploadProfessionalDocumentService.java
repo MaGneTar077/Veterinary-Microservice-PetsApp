@@ -8,6 +8,7 @@ import com.MyAnimaLog.Veterinary.application.shared.ports.out.AuthenticatedUserP
 import com.MyAnimaLog.Veterinary.application.shared.ports.out.FileStoragePort;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationDocumentRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationRequestRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.verification.services.CorrectionGate;
 import com.MyAnimaLog.Veterinary.domain.professional.exceptions.ProfessionalProfileNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.professional.model.ProfessionalProfile;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.FileTooLargeException;
@@ -57,6 +58,7 @@ public class UploadProfessionalDocumentService implements UploadProfessionalDocu
         VerificationRequest request = verificationRequestRepositoryPort.findLatestBySubject(SubjectType.PROFESSIONAL, profile.getId())
                 .filter(r -> r.getStatus() == VerificationRequestStatus.DRAFT || r.getStatus() == VerificationRequestStatus.NEEDS_CORRECTION)
                 .orElseThrow(VerificationLockedException::new);
+        CorrectionGate.checkDocumentTypeAllowed(request, type.name());
 
         if (content == null || content.length > MAX_DOCUMENT_SIZE_BYTES) {
             throw new FileTooLargeException("Document must be 10 MB or smaller");

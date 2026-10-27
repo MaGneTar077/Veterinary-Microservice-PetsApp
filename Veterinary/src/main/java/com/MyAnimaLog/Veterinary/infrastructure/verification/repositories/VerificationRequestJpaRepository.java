@@ -6,6 +6,7 @@ import com.MyAnimaLog.Veterinary.infrastructure.verification.entity.Verification
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -32,4 +33,10 @@ public interface VerificationRequestJpaRepository extends JpaRepository<Verifica
         VerificationRequestStatus getStatus();
         long getTotal();
     }
+
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE VerificationRequestEntity v SET v.status = :newStatus WHERE v.id = :id AND v.status = :expectedStatus")
+    int updateStatusIfCurrentlyIs(@Param("id") UUID id,
+                                   @Param("expectedStatus") VerificationRequestStatus expectedStatus,
+                                   @Param("newStatus") VerificationRequestStatus newStatus);
 }

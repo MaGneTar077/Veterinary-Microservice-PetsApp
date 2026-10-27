@@ -7,6 +7,7 @@ import com.MyAnimaLog.Veterinary.application.shared.ports.out.AuthenticatedUserP
 import com.MyAnimaLog.Veterinary.application.shared.ports.out.FileStoragePort;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationDocumentRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationRequestRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.verification.services.CorrectionGate;
 import com.MyAnimaLog.Veterinary.domain.professional.exceptions.ProfessionalProfileNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.professional.model.ProfessionalProfile;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VerificationLockedException;
@@ -45,6 +46,7 @@ public class DeleteProfessionalDocumentService implements DeleteProfessionalDocu
         VerificationDocument document = verificationDocumentRepositoryPort.findById(documentId)
                 .filter(d -> d.getRequestId().equals(request.getId()))
                 .orElseThrow(VerificationDocumentNotFoundException::new);
+        CorrectionGate.checkDocumentTypeAllowed(request, document.getDocumentType());
 
         verificationDocumentRepositoryPort.deleteById(document.getId());
         fileStoragePort.delete(storageProperties.getVerificationBucket(), document.getStoragePath());

@@ -62,16 +62,9 @@ public class GetClinicVerificationService implements GetClinicVerificationUseCas
         List<String> missingRequired = new ArrayList<>();
         for (ClinicDocumentType type : ClinicDocumentType.values()) {
             VerificationDocument doc = documentsByType.get(type.name());
-            String status;
-            if (doc == null) {
-                status = "PENDING";
-                if (type.isRequired()) {
-                    missingRequired.add(type.name());
-                }
-            } else if (isUnderCorrection(request, type, doc)) {
-                status = "NEEDS_CORRECTION";
-            } else {
-                status = "READY";
+            String status = VerificationDocumentStatusCalculator.statusFor(request, type.name(), doc);
+            if (doc == null && type.isRequired()) {
+                missingRequired.add(type.name());
             }
             documents.add(VerificationDocumentStatusInfo.builder()
                     .documentType(type.name())
@@ -116,6 +109,7 @@ public class GetClinicVerificationService implements GetClinicVerificationUseCas
                 .decidedAt(request.getDecidedAt())
                 .reviewerNotes(request.getReviewerNotes())
                 .rejectionReason(null)
+                .rejectionReasonCode(request.getRejectionReasonCode())
                 .legalRepresentative(legalRepresentative)
                 .documents(documents)
                 .professionalProfile(professionalProfile)
@@ -126,15 +120,6 @@ public class GetClinicVerificationService implements GetClinicVerificationUseCas
                         ? request.getDecidedAt().plusDays(90)
                         : null)
                 .build();
-    }
-
-    private boolean isUnderCorrection(VerificationRequest request, ClinicDocumentType type, VerificationDocument doc) {
-        if (request.getCorrectionDocumentTypes() == null || request.getCorrectionRequestedAt() == null) {
-            return false;
-        }
-        return request.getCorrectionDocumentTypes().contains(type.name())
-                && doc.getUploadedAt() != null
-                && doc.getUploadedAt().isBefore(request.getCorrectionRequestedAt());
     }
 
     private boolean isLegalRepComplete(Veterinary veterinary) {

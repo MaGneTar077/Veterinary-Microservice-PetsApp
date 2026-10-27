@@ -26,6 +26,14 @@ public interface VerificationRequestRepositoryPort {
     /** Counts per status (only UNDER_REVIEW/NEEDS_CORRECTION/APPROVED/REJECTED), respecting the subjectType filter. */
     Map<VerificationRequestStatus, Long> countByStatusForAdminQueue(SubjectType subjectType);
 
+    /**
+     * Atomically claims a request for a decision: flips its status from {@code expectedStatus} to
+     * {@code newStatus} only if it is still {@code expectedStatus} in the database right now.
+     * Returns {@code false} if another admin already decided it in the meantime (no rows updated) —
+     * the caller should treat that as a conflict, not silently continue.
+     */
+    boolean claimForDecision(UUID requestId, VerificationRequestStatus expectedStatus, VerificationRequestStatus newStatus);
+
     record AdminQueuePage(List<VerificationRequest> items, long total) {
     }
 }

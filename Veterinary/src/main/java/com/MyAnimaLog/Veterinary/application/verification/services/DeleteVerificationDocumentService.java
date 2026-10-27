@@ -38,6 +38,7 @@ public class DeleteVerificationDocumentService implements DeleteVerificationDocu
         VerificationDocument document = verificationDocumentRepositoryPort.findById(documentId)
                 .filter(d -> d.getRequestId().equals(request.getId()))
                 .orElseThrow(VerificationDocumentNotFoundException::new);
+        CorrectionGate.checkDocumentTypeAllowed(request, document.getDocumentType());
 
         verificationDocumentRepositoryPort.deleteById(document.getId());
         fileStoragePort.delete(storageProperties.getVerificationBucket(), document.getStoragePath());

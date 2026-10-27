@@ -61,29 +61,29 @@ class ReactivateVeterinaryServiceTest {
     }
 
     @Test
-    void reactivate_shouldSetApprovedAt_whenComingFromPendingDocuments() {
+    void reactivate_shouldThrowInvalidTransition_whenPendingDocuments() {
         Veterinary pending = Veterinary.builder()
                 .id(veterinaryId).status(VeterinaryStatus.PENDING_DOCUMENTS).active(false)
                 .build();
         when(veterinaryRepositoryPort.findById(veterinaryId)).thenReturn(Optional.of(pending));
 
-        ReactivateVeterinaryResponse response = reactivateVeterinaryService.reactivate(veterinaryId);
+        assertThatThrownBy(() -> reactivateVeterinaryService.reactivate(veterinaryId))
+                .isInstanceOf(InvalidVeterinaryStatusTransitionException.class);
 
-        assertThat(response.getStatus()).isEqualTo(VeterinaryStatus.ACTIVE);
-        assertThat(response.getActive()).isTrue();
-        assertThat(response.getApprovedAt()).isNotNull();
+        verify(veterinaryRepositoryPort, never()).save(any());
     }
 
     @Test
-    void reactivate_shouldSetApprovedAt_whenComingFromUnderReview() {
+    void reactivate_shouldThrowInvalidTransition_whenUnderReview() {
         Veterinary underReview = Veterinary.builder()
                 .id(veterinaryId).status(VeterinaryStatus.UNDER_REVIEW).active(false)
                 .build();
         when(veterinaryRepositoryPort.findById(veterinaryId)).thenReturn(Optional.of(underReview));
 
-        ReactivateVeterinaryResponse response = reactivateVeterinaryService.reactivate(veterinaryId);
+        assertThatThrownBy(() -> reactivateVeterinaryService.reactivate(veterinaryId))
+                .isInstanceOf(InvalidVeterinaryStatusTransitionException.class);
 
-        assertThat(response.getApprovedAt()).isNotNull();
+        verify(veterinaryRepositoryPort, never()).save(any());
     }
 
     @Test

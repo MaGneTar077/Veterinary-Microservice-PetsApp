@@ -11,20 +11,11 @@ import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
-import java.util.EnumSet;
-import java.util.Set;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class ReactivateVeterinaryService implements ReactivateVeterinaryUseCase {
-
-    // TODO(VET-17): PENDING_DOCUMENTS/UNDER_REVIEW are allowed here only as a temporary bypass
-    // until the verification flow exists — remove once PLATFORM_ADMIN approval goes through
-    // VerificationRequest instead of this endpoint.
-    private static final Set<VeterinaryStatus> REACTIVATABLE_FROM = EnumSet.of(
-            VeterinaryStatus.SUSPENDED, VeterinaryStatus.PENDING_DOCUMENTS, VeterinaryStatus.UNDER_REVIEW);
 
     private final VeterinaryRepositoryPort veterinaryRepositoryPort;
     private final VeterinaryAuthorizationService authorizationService;
@@ -37,20 +28,15 @@ public class ReactivateVeterinaryService implements ReactivateVeterinaryUseCase 
                 .orElseThrow(VeterinaryNotFoundException::new);
 
         VeterinaryStatus previousStatus = veterinary.getStatus();
-        if (!REACTIVATABLE_FROM.contains(previousStatus)) {
+        if (previousStatus != VeterinaryStatus.SUSPENDED) {
             throw new InvalidVeterinaryStatusTransitionException(
                     "Cannot reactivate a veterinary in status " + previousStatus);
         }
 
-        Veterinary.VeterinaryBuilder updatedBuilder = veterinary.toBuilder()
+        Veterinary saved = veterinaryRepositoryPort.save(veterinary.toBuilder()
                 .status(VeterinaryStatus.ACTIVE)
-                .active(VeterinaryStatus.ACTIVE.impliesActiveFlag());
-
-        if (previousStatus != VeterinaryStatus.SUSPENDED) {
-            updatedBuilder.approvedAt(LocalDateTime.now());
-        }
-
-        Veterinary saved = veterinaryRepositoryPort.save(updatedBuilder.build());
+                .active(VeterinaryStatus.ACTIVE.impliesActiveFlag())
+                .build());
 
         return ReactivateVeterinaryResponse.builder()
                 .id(saved.getId())

@@ -50,6 +50,7 @@ public class UploadVerificationDocumentService implements UploadVerificationDocu
         VerificationRequest request = verificationRequestRepositoryPort.findLatestBySubject(SubjectType.CLINIC, veterinaryId)
                 .filter(r -> r.getStatus() == VerificationRequestStatus.DRAFT || r.getStatus() == VerificationRequestStatus.NEEDS_CORRECTION)
                 .orElseThrow(VerificationLockedException::new);
+        CorrectionGate.checkDocumentTypeAllowed(request, type.name());
 
         if (content == null || content.length > MAX_DOCUMENT_SIZE_BYTES) {
             throw new FileTooLargeException("Document must be 10 MB or smaller");
