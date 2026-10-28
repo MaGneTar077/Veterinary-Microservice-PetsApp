@@ -7,6 +7,7 @@ import com.MyAnimaLog.Veterinary.infrastructure.subscription.repositories.Veteri
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -37,5 +38,10 @@ public class VeterinarySubscriptionRepositoryAdapter implements VeterinarySubscr
     @Override
     public VeterinarySubscription save(VeterinarySubscription subscription) {
         return mapper.toDomain(jpaRepository.save(mapper.toEntity(subscription)));
+    }
+
+    @Override
+    public List<VeterinarySubscription> findActiveByVeterinaryIdIn(List<UUID> veterinaryIds) {
+        return jpaRepository.findByVeterinaryIdInAndActiveTrue(veterinaryIds).stream().map(mapper::toDomain).toList();
     }
 }

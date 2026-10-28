@@ -204,4 +204,36 @@ class VeterinaryRepositoryAdapterTest {
 
         assertThat(result).isFalse();
     }
+
+    @Test
+    void findForAdminList_shouldMapPageAndLowercaseSearchForLike() {
+        org.springframework.data.domain.Page<VeterinaryEntity> page =
+                new org.springframework.data.domain.PageImpl<>(java.util.List.of(entity));
+        when(jpaRepository.findForAdminList(eq("ACTIVE"), eq("%clinica%"), eq("PRO"), eq("Bogota"), eq("Bogota D.C."), any()))
+                .thenReturn(page);
+        when(mapper.toDomain(any(VeterinaryEntity.class))).thenReturn(domain);
+
+        com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort.AdminClinicPage result =
+                veterinaryRepositoryAdapter.findForAdminList(
+                        com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus.ACTIVE,
+                        "Clinica", "PRO", "Bogota", "Bogota D.C.", 0, 20);
+
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.total()).isEqualTo(1);
+        verify(jpaRepository, times(1))
+                .findForAdminList(eq("ACTIVE"), eq("%clinica%"), eq("PRO"), eq("Bogota"), eq("Bogota D.C."), any());
+    }
+
+    @Test
+    void findForAdminList_shouldPassNullFilters_whenNoneProvided() {
+        org.springframework.data.domain.Page<VeterinaryEntity> page =
+                new org.springframework.data.domain.PageImpl<>(java.util.List.of());
+        when(jpaRepository.findForAdminList(isNull(), isNull(), isNull(), isNull(), isNull(), any()))
+                .thenReturn(page);
+
+        veterinaryRepositoryAdapter.findForAdminList(null, null, null, null, null, 0, 20);
+
+        verify(jpaRepository, times(1))
+                .findForAdminList(isNull(), isNull(), isNull(), isNull(), isNull(), any());
+    }
 }
