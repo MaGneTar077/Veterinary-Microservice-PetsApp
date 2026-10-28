@@ -16,4 +16,5 @@ public interface VeterinaryEmployeeJpaRepository extends JpaRepository<Veterinar
     List<VeterinaryEmployeeEntity> findByVeterinaryId(UUID veterinaryId);
     List<VeterinaryEmployeeEntity> findByVeterinaryIdIn(List<UUID> veterinaryIds);
     Optional<VeterinaryEmployeeEntity> findByVeterinaryIdAndRoleAndActiveTrue(UUID veterinaryId, EmployeeRole role);
+    List<VeterinaryEmployeeEntity> findByUserIdInAndActiveTrue(List<UUID> userIds);
 }

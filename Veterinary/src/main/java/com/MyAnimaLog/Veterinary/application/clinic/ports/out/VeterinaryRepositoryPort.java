@@ -30,6 +30,9 @@ public interface VeterinaryRepositoryPort {
      */
     boolean claimStatusTransition(UUID veterinaryId, VeterinaryStatus expectedStatus, VeterinaryStatus newStatus);
 
+    /** Batch lookup by id, for resolving clinic names across a page of rows (avoids N+1 per row). */
+    List<Veterinary> findByIdIn(List<UUID> ids);
+
     record AdminClinicPage(List<Veterinary> items, long total) {
     }
 }

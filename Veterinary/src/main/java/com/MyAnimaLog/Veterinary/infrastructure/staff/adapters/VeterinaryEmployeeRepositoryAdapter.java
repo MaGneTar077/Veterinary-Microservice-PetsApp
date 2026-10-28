@@ -64,4 +64,9 @@ public class VeterinaryEmployeeRepositoryAdapter implements VeterinaryEmployeeRe
         return jpaRepository.findByVeterinaryIdAndRoleAndActiveTrue(veterinaryId, role).map(mapper::toDomain);
     }
 
+    @Override
+    public List<VeterinaryEmployee> findByUserIdInAndActiveTrue(List<UUID> userIds) {
+        return jpaRepository.findByUserIdInAndActiveTrue(userIds).stream().map(mapper::toDomain).toList();
+    }
+
 }

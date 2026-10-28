@@ -23,4 +23,7 @@ public interface VeterinaryEmployeeRepositoryPort {
 
     /** The clinic's active employee with the given role (used to resolve the OWNER). */
     Optional<VeterinaryEmployee> findByVeterinaryIdAndRoleAndActiveTrue(UUID veterinaryId, EmployeeRole role);
+
+    /** Active employments across a batch of users, for the admin professionals list (avoids N+1 per row). */
+    List<VeterinaryEmployee> findByUserIdInAndActiveTrue(List<UUID> userIds);
 }

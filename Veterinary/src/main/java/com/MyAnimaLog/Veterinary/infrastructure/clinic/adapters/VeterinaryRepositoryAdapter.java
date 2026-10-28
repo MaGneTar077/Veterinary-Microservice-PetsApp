@@ -88,4 +88,9 @@ public class VeterinaryRepositoryAdapter implements VeterinaryRepositoryPort {
     public boolean claimStatusTransition(UUID veterinaryId, VeterinaryStatus expectedStatus, VeterinaryStatus newStatus) {
         return jpaRepository.updateStatusIfCurrentlyIs(veterinaryId, expectedStatus.name(), newStatus.name()) == 1;
     }
+
+    @Override
+    public List<Veterinary> findByIdIn(List<UUID> ids) {
+        return jpaRepository.findByIdIn(ids).stream().map(mapper::toDomain).toList();
+    }
 }
