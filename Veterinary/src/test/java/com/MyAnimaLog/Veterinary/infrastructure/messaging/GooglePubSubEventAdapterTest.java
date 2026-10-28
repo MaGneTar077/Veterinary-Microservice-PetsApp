@@ -6,13 +6,17 @@ import com.MyAnimaLog.Veterinary.domain.shared.enums.VeterinaryEventType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.cloud.spring.pubsub.core.PubSubTemplate;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -20,6 +24,8 @@ import java.util.concurrent.CompletableFuture;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -35,6 +41,13 @@ class GooglePubSubEventAdapterTest {
     void setUp() {
         ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
         adapter = new GooglePubSubEventAdapter(pubSubTemplate, objectMapper);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     @Test
@@ -94,5 +107,83 @@ class GooglePubSubEventAdapterTest {
         when(pubSubTemplate.publish(anyString(), anyString())).thenReturn(failedFuture);
 
         assertThatCode(() -> adapter.publish(event)).doesNotThrowAnyException();
+    }
+
+    private DomainEvent sampleEvent() {
+        return DomainEvent.create(
+                VeterinaryEventType.VETERINARY_SUSPENDED,
+                UUID.randomUUID(),
+                null,
+                Map.of("veterinaryName", "Clinica Test"),
+                EventMetadata.of(UUID.randomUUID(), UUID.randomUUID()));
+    }
+
+    @Test
+    void publish_shouldDeferUntilAfterCommit_whenATransactionIsActive() {
+        when(pubSubTemplate.publish(anyString(), anyString()))
+                .thenReturn(CompletableFuture.completedFuture("message-id"));
+        DomainEvent event = sampleEvent();
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            adapter.publish(event);
+
+            verify(pubSubTemplate, never()).publish(anyString(), anyString());
+
+            List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager.getSynchronizations();
+            assertThat(synchronizations).hasSize(1);
+            synchronizations.forEach(TransactionSynchronization::afterCommit);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
+        verify(pubSubTemplate, times(1)).publish(anyString(), anyString());
+    }
+
+    @Test
+    void publish_shouldNeverSend_whenTheTransactionRollsBack() {
+        DomainEvent event = sampleEvent();
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            adapter.publish(event);
+            // Simulates a rollback: the transaction manager would call afterCompletion(ROLLED_BACK),
+            // never afterCommit() — so we just discard the registered synchronization without invoking it.
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
+        verify(pubSubTemplate, never()).publish(anyString(), anyString());
+    }
+
+    @Test
+    void publish_shouldSendImmediately_whenNoTransactionIsActive() {
+        when(pubSubTemplate.publish(anyString(), anyString()))
+                .thenReturn(CompletableFuture.completedFuture("message-id"));
+        DomainEvent event = sampleEvent();
+
+        assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isFalse();
+
+        adapter.publish(event);
+
+        verify(pubSubTemplate, times(1)).publish(anyString(), anyString());
+    }
+
+    @Test
+    void publish_shouldLogAndNotThrow_whenPublishingAfterCommitFails() {
+        when(pubSubTemplate.publish(anyString(), anyString()))
+                .thenThrow(new RuntimeException("Pub/Sub unavailable"));
+        DomainEvent event = sampleEvent();
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            adapter.publish(event);
+            List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager.getSynchronizations();
+
+            assertThatCode(() -> synchronizations.forEach(TransactionSynchronization::afterCommit))
+                    .doesNotThrowAnyException();
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 }

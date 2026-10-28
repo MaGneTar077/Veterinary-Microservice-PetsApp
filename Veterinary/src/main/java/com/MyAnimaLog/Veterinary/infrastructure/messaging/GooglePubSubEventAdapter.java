@@ -9,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.EnumMap;
 import java.util.Map;
@@ -58,8 +60,27 @@ public class GooglePubSubEventAdapter implements EventPublisherPort {
         return TOPICS.get(eventType);
     }
 
+    /**
+     * If a transaction is active, defers the actual publish to {@code afterCommit} — so a caller that
+     * calls {@code publish(...)} and then rolls back (e.g. a later step in the same
+     * {@code @Transactional} method fails) never sends an event for a change that didn't happen. With
+     * no active transaction, publishes immediately (unchanged behavior).
+     */
     @Override
     public void publish(DomainEvent event) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    doPublish(event);
+                }
+            });
+        } else {
+            doPublish(event);
+        }
+    }
+
+    private void doPublish(DomainEvent event) {
         UUID veterinaryId = event.metadata() != null ? event.metadata().veterinaryId() : null;
         String topic = topicFor(event.eventType());
         if (topic == null) {
