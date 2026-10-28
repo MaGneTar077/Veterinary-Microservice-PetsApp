@@ -5,6 +5,7 @@ import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryReposito
 import com.MyAnimaLog.Veterinary.application.shared.ports.out.FileStoragePort;
 import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.ClinicSuspendedException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.FileTooLargeException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InvalidFileTypeException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.NotVeterinaryOwnerException;
@@ -150,5 +151,18 @@ class UploadLogoServiceTest {
                 .isInstanceOf(NotVeterinaryOwnerException.class);
 
         verify(veterinaryRepositoryPort, never()).findById(any());
+    }
+
+    @Test
+    void uploadLogo_shouldPropagateClinicSuspended_whenClinicIsSuspended() {
+        UploadLogoService svc = serviceWithProperties();
+        doThrow(new ClinicSuspendedException()).when(authorizationService)
+                .requireOwnerOrPermission(eq(veterinaryId), any());
+
+        assertThatThrownBy(() -> svc.uploadLogo(veterinaryId, PNG_BYTES, "image/png"))
+                .isInstanceOf(ClinicSuspendedException.class);
+
+        verify(veterinaryRepositoryPort, never()).findById(any());
+        verify(fileStoragePort, never()).uploadPublic(any(), any(), any(), any());
     }
 }

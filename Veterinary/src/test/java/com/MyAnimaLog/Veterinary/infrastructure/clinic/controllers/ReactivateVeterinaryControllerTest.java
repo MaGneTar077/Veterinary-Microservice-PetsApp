@@ -3,7 +3,8 @@ package com.MyAnimaLog.Veterinary.infrastructure.clinic.controllers;
 import com.MyAnimaLog.Veterinary.application.clinic.dto.ReactivateVeterinaryResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.in.ReactivateVeterinaryUseCase;
 import com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus;
-import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidVeterinaryStatusTransitionException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.CannotManageOwnClinicException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.ClinicNotSuspendedException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
 import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
@@ -77,12 +78,25 @@ class ReactivateVeterinaryControllerTest {
     @Test
     void reactivate_shouldReturn409_whenStatusDoesNotAllowReactivation() throws Exception {
         when(reactivateVeterinaryUseCase.reactivate(any(UUID.class)))
-                .thenThrow(new InvalidVeterinaryStatusTransitionException());
+                .thenThrow(new ClinicNotSuspendedException());
 
         mockMvc.perform(patch("/api/veterinary/admin/veterinaries/{veterinaryId}/reactivate", veterinaryId)
                         .with(csrf())
                         .with(jwt().authorities(new SimpleGrantedAuthority("PLATFORM_ADMIN"))))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CLINIC_NOT_SUSPENDED"));
+    }
+
+    @Test
+    void reactivate_shouldReturn403_whenAdminIsEmployeeOfTheClinic() throws Exception {
+        when(reactivateVeterinaryUseCase.reactivate(any(UUID.class)))
+                .thenThrow(new CannotManageOwnClinicException());
+
+        mockMvc.perform(patch("/api/veterinary/admin/veterinaries/{veterinaryId}/reactivate", veterinaryId)
+                        .with(csrf())
+                        .with(jwt().authorities(new SimpleGrantedAuthority("PLATFORM_ADMIN"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("CANNOT_MANAGE_OWN_CLINIC"));
     }
 
     @Test

@@ -66,7 +66,7 @@ class GetAdminClinicDetailServiceTest {
     }
 
     @Test
-    void getDetail_shouldIncludeOwnerEmployeesPlanAndVerificationHistory() {
+    void getDetail_shouldUseUserServiceName_whenAvailable() {
         UUID vetId = UUID.randomUUID();
         UUID ownerId = UUID.randomUUID();
         Veterinary veterinary = Veterinary.builder()
@@ -79,16 +79,73 @@ class GetAdminClinicDetailServiceTest {
         when(employeeRepositoryPort.findByVeterinaryId(vetId)).thenReturn(List.of(owner));
         when(subscriptionRepositoryPort.findActiveByVeterinaryId(vetId))
                 .thenReturn(Optional.of(VeterinarySubscription.builder().veterinaryId(vetId).plan("PRO").build()));
-        when(userServicePort.getUser(ownerId)).thenReturn(new UserServicePort.UserInfo(ownerId, "owner@test.com", true));
+        when(userServicePort.getUser(ownerId)).thenReturn(new UserServicePort.UserInfo(ownerId, "owner@test.com", true, "Nombre Real"));
         when(verificationRequestRepositoryPort.findBySubjectTypeAndSubjectId(SubjectType.CLINIC, vetId))
                 .thenReturn(List.of());
 
         AdminClinicDetailResponse response = service.getDetail(vetId);
 
-        assertThat(response.getOwnerName()).isEqualTo("Dueño Legal");
+        assertThat(response.getOwnerName()).isEqualTo("Nombre Real");
+        assertThat(response.getLegalRepName()).isEqualTo("Dueño Legal");
         assertThat(response.getOwnerEmail()).isEqualTo("owner@test.com");
         assertThat(response.getPlan()).isEqualTo("PRO");
         assertThat(response.getEmployees()).hasSize(1);
         assertThat(response.getVerificationHistory()).isEmpty();
+    }
+
+    @Test
+    void getDetail_shouldFallBackOwnerNameToLegalRepName_whenUserServiceHasNoName() {
+        UUID vetId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        Veterinary veterinary = Veterinary.builder().id(vetId).name("Clinica Test").legalRepName("Dueño Legal").build();
+        VeterinaryEmployee owner = VeterinaryEmployee.builder()
+                .id(UUID.randomUUID()).veterinaryId(vetId).userId(ownerId).role(EmployeeRole.OWNER).active(true).build();
+
+        when(veterinaryRepositoryPort.findById(vetId)).thenReturn(Optional.of(veterinary));
+        when(employeeRepositoryPort.findByVeterinaryId(vetId)).thenReturn(List.of(owner));
+        when(subscriptionRepositoryPort.findActiveByVeterinaryId(vetId)).thenReturn(Optional.empty());
+        when(userServicePort.getUser(ownerId)).thenReturn(new UserServicePort.UserInfo(ownerId, "owner@test.com", true, null));
+        when(verificationRequestRepositoryPort.findBySubjectTypeAndSubjectId(SubjectType.CLINIC, vetId)).thenReturn(List.of());
+
+        AdminClinicDetailResponse response = service.getDetail(vetId);
+
+        assertThat(response.getOwnerName()).isEqualTo("Dueño Legal");
+        assertThat(response.getOwnerEmail()).isEqualTo("owner@test.com");
+    }
+
+    @Test
+    void getDetail_shouldFallBackOwnerNameToLegalRepNameAndOmitEmail_whenUserServiceFails() {
+        UUID vetId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        Veterinary veterinary = Veterinary.builder().id(vetId).name("Clinica Test").legalRepName("Dueño Legal").build();
+        VeterinaryEmployee owner = VeterinaryEmployee.builder()
+                .id(UUID.randomUUID()).veterinaryId(vetId).userId(ownerId).role(EmployeeRole.OWNER).active(true).build();
+
+        when(veterinaryRepositoryPort.findById(vetId)).thenReturn(Optional.of(veterinary));
+        when(employeeRepositoryPort.findByVeterinaryId(vetId)).thenReturn(List.of(owner));
+        when(subscriptionRepositoryPort.findActiveByVeterinaryId(vetId)).thenReturn(Optional.empty());
+        when(userServicePort.getUser(ownerId)).thenThrow(new RuntimeException("down"));
+        when(verificationRequestRepositoryPort.findBySubjectTypeAndSubjectId(SubjectType.CLINIC, vetId)).thenReturn(List.of());
+
+        AdminClinicDetailResponse response = service.getDetail(vetId);
+
+        assertThat(response.getOwnerName()).isEqualTo("Dueño Legal");
+        assertThat(response.getOwnerEmail()).isNull();
+    }
+
+    @Test
+    void getDetail_shouldLeaveOwnerFieldsNull_whenClinicHasNoActiveOwner() {
+        UUID vetId = UUID.randomUUID();
+        Veterinary veterinary = Veterinary.builder().id(vetId).name("Clinica Test").build();
+
+        when(veterinaryRepositoryPort.findById(vetId)).thenReturn(Optional.of(veterinary));
+        when(employeeRepositoryPort.findByVeterinaryId(vetId)).thenReturn(List.of());
+        when(subscriptionRepositoryPort.findActiveByVeterinaryId(vetId)).thenReturn(Optional.empty());
+        when(verificationRequestRepositoryPort.findBySubjectTypeAndSubjectId(SubjectType.CLINIC, vetId)).thenReturn(List.of());
+
+        AdminClinicDetailResponse response = service.getDetail(vetId);
+
+        assertThat(response.getOwnerName()).isNull();
+        assertThat(response.getOwnerEmail()).isNull();
     }
 }

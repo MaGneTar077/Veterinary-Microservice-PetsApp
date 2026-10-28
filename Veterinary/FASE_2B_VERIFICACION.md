@@ -267,6 +267,10 @@ Las tres decisiones (`approve`/`reject`/`request-correction`) solo son válidas 
 | `SUBSCRIPTION_TRIAL_STARTED` | Quien envió la clínica aprobada | `veterinaryId`, `trialEndsAt` — solo se publica si al aprobar no había ya una suscripción activa |
 | `VERIFICATION_REJECTED` | Quien envió | `subjectType`, `reasonCode`, `notes`, `attemptsRemaining`, `documentsDeletionDate` |
 | `VERIFICATION_CORRECTION_REQUESTED` | Quien envió | `subjectType`, `notes`, `documentTypes` |
+| `VETERINARY_SUSPENDED` (Parte 4B) | OWNER activo de la clínica (si existe uno; si no, no se publica) | `veterinaryName`, `reason` (el de la suspensión, 10–500 caracteres), `supportEmail` |
+| `VETERINARY_REACTIVATED` (Parte 4B) | OWNER activo de la clínica (si existe uno; si no, no se publica) | `veterinaryName` |
+
+`occurredAt` no va en `payload` — lo pone `DomainEvent.create(...)` en el sobre común (`{eventType, userId, recipient, payload, occurredAt, metadata}`, `occurredAt = Instant.now()`), igual para los 22 eventos de `VeterinaryEventType`, no solo estos dos.
 
 ---
 
@@ -278,11 +282,13 @@ Formato: `{ timestamp, status, error, message, code }`. Se agrega `code` a **tod
 |---|---|
 | 400 | `VALIDATION_ERROR`, `INVALID_NIT`, `CONSENT_REQUIRED`, `TRUTHFULNESS_DECLARATION_REQUIRED`, `INVALID_FILE_TYPE`, `REGISTRY_CHECK_REQUIRED`, `MISSING_REQUIRED_DOCUMENTS` |
 | 401 | `UNAUTHENTICATED` |
-| 403 | `EMAIL_NOT_VERIFIED`, `NOT_VETERINARY_OWNER`, `TENANT_MISMATCH`, `INSUFFICIENT_PERMISSION`, `PLATFORM_ADMIN_REQUIRED`, `CANNOT_MODIFY_SELF`, `CANNOT_MODIFY_OWNER`, `CANNOT_REVIEW_OWN_REQUEST` |
+| 403 | `EMAIL_NOT_VERIFIED`, `NOT_VETERINARY_OWNER`, `TENANT_MISMATCH`, `INSUFFICIENT_PERMISSION`, `PLATFORM_ADMIN_REQUIRED`, `CANNOT_MODIFY_SELF`, `CANNOT_MODIFY_OWNER`, `CANNOT_REVIEW_OWN_REQUEST`, `CLINIC_SUSPENDED` (Parte 4B — token de clínica sobre una clínica `SUSPENDED`, excepto `GetVeterinaryProfile`), `CANNOT_MANAGE_OWN_CLINIC` (Parte 4B — un admin no puede suspender/reactivar una clínica donde es empleado/dueño) |
 | 404 | `VETERINARY_NOT_FOUND`, `DOCUMENT_NOT_FOUND`, `PROFESSIONAL_PROFILE_NOT_FOUND`, `VERIFICATION_REQUEST_NOT_FOUND` |
-| 409 | `VETERINARY_NAME_TAKEN`, `VETERINARY_EMAIL_TAKEN`, `NIT_TAKEN`, `LICENSE_NUMBER_TAKEN`, `CONSENT_VERSION_OUTDATED`, `VERIFICATION_LOCKED`, `INVALID_VERIFICATION_STATE`, `VERIFICATION_ATTEMPTS_EXHAUSTED`, `OWNER_CLINIC_LIMIT_REACHED`, `VETERINARY_NOT_ACTIVE`, `DOCUMENT_NOT_IN_CORRECTION`, `AI_VERIFICATION_DISABLED` |
+| 409 | `VETERINARY_NAME_TAKEN`, `VETERINARY_EMAIL_TAKEN`, `NIT_TAKEN`, `LICENSE_NUMBER_TAKEN`, `CONSENT_VERSION_OUTDATED`, `VERIFICATION_LOCKED`, `INVALID_VERIFICATION_STATE`, `VERIFICATION_ATTEMPTS_EXHAUSTED`, `OWNER_CLINIC_LIMIT_REACHED`, `VETERINARY_NOT_ACTIVE`, `DOCUMENT_NOT_IN_CORRECTION`, `AI_VERIFICATION_DISABLED`, `CLINIC_NOT_ACTIVE` (Parte 4B — `suspend` fuera de `ACTIVE`), `CLINIC_NOT_SUSPENDED` (Parte 4B — `reactivate` fuera de `SUSPENDED`) |
 | 413 | `FILE_TOO_LARGE` |
 | 503 | `EXTERNAL_SERVICE_UNAVAILABLE` |
+
+Nota: `suspend`/`reactivate` (VET-13) usaban antes el código compartido `INVALID_VERIFICATION_STATE` (vía `InvalidVeterinaryStatusTransitionException`, ya eliminada) — desde la Parte 4B tienen códigos propios (`CLINIC_NOT_ACTIVE`/`CLINIC_NOT_SUSPENDED`), más claros para el frontend.
 
 ---
 

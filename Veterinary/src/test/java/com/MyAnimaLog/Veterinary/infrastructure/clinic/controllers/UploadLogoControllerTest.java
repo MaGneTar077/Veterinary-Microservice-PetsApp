@@ -2,6 +2,7 @@ package com.MyAnimaLog.Veterinary.infrastructure.clinic.controllers;
 
 import com.MyAnimaLog.Veterinary.application.clinic.dto.UploadLogoResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.in.UploadLogoUseCase;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.ClinicSuspendedException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.FileTooLargeException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InvalidFileTypeException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.NotVeterinaryOwnerException;
@@ -101,6 +102,23 @@ class UploadLogoControllerTest {
                         .with(jwt()))
                 .andExpect(status().isPayloadTooLarge())
                 .andExpect(jsonPath("$.code").value("FILE_TOO_LARGE"));
+    }
+
+    @Test
+    void upload_shouldReturn403_whenClinicIsSuspended() throws Exception {
+        UUID veterinaryId = UUID.randomUUID();
+        when(uploadLogoUseCase.uploadLogo(eq(veterinaryId), any(), any()))
+                .thenThrow(new ClinicSuspendedException());
+
+        MockMultipartFile file = new MockMultipartFile("file", "logo.png", "image/png", new byte[]{1, 2, 3});
+
+        mockMvc.perform(multipart("/api/veterinary/{veterinaryId}/logo", veterinaryId)
+                        .file(file)
+                        .with(req -> { req.setMethod("PUT"); return req; })
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("CLINIC_SUSPENDED"));
     }
 
     @Test

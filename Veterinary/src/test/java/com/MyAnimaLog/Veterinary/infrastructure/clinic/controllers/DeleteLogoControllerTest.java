@@ -2,6 +2,7 @@ package com.MyAnimaLog.Veterinary.infrastructure.clinic.controllers;
 
 import com.MyAnimaLog.Veterinary.application.clinic.dto.DeleteLogoResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.in.DeleteLogoUseCase;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.ClinicSuspendedException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.NotVeterinaryOwnerException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
 import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
@@ -53,6 +54,18 @@ class DeleteLogoControllerTest {
                         .with(csrf())
                         .with(jwt()))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void delete_shouldReturn403_whenClinicIsSuspended() throws Exception {
+        UUID veterinaryId = UUID.randomUUID();
+        when(deleteLogoUseCase.deleteLogo(veterinaryId)).thenThrow(new ClinicSuspendedException());
+
+        mockMvc.perform(delete("/api/veterinary/{veterinaryId}/logo", veterinaryId)
+                        .with(csrf())
+                        .with(jwt()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("CLINIC_SUSPENDED"));
     }
 
     @Test

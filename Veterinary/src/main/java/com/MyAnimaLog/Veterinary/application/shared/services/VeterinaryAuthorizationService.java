@@ -1,12 +1,15 @@
 package com.MyAnimaLog.Veterinary.application.shared.services;
 
+import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.shared.dto.AuthenticatedUser;
 import com.MyAnimaLog.Veterinary.application.shared.dto.ClinicContext;
 import com.MyAnimaLog.Veterinary.application.shared.ports.out.AuthenticatedUserPort;
 import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
+import com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus;
 import com.MyAnimaLog.Veterinary.domain.security.Permission;
 import com.MyAnimaLog.Veterinary.domain.security.RolePermissions;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.ClinicContextRequiredException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.ClinicSuspendedException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.NotVeterinaryOwnerException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.PlatformAdminRequiredException;
@@ -25,10 +28,11 @@ public class VeterinaryAuthorizationService {
 
     private final AuthenticatedUserPort authenticatedUserPort;
     private final VeterinaryEmployeeRepositoryPort employeeRepositoryPort;
+    private final VeterinaryRepositoryPort veterinaryRepositoryPort;
 
     /** For operations that require a specific permission over the clinic in the path. */
     public ClinicContext require(UUID veterinaryIdFromPath, Permission permission) {
-        ClinicContext context = requireMember(veterinaryIdFromPath);
+        ClinicContext context = requireActiveMember(veterinaryIdFromPath);
         if (!RolePermissions.resolve(context.role(), context.licensed(), context.status()).contains(permission)) {
             throw new InsufficientPermissionException(permission);
         }
@@ -43,6 +47,26 @@ public class VeterinaryAuthorizationService {
             throw new TenantMismatchException();
         }
         return context;
+    }
+
+    /**
+     * Same as {@link #requireMember(UUID)} but additionally rejects a {@code SUSPENDED} clinic — the
+     * clinic token's own {@code vet_status} claim can be up to 60 min stale, so this re-checks the
+     * database. Used by every clinic-token endpoint except the clinic status/profile screen itself
+     * (which must keep working while suspended so the frontend can show why).
+     */
+    public ClinicContext requireActiveMember(UUID veterinaryIdFromPath) {
+        ClinicContext context = requireMember(veterinaryIdFromPath);
+        rejectIfSuspended(veterinaryIdFromPath);
+        return context;
+    }
+
+    private void rejectIfSuspended(UUID veterinaryIdFromPath) {
+        veterinaryRepositoryPort.findById(veterinaryIdFromPath)
+                .filter(v -> v.getStatus() == VeterinaryStatus.SUSPENDED)
+                .ifPresent(v -> {
+                    throw new ClinicSuspendedException();
+                });
     }
 
     public void requirePlatformAdmin() {
@@ -70,6 +94,7 @@ public class VeterinaryAuthorizationService {
         if (!RolePermissions.resolve(context.role(), context.licensed(), context.status()).contains(permission)) {
             throw new InsufficientPermissionException(permission);
         }
+        rejectIfSuspended(veterinaryIdFromPath);
     }
 
     /**
@@ -99,6 +124,7 @@ public class VeterinaryAuthorizationService {
      * clinic logo).
      */
     public void requireOwnerOrPermission(UUID veterinaryIdFromPath, Permission permission) {
+        rejectIfSuspended(veterinaryIdFromPath);
         AuthenticatedUser user = authenticatedUserPort.current();
         Optional<ClinicContext> clinic = user.clinic();
         if (clinic.isPresent()

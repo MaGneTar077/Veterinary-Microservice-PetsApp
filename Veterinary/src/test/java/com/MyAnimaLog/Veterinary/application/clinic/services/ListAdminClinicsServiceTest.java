@@ -3,7 +3,6 @@ package com.MyAnimaLog.Veterinary.application.clinic.services;
 import com.MyAnimaLog.Veterinary.application.clinic.dto.AdminClinicListItem;
 import com.MyAnimaLog.Veterinary.application.clinic.dto.AdminClinicListResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
-import com.MyAnimaLog.Veterinary.application.shared.ports.out.UserServicePort;
 import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.subscription.ports.out.VeterinarySubscriptionRepositoryPort;
@@ -41,8 +40,6 @@ class ListAdminClinicsServiceTest {
     private VeterinaryEmployeeRepositoryPort employeeRepositoryPort;
     @Mock
     private VeterinarySubscriptionRepositoryPort subscriptionRepositoryPort;
-    @Mock
-    private UserServicePort userServicePort;
 
     @InjectMocks
     private ListAdminClinicsService service;
@@ -75,7 +72,7 @@ class ListAdminClinicsServiceTest {
     }
 
     @Test
-    void list_shouldResolveOwnerAndEmployeeCountAndPlan_withoutNPlusOneRepositoryCalls() {
+    void list_shouldResolveLegalRepNameEmployeeCountAndPlan_fromBatchedQueriesOnly() {
         UUID vetId = UUID.randomUUID();
         UUID ownerId = UUID.randomUUID();
         Veterinary veterinary = Veterinary.builder()
@@ -96,33 +93,30 @@ class ListAdminClinicsServiceTest {
                 .thenReturn(List.of(owner, staff, inactiveStaff));
         when(subscriptionRepositoryPort.findActiveByVeterinaryIdIn(List.of(vetId)))
                 .thenReturn(List.of(VeterinarySubscription.builder().veterinaryId(vetId).plan("PRO").active(true).build()));
-        when(userServicePort.getUser(ownerId)).thenReturn(new UserServicePort.UserInfo(ownerId, "owner@test.com", true));
 
         AdminClinicListResponse response = service.list(null, null, null, null, null, null, null);
 
         AdminClinicListItem item = response.getItems().get(0);
-        assertThat(item.getOwnerName()).isEqualTo("Dueño Legal");
-        assertThat(item.getOwnerEmail()).isEqualTo("owner@test.com");
+        assertThat(item.getLegalRepName()).isEqualTo("Dueño Legal");
         assertThat(item.getEmployeesCount()).isEqualTo(2);
         assertThat(item.getPlan()).isEqualTo("PRO");
     }
 
     @Test
-    void list_shouldOmitOwnerEmail_whenUserServiceFails() {
-        UUID vetId = UUID.randomUUID();
-        UUID ownerId = UUID.randomUUID();
-        Veterinary veterinary = Veterinary.builder().id(vetId).name("Clinica Test").build();
-        VeterinaryEmployee owner = VeterinaryEmployee.builder()
-                .id(UUID.randomUUID()).veterinaryId(vetId).userId(ownerId).role(EmployeeRole.OWNER).active(true).build();
+    void list_shouldMakeAtMostOneEmployeeQueryAndOneSubscriptionQuery_regardlessOfRowCount() {
+        List<Veterinary> fiftyClinics = java.util.stream.IntStream.range(0, 50)
+                .mapToObj(i -> Veterinary.builder().id(UUID.randomUUID()).name("Clinica " + i).build())
+                .toList();
+        List<UUID> ids = fiftyClinics.stream().map(Veterinary::getId).toList();
 
-        when(veterinaryRepositoryPort.findForAdminList(any(), any(), any(), any(), any(), eq(0), eq(20)))
-                .thenReturn(new VeterinaryRepositoryPort.AdminClinicPage(List.of(veterinary), 1));
-        when(employeeRepositoryPort.findByVeterinaryIdIn(List.of(vetId))).thenReturn(List.of(owner));
-        when(subscriptionRepositoryPort.findActiveByVeterinaryIdIn(List.of(vetId))).thenReturn(List.of());
-        when(userServicePort.getUser(ownerId)).thenThrow(new RuntimeException("down"));
+        when(veterinaryRepositoryPort.findForAdminList(any(), any(), any(), any(), any(), eq(0), eq(50)))
+                .thenReturn(new VeterinaryRepositoryPort.AdminClinicPage(fiftyClinics, 50));
+        when(employeeRepositoryPort.findByVeterinaryIdIn(ids)).thenReturn(List.of());
+        when(subscriptionRepositoryPort.findActiveByVeterinaryIdIn(ids)).thenReturn(List.of());
 
-        AdminClinicListResponse response = service.list(null, null, null, null, null, null, null);
+        service.list(null, null, null, null, null, 0, 50);
 
-        assertThat(response.getItems().get(0).getOwnerEmail()).isNull();
+        org.mockito.Mockito.verify(employeeRepositoryPort, org.mockito.Mockito.times(1)).findByVeterinaryIdIn(ids);
+        org.mockito.Mockito.verify(subscriptionRepositoryPort, org.mockito.Mockito.times(1)).findActiveByVeterinaryIdIn(ids);
     }
 }

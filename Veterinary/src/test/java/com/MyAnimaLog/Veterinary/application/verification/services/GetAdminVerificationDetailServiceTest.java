@@ -116,7 +116,7 @@ class GetAdminVerificationDetailServiceTest {
         when(verificationDocumentRepositoryPort.findBySha256("abc")).thenReturn(List.of(doc));
         when(fileStoragePort.createSignedUrl(eq(storageProperties.getVerificationBucket()), eq(doc.getStoragePath()), any(Duration.class)))
                 .thenReturn("https://signed.example/doc.pdf");
-        when(userServicePort.getUser(submittedBy)).thenReturn(new UserServicePort.UserInfo(submittedBy, "owner@x.com", true));
+        when(userServicePort.getUser(submittedBy)).thenReturn(new UserServicePort.UserInfo(submittedBy, "owner@x.com", true, null));
 
         AdminVerificationDetailResponse response = service.getDetail(requestId);
 
@@ -155,7 +155,7 @@ class GetAdminVerificationDetailServiceTest {
                 VeterinaryEmployee.builder().veterinaryId(otherVetId).role(EmployeeRole.VETERINARIAN).active(true).build()));
         when(veterinaryRepositoryPort.findById(otherVetId)).thenReturn(Optional.of(
                 Veterinary.builder().id(otherVetId).name("Otra Clinica").build()));
-        when(userServicePort.getUser(submittedBy)).thenReturn(new UserServicePort.UserInfo(submittedBy, "vet@x.com", true));
+        when(userServicePort.getUser(submittedBy)).thenReturn(new UserServicePort.UserInfo(submittedBy, "vet@x.com", true, null));
 
         AdminVerificationDetailResponse response = service.getDetail(requestId);
 
@@ -189,7 +189,7 @@ class GetAdminVerificationDetailServiceTest {
         when(veterinaryRepositoryPort.findById(otherVetId)).thenReturn(Optional.of(Veterinary.builder().id(otherVetId).name("Otra").build()));
         when(fileStoragePort.createSignedUrl(eq(storageProperties.getVerificationBucket()), eq(doc.getStoragePath()), any(Duration.class)))
                 .thenReturn("https://signed.example/doc.pdf");
-        when(userServicePort.getUser(submittedBy)).thenReturn(new UserServicePort.UserInfo(submittedBy, "owner@x.com", true));
+        when(userServicePort.getUser(submittedBy)).thenReturn(new UserServicePort.UserInfo(submittedBy, "owner@x.com", true, null));
 
         AdminVerificationDetailResponse response = service.getDetail(requestId);
 
@@ -207,7 +207,7 @@ class GetAdminVerificationDetailServiceTest {
                 .rejectionReasonCode(RejectionReasonCode.DATA_MISMATCH).reviewerNotes("mismatch").build();
         when(verificationRequestRepositoryPort.findBySubjectTypeAndSubjectId(SubjectType.CLINIC, veterinaryId))
                 .thenReturn(List.of(clinicRequest, previousRejected));
-        when(userServicePort.getUser(submittedBy)).thenReturn(new UserServicePort.UserInfo(submittedBy, "owner@x.com", true));
+        when(userServicePort.getUser(submittedBy)).thenReturn(new UserServicePort.UserInfo(submittedBy, "owner@x.com", true, null));
 
         AdminVerificationDetailResponse response = service.getDetail(requestId);
 

@@ -1,11 +1,14 @@
 package com.MyAnimaLog.Veterinary.application.shared.services;
 
+import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.shared.dto.AuthenticatedUser;
 import com.MyAnimaLog.Veterinary.application.shared.dto.ClinicContext;
 import com.MyAnimaLog.Veterinary.application.shared.ports.out.AuthenticatedUserPort;
 import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
 import com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus;
+import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
 import com.MyAnimaLog.Veterinary.domain.security.Permission;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.ClinicSuspendedException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.NotVeterinaryOwnerException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.TenantMismatchException;
 import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
@@ -22,6 +25,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -35,6 +39,9 @@ class VeterinaryAuthorizationServiceTest {
     @Mock
     private VeterinaryEmployeeRepositoryPort employeeRepositoryPort;
 
+    @Mock
+    private VeterinaryRepositoryPort veterinaryRepositoryPort;
+
     @InjectMocks
     private VeterinaryAuthorizationService authorizationService;
 
@@ -45,6 +52,8 @@ class VeterinaryAuthorizationServiceTest {
     void setUp() {
         veterinaryId = UUID.randomUUID();
         userId = UUID.randomUUID();
+        lenient().when(veterinaryRepositoryPort.findById(veterinaryId))
+                .thenReturn(Optional.of(Veterinary.builder().id(veterinaryId).status(VeterinaryStatus.ACTIVE).build()));
     }
 
     private AuthenticatedUser userWithoutClinicToken() {
@@ -157,5 +166,97 @@ class VeterinaryAuthorizationServiceTest {
 
         assertThatThrownBy(() -> authorizationService.requireOwnerOrPermission(veterinaryId, Permission.CLINIC_CONFIGURE))
                 .isInstanceOf(NotVeterinaryOwnerException.class);
+    }
+
+    private void stubSuspendedClinic() {
+        when(veterinaryRepositoryPort.findById(veterinaryId))
+                .thenReturn(Optional.of(Veterinary.builder().id(veterinaryId).status(VeterinaryStatus.SUSPENDED).build()));
+    }
+
+    @Test
+    void requireOwnerOrPermission_shouldThrowClinicSuspended_whenClinicTokenHasThePermission_butClinicIsSuspended() {
+        stubSuspendedClinic();
+
+        assertThatThrownBy(() -> authorizationService.requireOwnerOrPermission(veterinaryId, Permission.CLINIC_CONFIGURE))
+                .isInstanceOf(ClinicSuspendedException.class);
+    }
+
+    @Test
+    void requireOwnerOrPermission_shouldThrowClinicSuspended_whenCallerIsOwnerButClinicIsSuspended() {
+        stubSuspendedClinic();
+
+        assertThatThrownBy(() -> authorizationService.requireOwnerOrPermission(veterinaryId, Permission.CLINIC_CONFIGURE))
+                .isInstanceOf(ClinicSuspendedException.class);
+
+        verify(employeeRepositoryPort, never()).findByVeterinaryIdAndUserId(veterinaryId, userId);
+    }
+
+    @Test
+    void requireActiveMember_shouldPass_whenClinicIsActive() {
+        when(authenticatedUserPort.current())
+                .thenReturn(userWithClinicToken(veterinaryId, EmployeeRole.VETERINARIAN, VeterinaryStatus.ACTIVE));
+
+        assertThatNoException().isThrownBy(() -> authorizationService.requireActiveMember(veterinaryId));
+    }
+
+    @Test
+    void requireActiveMember_shouldThrowClinicSuspended_whenClinicIsSuspendedInDatabase() {
+        stubSuspendedClinic();
+        when(authenticatedUserPort.current())
+                .thenReturn(userWithClinicToken(veterinaryId, EmployeeRole.VETERINARIAN, VeterinaryStatus.ACTIVE));
+
+        assertThatThrownBy(() -> authorizationService.requireActiveMember(veterinaryId))
+                .isInstanceOf(ClinicSuspendedException.class);
+    }
+
+    @Test
+    void requireActiveMember_shouldThrowTenantMismatch_beforeCheckingSuspension_whenClinicTokenIsForAnotherVeterinary() {
+        UUID otherVetId = UUID.randomUUID();
+        when(authenticatedUserPort.current())
+                .thenReturn(userWithClinicToken(otherVetId, EmployeeRole.VETERINARIAN, VeterinaryStatus.ACTIVE));
+
+        assertThatThrownBy(() -> authorizationService.requireActiveMember(veterinaryId))
+                .isInstanceOf(TenantMismatchException.class);
+    }
+
+    @Test
+    void require_shouldThrowClinicSuspended_whenCallerHasThePermission_butClinicIsSuspendedInDatabase() {
+        stubSuspendedClinic();
+        when(authenticatedUserPort.current())
+                .thenReturn(userWithClinicToken(veterinaryId, EmployeeRole.OWNER, VeterinaryStatus.ACTIVE));
+
+        assertThatThrownBy(() -> authorizationService.require(veterinaryId, Permission.STAFF_MANAGE))
+                .isInstanceOf(ClinicSuspendedException.class);
+    }
+
+    @Test
+    void requireSelfOrPermission_shouldPass_whenCallerActsOnOwnRecord_evenIfClinicIsSuspended() {
+        when(authenticatedUserPort.current()).thenReturn(userWithoutClinicToken());
+
+        assertThatNoException().isThrownBy(() ->
+                authorizationService.requireSelfOrPermission(userId, veterinaryId, Permission.CLINIC_CONFIGURE));
+
+        verify(veterinaryRepositoryPort, never()).findById(veterinaryId);
+    }
+
+    @Test
+    void requireSelfOrPermission_shouldThrowClinicSuspended_whenActingOnBehalfOfAnotherUser_andClinicIsSuspended() {
+        stubSuspendedClinic();
+        UUID targetUserId = UUID.randomUUID();
+        when(authenticatedUserPort.current())
+                .thenReturn(userWithClinicToken(veterinaryId, EmployeeRole.OWNER, VeterinaryStatus.ACTIVE));
+
+        assertThatThrownBy(() -> authorizationService.requireSelfOrPermission(targetUserId, veterinaryId, Permission.CLINIC_CONFIGURE))
+                .isInstanceOf(ClinicSuspendedException.class);
+    }
+
+    @Test
+    void requireMember_shouldIgnoreSuspension_andNeverTouchTheDatabase() {
+        when(authenticatedUserPort.current())
+                .thenReturn(userWithClinicToken(veterinaryId, EmployeeRole.VETERINARIAN, VeterinaryStatus.ACTIVE));
+
+        assertThatNoException().isThrownBy(() -> authorizationService.requireMember(veterinaryId));
+
+        verify(veterinaryRepositoryPort, never()).findById(veterinaryId);
     }
 }

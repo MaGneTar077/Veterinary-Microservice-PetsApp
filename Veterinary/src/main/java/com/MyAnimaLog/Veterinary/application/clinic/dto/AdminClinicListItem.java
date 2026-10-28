@@ -22,8 +22,7 @@ public class AdminClinicListItem {
     private String department;
     private VeterinaryStatus status;
     private String plan;
-    private String ownerName;
-    private String ownerEmail;
+    private String legalRepName;
     private int employeesCount;
     private LocalDateTime createdAt;
     private LocalDateTime approvedAt;

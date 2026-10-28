@@ -4,18 +4,14 @@ import com.MyAnimaLog.Veterinary.application.clinic.dto.AdminClinicListItem;
 import com.MyAnimaLog.Veterinary.application.clinic.dto.AdminClinicListResponse;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.in.ListAdminClinicsUseCase;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
-import com.MyAnimaLog.Veterinary.application.shared.ports.out.UserServicePort;
 import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.subscription.ports.out.VeterinarySubscriptionRepositoryPort;
 import com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
-import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
 import com.MyAnimaLog.Veterinary.domain.staff.model.VeterinaryEmployee;
 import com.MyAnimaLog.Veterinary.domain.subscription.model.VeterinarySubscription;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -23,11 +19,16 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * Deliberately makes zero calls to {@code UserServicePort} per row: the User service has no batch
+ * lookup endpoint today, so resolving owner name/email here would be N REST calls per page. Those
+ * fields live only on {@link GetAdminClinicDetailService} (one clinic, one call); the list shows
+ * {@code legalRepName} instead, which is already on the {@code veterinary} row.
+ */
 @Service
 @RequiredArgsConstructor
 public class ListAdminClinicsService implements ListAdminClinicsUseCase {
 
-    private static final Logger log = LoggerFactory.getLogger(ListAdminClinicsService.class);
     private static final int DEFAULT_SIZE = 20;
     private static final int MAX_SIZE = 50;
 
@@ -35,7 +36,6 @@ public class ListAdminClinicsService implements ListAdminClinicsUseCase {
     private final VeterinaryRepositoryPort veterinaryRepositoryPort;
     private final VeterinaryEmployeeRepositoryPort employeeRepositoryPort;
     private final VeterinarySubscriptionRepositoryPort subscriptionRepositoryPort;
-    private final UserServicePort userServicePort;
 
     @Override
     public AdminClinicListResponse list(VeterinaryStatus status, String search, String plan, String city,
@@ -50,9 +50,10 @@ public class ListAdminClinicsService implements ListAdminClinicsUseCase {
 
         List<UUID> veterinaryIds = result.items().stream().map(Veterinary::getId).toList();
 
-        Map<UUID, List<VeterinaryEmployee>> employeesByVeterinary = employeeRepositoryPort
+        Map<UUID, Long> activeEmployeeCountByVeterinary = employeeRepositoryPort
                 .findByVeterinaryIdIn(veterinaryIds).stream()
-                .collect(Collectors.groupingBy(VeterinaryEmployee::getVeterinaryId));
+                .filter(e -> Boolean.TRUE.equals(e.getActive()))
+                .collect(Collectors.groupingBy(VeterinaryEmployee::getVeterinaryId, Collectors.counting()));
 
         Map<UUID, String> planByVeterinary = subscriptionRepositoryPort.findActiveByVeterinaryIdIn(veterinaryIds)
                 .stream()
@@ -60,7 +61,8 @@ public class ListAdminClinicsService implements ListAdminClinicsUseCase {
                         VeterinarySubscription::getPlan, (a, b) -> a));
 
         List<AdminClinicListItem> items = result.items().stream()
-                .map(veterinary -> toListItem(veterinary, employeesByVeterinary.getOrDefault(veterinary.getId(), List.of()),
+                .map(veterinary -> toListItem(veterinary,
+                        activeEmployeeCountByVeterinary.getOrDefault(veterinary.getId(), 0L),
                         planByVeterinary.get(veterinary.getId())))
                 .toList();
 
@@ -72,13 +74,7 @@ public class ListAdminClinicsService implements ListAdminClinicsUseCase {
                 .build();
     }
 
-    private AdminClinicListItem toListItem(Veterinary veterinary, List<VeterinaryEmployee> employees, String plan) {
-        long activeEmployeesCount = employees.stream().filter(e -> Boolean.TRUE.equals(e.getActive())).count();
-        VeterinaryEmployee owner = employees.stream()
-                .filter(e -> e.getRole() == EmployeeRole.OWNER && Boolean.TRUE.equals(e.getActive()))
-                .findFirst()
-                .orElse(null);
-
+    private AdminClinicListItem toListItem(Veterinary veterinary, long activeEmployeesCount, String plan) {
         return AdminClinicListItem.builder()
                 .id(veterinary.getId())
                 .name(veterinary.getName())
@@ -88,21 +84,11 @@ public class ListAdminClinicsService implements ListAdminClinicsUseCase {
                 .department(veterinary.getDepartment())
                 .status(veterinary.getStatus())
                 .plan(plan)
-                .ownerName(veterinary.getLegalRepName())
-                .ownerEmail(owner != null ? resolveEmail(owner.getUserId()) : null)
+                .legalRepName(veterinary.getLegalRepName())
                 .employeesCount((int) activeEmployeesCount)
                 .createdAt(veterinary.getCreatedAt())
                 .approvedAt(veterinary.getApprovedAt())
                 .suspendedAt(veterinary.getSuspendedAt())
                 .build();
-    }
-
-    private String resolveEmail(UUID userId) {
-        try {
-            return userServicePort.getUser(userId).email();
-        } catch (RuntimeException ex) {
-            log.warn("User service lookup failed for userId={}, owner email omitted from admin clinics list", userId);
-            return null;
-        }
     }
 }

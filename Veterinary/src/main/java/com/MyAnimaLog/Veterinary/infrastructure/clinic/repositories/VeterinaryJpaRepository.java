@@ -4,6 +4,7 @@ import com.MyAnimaLog.Veterinary.infrastructure.clinic.entity.VeterinaryEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -33,4 +34,10 @@ public interface VeterinaryJpaRepository extends JpaRepository<VeterinaryEntity,
                                              @Param("city") String city,
                                              @Param("department") String department,
                                              Pageable pageable);
+
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE VeterinaryEntity v SET v.status = :newStatus WHERE v.id = :id AND v.status = :expectedStatus")
+    int updateStatusIfCurrentlyIs(@Param("id") UUID id,
+                                   @Param("expectedStatus") String expectedStatus,
+                                   @Param("newStatus") String newStatus);
 }

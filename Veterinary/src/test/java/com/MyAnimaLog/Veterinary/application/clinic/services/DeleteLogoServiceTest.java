@@ -5,6 +5,7 @@ import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryReposito
 import com.MyAnimaLog.Veterinary.application.shared.ports.out.FileStoragePort;
 import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.ClinicSuspendedException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.infrastructure.storage.StorageProperties;
 import org.junit.jupiter.api.BeforeEach;
@@ -71,5 +72,17 @@ class DeleteLogoServiceTest {
 
         assertThatThrownBy(() -> service.deleteLogo(veterinaryId))
                 .isInstanceOf(VeterinaryNotFoundException.class);
+    }
+
+    @Test
+    void deleteLogo_shouldPropagateClinicSuspended_whenClinicIsSuspended() {
+        doThrow(new ClinicSuspendedException()).when(authorizationService)
+                .requireOwnerOrPermission(eq(veterinaryId), any());
+
+        assertThatThrownBy(() -> service.deleteLogo(veterinaryId))
+                .isInstanceOf(ClinicSuspendedException.class);
+
+        verify(veterinaryRepositoryPort, never()).findById(any());
+        verify(fileStoragePort, never()).delete(any(), any());
     }
 }

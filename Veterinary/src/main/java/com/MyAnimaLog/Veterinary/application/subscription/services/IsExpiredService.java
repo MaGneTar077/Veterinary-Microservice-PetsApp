@@ -25,7 +25,7 @@ public class IsExpiredService  implements IsExpiredUseCase {
 
     @Override
     public IsExpiredResponse isExpired(UUID veterinaryId) {
-        authorizationService.requireMember(veterinaryId);
+        authorizationService.requireActiveMember(veterinaryId);
 
         veterinaryRepositoryPort.findById(veterinaryId)
                 .orElseThrow(VeterinaryNotFoundException::new);

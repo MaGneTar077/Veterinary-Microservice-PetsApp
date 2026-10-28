@@ -150,7 +150,7 @@ class IsExpiredServiceTest {
 
     @Test
     void isExpired_shouldThrowClinicContextRequiredException_whenCallerHasNoClinicToken() {
-        doThrow(new ClinicContextRequiredException()).when(authorizationService).requireMember(veterinaryId);
+        doThrow(new ClinicContextRequiredException()).when(authorizationService).requireActiveMember(veterinaryId);
 
         assertThatThrownBy(() ->
                 isExpiredService.isExpired(veterinaryId)
@@ -161,7 +161,7 @@ class IsExpiredServiceTest {
 
     @Test
     void isExpired_shouldThrowTenantMismatchException_whenCallerBelongsToAnotherVeterinary() {
-        doThrow(new TenantMismatchException()).when(authorizationService).requireMember(veterinaryId);
+        doThrow(new TenantMismatchException()).when(authorizationService).requireActiveMember(veterinaryId);
 
         assertThatThrownBy(() ->
                 isExpiredService.isExpired(veterinaryId)

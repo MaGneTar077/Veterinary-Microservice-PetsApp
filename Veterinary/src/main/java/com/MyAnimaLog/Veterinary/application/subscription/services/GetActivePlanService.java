@@ -25,7 +25,7 @@ public class GetActivePlanService implements GetActivePlanUseCase {
 
     @Override
     public GetActivePlanResponse getActivePlan(UUID veterinaryId) {
-        authorizationService.requireMember(veterinaryId);
+        authorizationService.requireActiveMember(veterinaryId);
 
         veterinaryRepositoryPort.findById(veterinaryId)
                 .orElseThrow(VeterinaryNotFoundException::new);

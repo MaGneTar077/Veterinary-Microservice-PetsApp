@@ -22,6 +22,14 @@ public interface VeterinaryRepositoryPort {
     AdminClinicPage findForAdminList(VeterinaryStatus status, String search, String plan, String city,
                                       String department, int page, int size);
 
+    /**
+     * Atomically claims a clinic status transition: flips {@code status} from {@code expectedStatus} to
+     * {@code newStatus} only if it is still {@code expectedStatus} in the database right now. Returns
+     * {@code false} if another admin already changed it in between — the caller should treat that as a
+     * conflict, not silently continue. Used by suspend/reactivate (Fase 2B Parte 4B).
+     */
+    boolean claimStatusTransition(UUID veterinaryId, VeterinaryStatus expectedStatus, VeterinaryStatus newStatus);
+
     record AdminClinicPage(List<Veterinary> items, long total) {
     }
 }

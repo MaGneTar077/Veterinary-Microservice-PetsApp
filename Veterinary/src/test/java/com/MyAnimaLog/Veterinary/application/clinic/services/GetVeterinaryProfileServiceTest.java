@@ -89,4 +89,20 @@ class GetVeterinaryProfileServiceTest {
         assertThatThrownBy(() -> getVeterinaryProfileService.getProfile(veterinaryId))
                 .isInstanceOf(TenantMismatchException.class);
     }
+
+    @Test
+    void getProfile_shouldStillReturnProfile_whenClinicIsSuspended() {
+        Veterinary suspended = veterinary.toBuilder()
+                .status(VeterinaryStatus.SUSPENDED)
+                .active(false)
+                .suspendedAt(java.time.LocalDateTime.now())
+                .suspensionReason("Pago atrasado por mas de 60 dias")
+                .build();
+        when(veterinaryRepositoryPort.findById(veterinaryId)).thenReturn(Optional.of(suspended));
+
+        GetVeterinaryProfileResponse response = getVeterinaryProfileService.getProfile(veterinaryId);
+
+        assertThat(response.getStatus()).isEqualTo(VeterinaryStatus.SUSPENDED);
+        assertThat(response.getSuspensionReason()).isEqualTo("Pago atrasado por mas de 60 dias");
+    }
 }

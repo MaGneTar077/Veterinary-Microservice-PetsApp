@@ -42,4 +42,6 @@ public class GetVeterinaryProfileResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime approvedAt;
+    private LocalDateTime suspendedAt;
+    private String suspensionReason;
 }

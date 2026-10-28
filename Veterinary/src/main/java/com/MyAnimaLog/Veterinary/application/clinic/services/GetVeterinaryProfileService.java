@@ -53,6 +53,8 @@ public class GetVeterinaryProfileService implements GetVeterinaryProfileUseCase 
                 .createdAt(veterinary.getCreatedAt())
                 .updatedAt(veterinary.getUpdatedAt())
                 .approvedAt(veterinary.getApprovedAt())
+                .suspendedAt(veterinary.getSuspendedAt())
+                .suspensionReason(veterinary.getSuspensionReason())
                 .build();
     }
 }

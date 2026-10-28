@@ -74,6 +74,10 @@ public class GetAdminClinicDetailService implements GetAdminClinicDetailUseCase 
                         .build())
                 .toList();
 
+        UserServicePort.UserInfo ownerInfo = owner != null ? resolveOwner(owner.getUserId()) : null;
+        String ownerName = ownerInfo != null && ownerInfo.name() != null ? ownerInfo.name() : veterinary.getLegalRepName();
+        String ownerEmail = ownerInfo != null ? ownerInfo.email() : null;
+
         return AdminClinicDetailResponse.builder()
                 .id(veterinary.getId())
                 .name(veterinary.getName())
@@ -86,8 +90,9 @@ public class GetAdminClinicDetailService implements GetAdminClinicDetailUseCase 
                 .department(veterinary.getDepartment())
                 .status(veterinary.getStatus())
                 .plan(plan)
-                .ownerName(veterinary.getLegalRepName())
-                .ownerEmail(owner != null ? resolveEmail(owner.getUserId()) : null)
+                .legalRepName(veterinary.getLegalRepName())
+                .ownerName(ownerName)
+                .ownerEmail(ownerEmail)
                 .createdAt(veterinary.getCreatedAt())
                 .approvedAt(veterinary.getApprovedAt())
                 .suspendedAt(veterinary.getSuspendedAt())
@@ -97,11 +102,11 @@ public class GetAdminClinicDetailService implements GetAdminClinicDetailUseCase 
                 .build();
     }
 
-    private String resolveEmail(UUID userId) {
+    private UserServicePort.UserInfo resolveOwner(UUID userId) {
         try {
-            return userServicePort.getUser(userId).email();
+            return userServicePort.getUser(userId);
         } catch (RuntimeException ex) {
-            log.warn("User service lookup failed for userId={}, owner email omitted from admin clinic detail", userId);
+            log.warn("User service lookup failed for userId={}, owner name falls back to legalRepName and owner email is omitted", userId);
             return null;
         }
     }

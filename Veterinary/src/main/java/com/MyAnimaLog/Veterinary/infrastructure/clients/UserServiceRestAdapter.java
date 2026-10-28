@@ -46,13 +46,13 @@ public class UserServiceRestAdapter implements UserServicePort {
             if (response == null) {
                 throw new ExternalServiceUnavailableException("User service returned an empty body");
             }
-            return new UserInfo(userId, response.email(), response.emailVerified());
+            return new UserInfo(userId, response.email(), response.emailVerified(), response.name());
         } catch (RestClientException ex) {
             log.error("User service lookup failed for userId={}", userId, ex);
             throw new ExternalServiceUnavailableException("User service lookup failed", ex);
         }
     }
 
-    private record UserResponse(UUID id, String email, Boolean emailVerified) {
+    private record UserResponse(UUID id, String email, Boolean emailVerified, String name) {
     }
 }

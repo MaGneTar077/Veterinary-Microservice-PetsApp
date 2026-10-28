@@ -3,7 +3,10 @@ package com.MyAnimaLog.Veterinary.infrastructure.config;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.EmailNotVerifiedException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidNitException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidVeterinaryEmailException;
-import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidVeterinaryStatusTransitionException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.ClinicNotActiveException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.ClinicNotSuspendedException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.CannotManageOwnClinicException;
+import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.InvalidSuspensionReasonException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.TooManyOwnedVeterinariesException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.VeterinaryAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.clinic.exceptions.VeterinaryEmailAlreadyExistsException;
@@ -25,6 +28,7 @@ import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotActiveExc
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.ClinicContextRequiredException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.ClinicSuspendedException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.PlatformAdminRequiredException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.TenantMismatchException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.UnauthenticatedException;
@@ -183,6 +187,11 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.FORBIDDEN, ex.getMessage(), "PLATFORM_ADMIN_REQUIRED");
     }
 
+    @ExceptionHandler(ClinicSuspendedException.class)
+    public ResponseEntity<Map<String, Object>> handleClinicSuspended(ClinicSuspendedException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage(), "CLINIC_SUSPENDED");
+    }
+
     @ExceptionHandler(CannotModifySelfException.class)
     public ResponseEntity<Map<String, Object>> handleCannotModifySelf(CannotModifySelfException ex) {
         return build(HttpStatus.FORBIDDEN, ex.getMessage(), "CANNOT_MODIFY_SELF");
@@ -218,9 +227,24 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.CONFLICT, ex.getMessage(), "OWNER_CLINIC_LIMIT_REACHED");
     }
 
-    @ExceptionHandler(InvalidVeterinaryStatusTransitionException.class)
-    public ResponseEntity<Map<String, Object>> handleInvalidStatusTransition(InvalidVeterinaryStatusTransitionException ex) {
-        return build(HttpStatus.CONFLICT, ex.getMessage(), "INVALID_VERIFICATION_STATE");
+    @ExceptionHandler(ClinicNotActiveException.class)
+    public ResponseEntity<Map<String, Object>> handleClinicNotActive(ClinicNotActiveException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), "CLINIC_NOT_ACTIVE");
+    }
+
+    @ExceptionHandler(ClinicNotSuspendedException.class)
+    public ResponseEntity<Map<String, Object>> handleClinicNotSuspended(ClinicNotSuspendedException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), "CLINIC_NOT_SUSPENDED");
+    }
+
+    @ExceptionHandler(CannotManageOwnClinicException.class)
+    public ResponseEntity<Map<String, Object>> handleCannotManageOwnClinic(CannotManageOwnClinicException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage(), "CANNOT_MANAGE_OWN_CLINIC");
+    }
+
+    @ExceptionHandler(InvalidSuspensionReasonException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidSuspensionReason(InvalidSuspensionReasonException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "VALIDATION_ERROR");
     }
 
     @ExceptionHandler(ExternalServiceUnavailableException.class)

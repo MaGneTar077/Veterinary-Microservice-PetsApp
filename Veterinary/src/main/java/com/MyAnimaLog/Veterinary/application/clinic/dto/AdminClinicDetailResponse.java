@@ -27,6 +27,7 @@ public class AdminClinicDetailResponse {
     private String department;
     private VeterinaryStatus status;
     private String plan;
+    private String legalRepName;
     private String ownerName;
     private String ownerEmail;
     private LocalDateTime createdAt;

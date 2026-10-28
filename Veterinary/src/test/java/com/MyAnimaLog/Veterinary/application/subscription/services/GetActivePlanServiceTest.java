@@ -6,6 +6,7 @@ import com.MyAnimaLog.Veterinary.application.subscription.ports.out.VeterinarySu
 import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.NoActiveSubscriptionException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.ClinicContextRequiredException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.ClinicSuspendedException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.TenantMismatchException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
@@ -152,7 +153,7 @@ class GetActivePlanServiceTest {
 
     @Test
     void getActivePlan_shouldThrowClinicContextRequiredException_whenCallerHasNoClinicToken() {
-        doThrow(new ClinicContextRequiredException()).when(authorizationService).requireMember(veterinaryId);
+        doThrow(new ClinicContextRequiredException()).when(authorizationService).requireActiveMember(veterinaryId);
 
         assertThatThrownBy(() ->
                 getActivePlanService.getActivePlan(veterinaryId)
@@ -163,11 +164,22 @@ class GetActivePlanServiceTest {
 
     @Test
     void getActivePlan_shouldThrowTenantMismatchException_whenCallerBelongsToAnotherVeterinary() {
-        doThrow(new TenantMismatchException()).when(authorizationService).requireMember(veterinaryId);
+        doThrow(new TenantMismatchException()).when(authorizationService).requireActiveMember(veterinaryId);
 
         assertThatThrownBy(() ->
                 getActivePlanService.getActivePlan(veterinaryId)
         ).isInstanceOf(TenantMismatchException.class);
+
+        verify(subscriptionRepositoryPort, never()).findActiveByVeterinaryId(any());
+    }
+
+    @Test
+    void getActivePlan_shouldThrowClinicSuspendedException_whenClinicIsSuspended() {
+        doThrow(new ClinicSuspendedException()).when(authorizationService).requireActiveMember(veterinaryId);
+
+        assertThatThrownBy(() ->
+                getActivePlanService.getActivePlan(veterinaryId)
+        ).isInstanceOf(ClinicSuspendedException.class);
 
         verify(subscriptionRepositoryPort, never()).findActiveByVeterinaryId(any());
     }

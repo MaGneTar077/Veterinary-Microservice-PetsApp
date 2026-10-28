@@ -83,4 +83,9 @@ public class VeterinaryRepositoryAdapter implements VeterinaryRepositoryPort {
         List<Veterinary> items = result.getContent().stream().map(mapper::toDomain).toList();
         return new AdminClinicPage(items, result.getTotalElements());
     }
+
+    @Override
+    public boolean claimStatusTransition(UUID veterinaryId, VeterinaryStatus expectedStatus, VeterinaryStatus newStatus) {
+        return jpaRepository.updateStatusIfCurrentlyIs(veterinaryId, expectedStatus.name(), newStatus.name()) == 1;
+    }
 }
