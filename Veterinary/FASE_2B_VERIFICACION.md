@@ -272,6 +272,8 @@ Las tres decisiones (`approve`/`reject`/`request-correction`) solo son válidas 
 
 `occurredAt` no va en `payload` — lo pone `DomainEvent.create(...)` en el sobre común (`{eventType, userId, recipient, payload, occurredAt, metadata}`, `occurredAt = Instant.now()`), igual para los 22 eventos de `VeterinaryEventType`, no solo estos dos.
 
+**Todos los eventos se publican después del commit** (Parte 4B, bloque c2): `GooglePubSubEventAdapter.publish(...)` registra un `TransactionSynchronization` y envía de verdad en `afterCommit()` si hay una transacción activa (`TransactionSynchronizationManager.isSynchronizationActive()`); sin transacción activa, publica de inmediato. Esto evita que un `rollback` posterior a `publish(...)` dentro del mismo método `@Transactional` deje salir un evento para un cambio que nunca se persistió (p. ej. que el dueño reciba "clínica suspendida" sin que la base haya cambiado). El cambio vive solo en el adaptador — ninguno de los 8 servicios que llaman `eventPublisherPort.publish(...)` sabe que el envío se retrasa. `NoOpEventPublisher` (`EVENTS_ENABLED=false`) no se tocó, porque solo loguea y no tiene nada que una transacción pueda deshacer.
+
 ---
 
 ## 8. Códigos de error
@@ -300,7 +302,7 @@ Nota: `suspend`/`reactivate` (VET-13) usaban antes el código compartido `INVALI
 | 2 · Asistente de la clínica | Registro con consentimientos, representante, logo, documentos, consulta, envío, reintento | ☑ Hecho (2026-10-15) |
 | 3 · Perfil profesional | Perfil, documentos, firma, envío, `licensed` en el endpoint de miembros | ☑ Hecho (2026-10-21) |
 | 4A · Revisión, decisiones e IA | Cola, detalle, aprobar/rechazar/corregir (concurrencia + conflicto de interés), prueba PRO, regla de corrección (`REVIEWED`/`DOCUMENT_NOT_IN_CORRECTION`), quitar atajo de `reactivate`, puerto IA + adaptadores NoOp/HTTP, disparo async tras commit, `rerun-ai`, eventos, job de limpieza | ☑ Hecho (2026-10-27) |
-| 4B · Panel admin de clínicas y lista de profesionales | Pantalla de clínicas del admin (listar/filtrar, ver detalle no ligado a una solicitud, suspender/reactivar desde el panel) y lista de profesionales (buscar por licencia/nombre, ver estado) | ☐ Pendiente |
+| 4B · Panel admin de clínicas y lista de profesionales | Pantalla de clínicas del admin (listar/filtrar, ver detalle no ligado a una solicitud, suspender/reactivar desde el panel) y lista de profesionales (buscar por licencia/nombre, ver estado); `CLINIC_SUSPENDED` en todo endpoint de token de clínica salvo el perfil; eventos publicados tras el commit | ☑ Hecho (2026-10-28) |
 
 Notas de la Parte 2 (diferencias menores de nombres respecto a este documento, por consistencia con el resto del código):
 - Endpoints de `GET`/`POST`/`DELETE` sobre `.../verification` implementados como `GetClinicVerification`/`SubmitClinicVerification`/`RetryClinicVerification` (en vez de un nombre genérico "Verification"), dejando el prefijo `Clinic` libre para el equivalente de perfil profesional en la Parte 3.
@@ -321,6 +323,14 @@ Notas de la Parte 4A:
 - `IaVerificationPort.isEnabled()` (no solo la property `AI_VERIFICATION_ENABLED`) es lo que de verdad decide si `VerificationAiAnalysisListener` llama al adaptador — `NoOpIaVerificationAdapter` siempre devuelve `false`; esto es lo que hace que `ai_status` nunca salga de `NOT_RUN` con la IA apagada, sin repetir el nombre de la property en varios sitios.
 - El análisis de IA vive enteramente en `VerificationAiAnalysisListener`, disparado por un evento interno de Spring (`VerificationSubmittedEvent`, no un `DomainEvent`/Pub-Sub) que tanto `SubmitClinicVerificationService` como `ProfessionalProfileSubmissionService` publican al terminar; `rerun-ai` publica el mismo evento. `@TransactionalEventListener(AFTER_COMMIT)` + `@Async` (habilitado en `AsyncConfig`) asegura que nunca corre si la transacción que envió se revierte.
 - `CorrectionGate` (`application/verification/services`) centraliza la regla "solo se puede subir/borrar un documento pedido en corrección" para los 4 servicios de documentos (clínica y perfil, subir y borrar); `VerificationDocumentStatusCalculator` centraliza el cálculo de `PENDING`/`READY`/`NEEDS_CORRECTION`/`REVIEWED` para los `GET` de clínica y de perfil — ninguna de las dos lógicas está duplicada entre módulos.
+
+Notas de la Parte 4B:
+- Listados (`ListAdminClinicsService`/`ListAdminProfessionalsService`) resuelven empleados/clínicas/suscripciones en consultas en lote (`findByVeterinaryIdIn`/`findByUserIdInAndActiveTrue`/`findActiveByVeterinaryIdIn`/`findByIdIn`) — nunca una consulta por fila; cero llamadas al `UserServicePort` en los listados (ver la nota de la sección 10 sobre `email`/`ownerName`).
+- `VeterinaryAuthorizationService.requireActiveMember(veterinaryId)` = `requireMember(veterinaryId)` + reconsulta a la base de `veterinary.status` — rechaza con `ClinicSuspendedException` si está `SUSPENDED`. Lo usan `require(id, permission)`, `requireOwnerOrPermission` y la rama de permiso de `requireSelfOrPermission`; `requireMember` por sí solo (sin el chequeo) solo lo sigue usando `GetVeterinaryProfileService`, la única pantalla que debe seguir funcionando con la clínica suspendida.
+- `SuspendVeterinaryService`/`ReactivateVeterinaryService` hacen el mismo patrón de `claimForDecision` que ya usaba la Parte 4A (`VeterinaryRepositoryPort.claimStatusTransition`, `UPDATE condicional WHERE status = ?`) para que dos admins decidiendo al mismo tiempo nunca produzcan una carrera silenciosa.
+- `InvalidVeterinaryStatusTransitionException` (VET-13) se eliminó — `suspend`/`reactivate` ya no la usan, ver la nota de la sección 8.
+- Bloque c2: `GooglePubSubEventAdapter.publish(...)` difiere el envío real a `afterCommit()` cuando hay una transacción activa — ver la nota al final de la sección 7. Cambio aislado al adaptador; ningún servicio que publica eventos se modificó.
+- Pendiente del lado del User service (no se puede resolver desde Veterinary): (1) `POST /internal/users/batch` para mostrar `email`/`ownerName` reales en los listados admin sin N llamadas por página (ver sección 10); (2) no debería emitir un token de clínica nuevo para una clínica `SUSPENDED` — hoy Veterinary se protege igual revalidando contra la base en cada llamada (`requireActiveMember`), pero evitar emitir el token de entrada sería una capa extra de defensa.
 
 Variables nuevas: `SUPABASE_URL`, `SUPABASE_KEY` (service role, solo backend), `SUPPORT_EMAIL`, `AI_VERIFICATION_ENABLED` (default `false`), `IA_SERVICE_URL`, `LEGAL_DATA_POLICY_VERSION`, `LEGAL_TERMS_VERSION`, `USER_SERVICE_URL` (Parte 4A, usado por el detalle del admin), `RUES_URL`/`COMVEZCOL_URL` (Parte 4A, opcionales — tienen default).
 
@@ -356,5 +366,139 @@ Variables nuevas: `SUPABASE_URL`, `SUPABASE_KEY` (service role, solo backend), `
 | POST | `{{base}}/admin/verifications/{requestId}/request-correction` | `PLATFORM_ADMIN` | Pedir corrección de documentos específicos |
 | POST | `{{base}}/admin/verifications/{requestId}/rerun-ai` | `PLATFORM_ADMIN` | Volver a correr el análisis de IA (`409` si está apagada) |
 | POST | `/internal/jobs/verification-documents/cleanup` | `X-Internal-Api-Key` (servicio a servicio, no un usuario) | Borra documentos de solicitudes `REJECTED` con más de 90 días |
+| GET | `{{base}}/admin/veterinaries?status=&search=&plan=&city=&department=&page=&size=` | `PLATFORM_ADMIN` | Parte 4B. Lista de clínicas para el panel admin — todos los filtros son opcionales; `size` máx 50; orden `createdAt` desc |
+| GET | `{{base}}/admin/veterinaries/{veterinaryId}` | `PLATFORM_ADMIN` | Parte 4B. Detalle de una clínica: datos, dueño, plan, fechas, `suspensionReason`, empleados, historial de decisiones de verificación |
+| PATCH | `{{base}}/admin/veterinaries/{veterinaryId}/suspend` | `PLATFORM_ADMIN` | Parte 4B. Body `{ "reason": "..." }` (10–500 caracteres, obligatorio). Solo `ACTIVE → SUSPENDED`; `403 CANNOT_MANAGE_OWN_CLINIC` si el admin es empleado/dueño de esa clínica |
+| PATCH | `{{base}}/admin/veterinaries/{veterinaryId}/reactivate` | `PLATFORM_ADMIN` | Parte 4B. Solo `SUSPENDED → ACTIVE` (ya no acepta `PENDING_DOCUMENTS`/`UNDER_REVIEW`, ver Parte 4A); misma regla de "no sobre tu propia clínica" |
+| GET | `{{base}}/admin/professionals?search=&verified=&page=&size=` | `PLATFORM_ADMIN` | Parte 4B. Lista de perfiles profesionales — `search` busca por nombre o número de tarjeta (nunca por email, ver nota abajo); `verified` filtra por `licenseStatus == VERIFIED`; `size` máx 50 |
+| GET | `{{base}}/admin/professionals/{profileId}` | `PLATFORM_ADMIN` | Parte 4B. Detalle de un perfil: datos, email, documento de identidad, clínicas donde trabaja con su rol |
 
-No están en esta tabla (pre-existentes, fuera de Fase 2B pero relacionados): `GET /internal/veterinaries/{id}/members/{userId}` (ahora devuelve `licensed` real, Parte 3) y `PATCH {{base}}/admin/veterinaries/{id}/reactivate` (ya no acepta `PENDING_DOCUMENTS`/`UNDER_REVIEW`, Parte 4A).
+No están en esta tabla (pre-existentes, fuera de Fase 2B pero relacionados): `GET /internal/veterinaries/{id}/members/{userId}` (ahora devuelve `licensed` real, Parte 3).
+
+**Nota para el frontend — listados sin email/ownerName (Parte 4B):** ni `GET .../admin/veterinaries` ni `GET .../admin/professionals` incluyen `ownerEmail`/`email` ni un `ownerName` resuelto del User service — el listado de clínicas trae `legalRepName` (el representante legal declarado, no necesariamente el dueño de la cuenta) y el de profesionales no trae ningún campo de contacto. Esto es deliberado: el User service no tiene hoy un endpoint en lote, así que resolverlo por fila en un listado paginado significaría N llamadas HTTP por página. Los campos reales (`ownerName`/`ownerEmail` en el detalle de clínica, `email` en el detalle de profesional) sí se resuelven — una sola llamada al User service por detalle, con fallback (`legalRepName`, o `null`) si falla. Pendiente del lado del User service: un `POST /internal/users/batch` que reciba una lista de ids y devuelva `{id, name, email}` por cada uno — con eso los listados podrían mostrar los campos reales en una sola llamada por página en vez de omitirlos.
+
+**Nota para el frontend — `403 CLINIC_SUSPENDED` (Parte 4B):** cualquier endpoint que use un token de clínica (incluyendo `admin/verifications/**` no aplica, ese usa token normal) puede devolver `403 CLINIC_SUSPENDED` si la clínica fue suspendida después de que el token se emitió (el claim `vet_status` del token puede tener hasta 60 min de antigüedad; Veterinary siempre reconsulta la base). La única excepción es `GET {{base}}/{veterinaryId}` (perfil/estado de la clínica), que sigue respondiendo `200` e incluye `status` y `suspensionReason` — ante un `403 CLINIC_SUSPENDED` en cualquier otro endpoint, el frontend debe redirigir a la pantalla de "clínica suspendida" y consultar ese perfil para mostrar el motivo.
+
+---
+
+## 11. Ejemplos de respuesta (Parte 4B)
+
+**`GET {{base}}/admin/veterinaries?status=ACTIVE&page=0&size=20`** → `200`:
+
+```json
+{
+  "items": [
+    {
+      "id": "b3f1c2a0-1111-4a2b-9c3d-000000000001",
+      "name": "Clínica El Bosque",
+      "legalName": "Clínica El Bosque SAS",
+      "nit": "900123456-1",
+      "city": "Bogotá",
+      "department": "Bogotá D.C.",
+      "status": "ACTIVE",
+      "plan": "PRO_TRIAL",
+      "legalRepName": "María Gómez",
+      "employeesCount": 4,
+      "createdAt": "2026-09-01T10:15:00",
+      "approvedAt": "2026-09-03T14:00:00",
+      "suspendedAt": null
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "total": 1
+}
+```
+
+**`GET {{base}}/admin/veterinaries/{veterinaryId}`** → `200`:
+
+```json
+{
+  "id": "b3f1c2a0-1111-4a2b-9c3d-000000000001",
+  "name": "Clínica El Bosque",
+  "legalName": "Clínica El Bosque SAS",
+  "nit": "900123456-1",
+  "phone": "3001234567",
+  "email": "contacto@elbosque.com",
+  "address": "Calle 10 # 20-30",
+  "city": "Bogotá",
+  "department": "Bogotá D.C.",
+  "status": "ACTIVE",
+  "plan": "PRO_TRIAL",
+  "legalRepName": "María Gómez",
+  "ownerName": "Carlos Pérez",
+  "ownerEmail": "carlos@elbosque.com",
+  "createdAt": "2026-09-01T10:15:00",
+  "approvedAt": "2026-09-03T14:00:00",
+  "suspendedAt": null,
+  "suspensionReason": null,
+  "employees": [
+    { "employeeId": "e1...", "userId": "u1...", "role": "OWNER", "active": true },
+    { "employeeId": "e2...", "userId": "u2...", "role": "VETERINARIAN", "active": true }
+  ],
+  "verificationHistory": [
+    { "attemptNumber": 1, "status": "APPROVED", "rejectionReasonCode": null, "reviewerNotes": null, "decidedAt": "2026-09-03T14:00:00" }
+  ]
+}
+```
+
+Nota: `ownerName` sale del usuario `OWNER` activo vía User service; si ese llamado falla o el usuario no tiene nombre registrado, cae a `legalRepName` (en este ejemplo serían distintos porque el representante legal declarado no es necesariamente quien usa la cuenta).
+
+**`PATCH {{base}}/admin/veterinaries/{veterinaryId}/suspend`** — body `{ "reason": "Pago atrasado por más de 60 días" }` → `200`:
+
+```json
+{
+  "id": "b3f1c2a0-1111-4a2b-9c3d-000000000001",
+  "name": "Clínica El Bosque",
+  "status": "SUSPENDED",
+  "active": false,
+  "suspendedAt": "2026-10-28T09:00:00",
+  "suspensionReason": "Pago atrasado por más de 60 días"
+}
+```
+
+**`GET {{base}}/admin/professionals?verified=true&page=0&size=20`** → `200`:
+
+```json
+{
+  "items": [
+    {
+      "id": "c4a2d3b0-2222-4a2b-9c3d-000000000002",
+      "fullName": "Juan Pérez",
+      "licenseNumber": "TP-12345",
+      "profession": "MV",
+      "licenseStatus": "VERIFIED",
+      "workplaces": [
+        { "veterinaryId": "b3f1c2a0-1111-4a2b-9c3d-000000000001", "name": "Clínica El Bosque", "role": "VETERINARIAN" }
+      ],
+      "createdAt": "2026-08-15T09:00:00"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "total": 1
+}
+```
+
+**`GET {{base}}/admin/professionals/{profileId}`** → `200`:
+
+```json
+{
+  "id": "c4a2d3b0-2222-4a2b-9c3d-000000000002",
+  "fullName": "Juan Pérez",
+  "email": "juan.perez@example.com",
+  "documentType": "CC",
+  "documentNumber": "1020304050",
+  "licenseNumber": "TP-12345",
+  "profession": "MV",
+  "specialty": "Cirugía",
+  "university": "Universidad Nacional",
+  "licenseStatus": "VERIFIED",
+  "rejectionReason": null,
+  "verifiedAt": "2026-08-20T11:30:00",
+  "workplaces": [
+    { "veterinaryId": "b3f1c2a0-1111-4a2b-9c3d-000000000001", "name": "Clínica El Bosque", "role": "VETERINARIAN" }
+  ],
+  "createdAt": "2026-08-15T09:00:00"
+}
+```
