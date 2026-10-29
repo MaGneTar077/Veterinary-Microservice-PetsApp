@@ -11,6 +11,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
+/**
+ * Alias de compatibilidad. La ruta buena es
+ * {@code DELETE /api/veterinary/{veterinaryId}/employees/{employeeId}}
+ * ({@code RemoveEmployeeController}).
+ *
+ * @deprecated usar la ruta anidada por clínica. Ver FASE_3_PERSONAL.md.
+ */
+@Deprecated(since = "Fase 3")
 @RestController
 @RequestMapping("/api/veterinary/employees")
 @RequiredArgsConstructor
@@ -20,6 +28,6 @@ public class DeActivateEmployeeController {
 
     @PatchMapping("/{employeeId}/deactivate")
     public ResponseEntity<DeActivateEmployeeResponse> deActivate(@PathVariable UUID employeeId) {
-        return ResponseEntity.ok(deActivateEmployeeUseCase.deActivate(employeeId));
+        return ResponseEntity.ok(deActivateEmployeeUseCase.deActivate(null, employeeId));
     }
 }

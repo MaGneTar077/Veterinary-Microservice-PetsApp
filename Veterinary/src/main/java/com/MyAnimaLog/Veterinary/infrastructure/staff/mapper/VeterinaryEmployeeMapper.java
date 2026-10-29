@@ -15,6 +15,7 @@ public class VeterinaryEmployeeMapper {
                 .role(domain.getRole())
                 .active(domain.getActive())
                 .createdAt(domain.getCreatedAt())
+                .removedAt(domain.getRemovedAt())
                 .build();
     }
 
@@ -26,6 +27,7 @@ public class VeterinaryEmployeeMapper {
                 .role(entity.getRole())
                 .active(entity.getActive())
                 .createdAt(entity.getCreatedAt())
+                .removedAt(entity.getRemovedAt())
                 .build();
     }
 }

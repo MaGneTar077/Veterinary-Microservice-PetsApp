@@ -6,5 +6,13 @@ import com.MyAnimaLog.Veterinary.application.staff.dto.UpdateEmployeeRoleRespons
 import java.util.UUID;
 
 public interface UpdateEmployeeRoleUseCase {
-    UpdateEmployeeRoleResponse updateRole(UUID employeeId,  UpdateEmployeeRoleRequest request);
+
+    /**
+     * @param veterinaryIdFromPath clínica de la ruta, o {@code null} si se llamó por la ruta vieja
+     *                             {@code PATCH /api/veterinary/employees/{employeeId}/role}, que no
+     *                             la lleva (alias {@code @Deprecated}); en ese caso se toma la del
+     *                             propio empleado
+     */
+    UpdateEmployeeRoleResponse updateRole(UUID veterinaryIdFromPath, UUID employeeId,
+                                           UpdateEmployeeRoleRequest request);
 }

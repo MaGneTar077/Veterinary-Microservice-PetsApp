@@ -29,6 +29,9 @@ public class ActivateEmployeeService implements ActivateEmployeeUseCase {
 
         VeterinaryEmployee updated = employee.toBuilder()
                 .active(true)
+                // Vuelve al equipo: la fecha de retiro deja de aplicar (igual que al aceptar una
+                // invitación nueva, ver AcceptInvitationService).
+                .removedAt(null)
                 .build();
 
         VeterinaryEmployee saved = employeeRepositoryPort.save(updated);

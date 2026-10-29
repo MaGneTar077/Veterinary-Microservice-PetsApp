@@ -58,7 +58,7 @@ class DeActivateEmployeeControllerTest {
 
     @Test
     void deActivate_shouldReturn200_whenEmployeeExists() throws Exception {
-        when(deActivateEmployeeUseCase.deActivate(any(UUID.class))).thenReturn(validResponse);
+        when(deActivateEmployeeUseCase.deActivate(any(), any(UUID.class))).thenReturn(validResponse);
 
         mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/deactivate", employeeId)
                         .with(csrf())
@@ -71,7 +71,7 @@ class DeActivateEmployeeControllerTest {
 
     @Test
     void deActivate_shouldReturn404_whenEmployeeNotFound() throws Exception {
-        when(deActivateEmployeeUseCase.deActivate(any(UUID.class)))
+        when(deActivateEmployeeUseCase.deActivate(any(), any(UUID.class)))
                 .thenThrow(new EmployeeNotFoundException());
 
         mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/deactivate", employeeId)
@@ -90,7 +90,7 @@ class DeActivateEmployeeControllerTest {
 
     @Test
     void deActivate_shouldReturn403_whenCallerLacksStaffManage() throws Exception {
-        when(deActivateEmployeeUseCase.deActivate(any(UUID.class)))
+        when(deActivateEmployeeUseCase.deActivate(any(), any(UUID.class)))
                 .thenThrow(new InsufficientPermissionException(Permission.STAFF_MANAGE));
 
         mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/deactivate", employeeId)
@@ -101,7 +101,7 @@ class DeActivateEmployeeControllerTest {
 
     @Test
     void deActivate_shouldReturn403_whenActorTargetsSelf() throws Exception {
-        when(deActivateEmployeeUseCase.deActivate(any(UUID.class)))
+        when(deActivateEmployeeUseCase.deActivate(any(), any(UUID.class)))
                 .thenThrow(new CannotModifySelfException());
 
         mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/deactivate", employeeId)
@@ -112,7 +112,7 @@ class DeActivateEmployeeControllerTest {
 
     @Test
     void deActivate_shouldReturn403_whenTargetIsOwner() throws Exception {
-        when(deActivateEmployeeUseCase.deActivate(any(UUID.class)))
+        when(deActivateEmployeeUseCase.deActivate(any(), any(UUID.class)))
                 .thenThrow(new CannotModifyOwnerException());
 
         mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/deactivate", employeeId)
@@ -123,7 +123,7 @@ class DeActivateEmployeeControllerTest {
 
     @Test
     void deActivate_shouldReturn403_whenActingAdminTargetsAnotherAdmin() throws Exception {
-        when(deActivateEmployeeUseCase.deActivate(any(UUID.class)))
+        when(deActivateEmployeeUseCase.deActivate(any(), any(UUID.class)))
                 .thenThrow(new CannotModifyPeerAdminException());
 
         mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/deactivate", employeeId)

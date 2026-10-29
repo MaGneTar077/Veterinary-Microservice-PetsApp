@@ -4,11 +4,11 @@ import com.MyAnimaLog.Veterinary.application.clinic.dto.GetVeterinaryMemberRespo
 import com.MyAnimaLog.Veterinary.application.clinic.ports.in.GetVeterinaryMemberUseCase;
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.professional.ports.out.ProfessionalProfileRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.professional.services.LicenseStatusResolver;
 import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.subscription.ports.out.VeterinarySubscriptionRepositoryPort;
 import com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
-import com.MyAnimaLog.Veterinary.domain.professional.enums.LicenseStatus;
 import com.MyAnimaLog.Veterinary.domain.staff.model.VeterinaryEmployee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -59,9 +59,7 @@ public class GetVeterinaryMemberService implements GetVeterinaryMemberUseCase {
         }
 
         VeterinaryEmployee veterinaryEmployee = employee.get();
-        boolean licensed = professionalProfileRepositoryPort.findByUserId(userId)
-                .map(profile -> profile.getLicenseStatus() == LicenseStatus.VERIFIED)
-                .orElse(false);
+        boolean licensed = LicenseStatusResolver.isLicensed(professionalProfileRepositoryPort, userId);
         return GetVeterinaryMemberResponse.builder()
                 .member(true)
                 .employeeId(veterinaryEmployee.getId())

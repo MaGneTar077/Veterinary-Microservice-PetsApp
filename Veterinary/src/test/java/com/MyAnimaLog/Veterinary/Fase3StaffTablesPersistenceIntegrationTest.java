@@ -2,11 +2,14 @@ package com.MyAnimaLog.Veterinary;
 
 import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.staff.ports.out.EmployeeInvitationRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
+import com.MyAnimaLog.Veterinary.domain.staff.model.VeterinaryEmployee;
 import com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
 import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
 import com.MyAnimaLog.Veterinary.domain.staff.enums.InvitationStatus;
 import com.MyAnimaLog.Veterinary.domain.staff.model.EmployeeInvitation;
+import com.MyAnimaLog.Veterinary.infrastructure.security.InvitationTokens;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -39,6 +42,9 @@ class Fase3StaffTablesPersistenceIntegrationTest {
 
     @Autowired
     private VeterinaryRepositoryPort veterinaryRepositoryPort;
+
+    @Autowired
+    private VeterinaryEmployeeRepositoryPort employeeRepositoryPort;
 
     /**
      * Clínica real a la que apuntar: {@code employee_invitations.veterinary_id} tiene FK contra
@@ -120,5 +126,127 @@ class Fase3StaffTablesPersistenceIntegrationTest {
         assertThat(found.get().getRole()).isEqualTo(EmployeeRole.ASSISTANT);
         assertThat(found.get().getInvitedBy()).isEqualTo(invitedBy);
         assertThat(found.get().getExpiresAt()).isEqualTo(expiresAt);
+    }
+
+    /**
+     * Consecuencia real de reenviar: {@code ResendInvitationService} sobrescribe {@code token_hash},
+     * así que el enlace que ya estaba en el correo del invitado deja de resolver. Se prueba contra la
+     * base (y no con un mock del repositorio) porque lo que importa es justamente que la búsqueda por
+     * el hash viejo no devuelva nada.
+     */
+    @Test
+    void employeeInvitation_shouldStopResolvingByTheOldTokenHash_afterTheHashIsReplaced() {
+        String oldTokenHash = InvitationTokens.hash("token-viejo");
+        String newTokenHash = InvitationTokens.hash("token-nuevo");
+
+        EmployeeInvitation invitation = invitationRepositoryPort.save(EmployeeInvitation.builder()
+                .id(UUID.randomUUID())
+                .veterinaryId(persistClinic())
+                .email("reenvio@clinica.com")
+                .role(EmployeeRole.RECEPTIONIST)
+                .tokenHash(oldTokenHash)
+                .status(InvitationStatus.PENDING)
+                .invitedBy(UUID.randomUUID())
+                .expiresAt(LocalDateTime.now().plusDays(7))
+                .createdAt(LocalDateTime.now())
+                .build());
+        assertThat(invitationRepositoryPort.findByTokenHash(oldTokenHash)).isPresent();
+
+        invitationRepositoryPort.save(invitation.toBuilder()
+                .tokenHash(newTokenHash)
+                .expiresAt(LocalDateTime.now().plusDays(7))
+                .build());
+
+        assertThat(invitationRepositoryPort.findByTokenHash(oldTokenHash)).isEmpty();
+        assertThat(invitationRepositoryPort.findByTokenHash(newTokenHash))
+                .isPresent()
+                .get()
+                .extracting(EmployeeInvitation::getId)
+                .isEqualTo(invitation.getId());
+    }
+
+    /**
+     * {@code findClinicMembership} es la consulta de la que depende <em>toda</em> la autorización
+     * desde la Fase 3 (PASO 0b), y es la única con un join escrito a mano entre dos entidades sin
+     * asociación JPA mapeada. Los tests con Mockito no la ejecutan nunca, así que un error en el
+     * JPQL o un alias que no case con la proyección solo aparecería en producción: por eso se
+     * prueba contra Postgres real.
+     */
+    @Test
+    void findClinicMembership_shouldReturnTheRoleAndClinicStatusInASingleQuery() {
+        UUID veterinaryId = persistClinic();
+        UUID userId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        employeeRepositoryPort.save(VeterinaryEmployee.builder()
+                .id(employeeId)
+                .veterinaryId(veterinaryId)
+                .userId(userId)
+                .role(EmployeeRole.VETERINARIAN)
+                .active(true)
+                .createdAt(LocalDateTime.now())
+                .build());
+
+        Optional<VeterinaryEmployeeRepositoryPort.ClinicMembership> membership =
+                employeeRepositoryPort.findClinicMembership(veterinaryId, userId);
+
+        assertThat(membership).isPresent();
+        assertThat(membership.get().employeeId()).isEqualTo(employeeId);
+        assertThat(membership.get().role()).isEqualTo(EmployeeRole.VETERINARIAN);
+        assertThat(membership.get().active()).isTrue();
+        assertThat(membership.get().veterinaryStatus()).isEqualTo(VeterinaryStatus.ACTIVE);
+    }
+
+    @Test
+    void findClinicMembership_shouldReportTheEmployeeAsInactiveAfterBeingRemoved() {
+        UUID veterinaryId = persistClinic();
+        UUID userId = UUID.randomUUID();
+        VeterinaryEmployee employee = employeeRepositoryPort.save(VeterinaryEmployee.builder()
+                .id(UUID.randomUUID())
+                .veterinaryId(veterinaryId)
+                .userId(userId)
+                .role(EmployeeRole.ASSISTANT)
+                .active(true)
+                .createdAt(LocalDateTime.now())
+                .build());
+
+        employeeRepositoryPort.save(employee.toBuilder()
+                .active(false)
+                .removedAt(LocalDateTime.now())
+                .build());
+
+        Optional<VeterinaryEmployeeRepositoryPort.ClinicMembership> membership =
+                employeeRepositoryPort.findClinicMembership(veterinaryId, userId);
+
+        // La fila sigue existiendo (trazabilidad) pero ya no habilita a operar.
+        assertThat(membership).isPresent();
+        assertThat(membership.get().active()).isFalse();
+    }
+
+    @Test
+    void findClinicMembership_shouldBeEmpty_whenTheUserNeverWorkedAtTheClinic() {
+        UUID veterinaryId = persistClinic();
+
+        assertThat(employeeRepositoryPort.findClinicMembership(veterinaryId, UUID.randomUUID())).isEmpty();
+    }
+
+    @Test
+    void employeeEmployee_shouldPersistAndReadBackRemovedAt() {
+        UUID veterinaryId = persistClinic();
+        LocalDateTime removedAt = LocalDateTime.now().withNano(0);
+        VeterinaryEmployee saved = employeeRepositoryPort.save(VeterinaryEmployee.builder()
+                .id(UUID.randomUUID())
+                .veterinaryId(veterinaryId)
+                .userId(UUID.randomUUID())
+                .role(EmployeeRole.RECEPTIONIST)
+                .active(false)
+                .createdAt(LocalDateTime.now())
+                .removedAt(removedAt)
+                .build());
+
+        assertThat(employeeRepositoryPort.findById(saved.getId()))
+                .isPresent()
+                .get()
+                .extracting(VeterinaryEmployee::getRemovedAt)
+                .isEqualTo(removedAt);
     }
 }

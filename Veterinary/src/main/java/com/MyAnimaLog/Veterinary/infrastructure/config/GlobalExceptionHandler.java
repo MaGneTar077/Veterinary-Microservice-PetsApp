@@ -19,10 +19,13 @@ import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeNotFoundExcepti
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvalidEmployeeRoleException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvalidInvitationEmailException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvitationAlreadyPendingException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvitationEmailMismatchException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvitationExpiredException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvitationNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvitationNotPendingException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.OnlyOwnerCanManageAdminsException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.OwnerCannotLeaveException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.NotClinicMemberException;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.ActiveSubscriptionAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.NoActiveSubscriptionException;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.SubscriptionNotFoundException;
@@ -151,6 +154,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvitationNotPendingException.class)
     public ResponseEntity<Map<String, Object>> handleInvitationNotPending(InvitationNotPendingException ex) {
         return build(HttpStatus.CONFLICT, ex.getMessage(), "INVITATION_NOT_PENDING");
+    }
+
+    @ExceptionHandler(NotClinicMemberException.class)
+    public ResponseEntity<Map<String, Object>> handleNotClinicMember(NotClinicMemberException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage(), "NOT_CLINIC_MEMBER");
+    }
+
+    @ExceptionHandler(OwnerCannotLeaveException.class)
+    public ResponseEntity<Map<String, Object>> handleOwnerCannotLeave(OwnerCannotLeaveException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), "OWNER_MUST_TRANSFER_OWNERSHIP");
+    }
+
+    @ExceptionHandler(InvitationEmailMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleInvitationEmailMismatch(InvitationEmailMismatchException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage(), "INVITATION_EMAIL_MISMATCH");
     }
 
     @ExceptionHandler(InvitationExpiredException.class)

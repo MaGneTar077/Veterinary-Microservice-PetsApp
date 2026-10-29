@@ -37,4 +37,7 @@ public class VeterinaryEmployeeEntity {
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    @Column(name = "removed_at")
+    private LocalDateTime removedAt;
 }

@@ -65,7 +65,7 @@ class UpdateEmployeeRoleControllerTest {
 
     @Test
     void updateRole_shouldReturn200_whenRequestIsValid() throws Exception {
-        when(updateEmployeeRoleUseCase.updateRole(any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
+        when(updateEmployeeRoleUseCase.updateRole(any(), any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
                 .thenReturn(validResponse);
 
         mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/role", employeeId)
@@ -82,7 +82,7 @@ class UpdateEmployeeRoleControllerTest {
 
     @Test
     void updateRole_shouldReturn400_whenRoleIsInvalid() throws Exception {
-        when(updateEmployeeRoleUseCase.updateRole(any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
+        when(updateEmployeeRoleUseCase.updateRole(any(), any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
                 .thenThrow(new InvalidEmployeeRoleException());
 
         mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/role", employeeId)
@@ -98,7 +98,7 @@ class UpdateEmployeeRoleControllerTest {
 
     @Test
     void updateRole_shouldReturn404_whenEmployeeNotFound() throws Exception {
-        when(updateEmployeeRoleUseCase.updateRole(any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
+        when(updateEmployeeRoleUseCase.updateRole(any(), any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
                 .thenThrow(new EmployeeNotFoundException());
 
         mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/role", employeeId)
@@ -125,7 +125,7 @@ class UpdateEmployeeRoleControllerTest {
 
     @Test
     void updateRole_shouldReturn403_whenCallerLacksStaffManage() throws Exception {
-        when(updateEmployeeRoleUseCase.updateRole(any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
+        when(updateEmployeeRoleUseCase.updateRole(any(), any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
                 .thenThrow(new InsufficientPermissionException(Permission.STAFF_MANAGE));
 
         mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/role", employeeId)
@@ -140,7 +140,7 @@ class UpdateEmployeeRoleControllerTest {
 
     @Test
     void updateRole_shouldReturn403_whenCallerBelongsToAnotherVeterinary() throws Exception {
-        when(updateEmployeeRoleUseCase.updateRole(any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
+        when(updateEmployeeRoleUseCase.updateRole(any(), any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
                 .thenThrow(new TenantMismatchException());
 
         mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/role", employeeId)
@@ -155,7 +155,7 @@ class UpdateEmployeeRoleControllerTest {
 
     @Test
     void updateRole_shouldReturn403_whenActorTargetsOwnRole() throws Exception {
-        when(updateEmployeeRoleUseCase.updateRole(any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
+        when(updateEmployeeRoleUseCase.updateRole(any(), any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
                 .thenThrow(new CannotModifySelfException());
 
         mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/role", employeeId)
@@ -170,7 +170,7 @@ class UpdateEmployeeRoleControllerTest {
 
     @Test
     void updateRole_shouldReturn403_whenTargetIsOwner() throws Exception {
-        when(updateEmployeeRoleUseCase.updateRole(any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
+        when(updateEmployeeRoleUseCase.updateRole(any(), any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
                 .thenThrow(new CannotModifyOwnerException());
 
         mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/role", employeeId)
@@ -185,7 +185,7 @@ class UpdateEmployeeRoleControllerTest {
 
     @Test
     void updateRole_shouldReturn403_whenActingAdminTargetsAnotherAdmin() throws Exception {
-        when(updateEmployeeRoleUseCase.updateRole(any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
+        when(updateEmployeeRoleUseCase.updateRole(any(), any(UUID.class), any(UpdateEmployeeRoleRequest.class)))
                 .thenThrow(new CannotModifyPeerAdminException());
 
         mockMvc.perform(patch("/api/veterinary/employees/{employeeId}/role", employeeId)

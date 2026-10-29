@@ -1,22 +1,26 @@
 package com.MyAnimaLog.Veterinary.application.staff.services;
 
 import com.MyAnimaLog.Veterinary.application.shared.dto.ClinicContext;
+import com.MyAnimaLog.Veterinary.application.shared.dto.DomainEvent;
+import com.MyAnimaLog.Veterinary.application.shared.dto.EventMetadata;
+import com.MyAnimaLog.Veterinary.application.shared.ports.out.EventPublisherPort;
 import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.application.staff.dto.UpdateEmployeeRoleRequest;
 import com.MyAnimaLog.Veterinary.application.staff.dto.UpdateEmployeeRoleResponse;
 import com.MyAnimaLog.Veterinary.application.staff.ports.in.UpdateEmployeeRoleUseCase;
 import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
 import com.MyAnimaLog.Veterinary.domain.security.Permission;
+import com.MyAnimaLog.Veterinary.domain.shared.enums.VeterinaryEventType;
 import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
-import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyOwnerException;
-import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyPeerAdminException;
-import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifySelfException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvalidEmployeeRoleException;
 import com.MyAnimaLog.Veterinary.domain.staff.model.VeterinaryEmployee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -25,9 +29,12 @@ public class UpdateEmployeeRoleService implements UpdateEmployeeRoleUseCase {
 
     private final VeterinaryEmployeeRepositoryPort employeeRepositoryPort;
     private final VeterinaryAuthorizationService authorizationService;
+    private final EventPublisherPort eventPublisherPort;
 
     @Override
-    public UpdateEmployeeRoleResponse updateRole(UUID employeeId, UpdateEmployeeRoleRequest request) {
+    @Transactional
+    public UpdateEmployeeRoleResponse updateRole(UUID veterinaryIdFromPath, UUID employeeId,
+                                                  UpdateEmployeeRoleRequest request) {
         if (request.getRole() == null) {
             throw new InvalidEmployeeRoleException();
         }
@@ -37,30 +44,21 @@ public class UpdateEmployeeRoleService implements UpdateEmployeeRoleUseCase {
 
         VeterinaryEmployee employee = employeeRepositoryPort.findById(employeeId)
                 .orElseThrow(EmployeeNotFoundException::new);
+        StaffManagementRules.requireSameClinic(employee, veterinaryIdFromPath);
 
-        ClinicContext callerContext = authorizationService.require(employee.getVeterinaryId(), Permission.STAFF_MANAGE);
+        // El contexto trae rol y employeeId de la base, no del claim: un actor al que acaban de
+        // bajar el rol o retirar no pasa de acá aunque su token siga vigente.
+        ClinicContext actor = authorizationService.require(employee.getVeterinaryId(), Permission.STAFF_MANAGE);
 
-        // Claims can be up to 60 min stale, so re-read the acting employee's current state
-        // from the database instead of trusting the token for this decision-critical check.
-        VeterinaryEmployee actingEmployee = employeeRepositoryPort.findById(callerContext.employeeId())
-                .orElseThrow(EmployeeNotFoundException::new);
+        StaffManagementRules.requireCanManage(actor, employee);
+        StaffManagementRules.requireCanAssignRole(actor, request.getRole());
 
-        if (actingEmployee.getId().equals(employee.getId())) {
-            throw new CannotModifySelfException();
-        }
-
-        if (employee.getRole() == EmployeeRole.OWNER) {
-            throw new CannotModifyOwnerException();
-        }
-        if (actingEmployee.getRole() == EmployeeRole.ADMIN && employee.getRole() == EmployeeRole.ADMIN) {
-            throw new CannotModifyPeerAdminException();
-        }
-
-        VeterinaryEmployee updated = employee.toBuilder()
+        EmployeeRole previousRole = employee.getRole();
+        VeterinaryEmployee saved = employeeRepositoryPort.save(employee.toBuilder()
                 .role(request.getRole())
-                .build();
+                .build());
 
-        VeterinaryEmployee saved = employeeRepositoryPort.save(updated);
+        publishRoleUpdatedEvent(saved, previousRole);
 
         return UpdateEmployeeRoleResponse.builder()
                 .id(saved.getId())
@@ -68,5 +66,19 @@ public class UpdateEmployeeRoleService implements UpdateEmployeeRoleUseCase {
                 .userId(saved.getUserId())
                 .role(saved.getRole())
                 .build();
+    }
+
+    /** Le avisa al empleado, no a quien hizo el cambio. */
+    private void publishRoleUpdatedEvent(VeterinaryEmployee employee, EmployeeRole previousRole) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("employeeId", employee.getId());
+        payload.put("oldRole", previousRole.name());
+        payload.put("newRole", employee.getRole().name());
+        eventPublisherPort.publish(DomainEvent.create(
+                VeterinaryEventType.EMPLOYEE_ROLE_UPDATED,
+                employee.getUserId(),
+                null,
+                payload,
+                EventMetadata.of(employee.getVeterinaryId(), null)));
     }
 }

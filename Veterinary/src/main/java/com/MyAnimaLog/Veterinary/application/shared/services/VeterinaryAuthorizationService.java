@@ -1,72 +1,86 @@
 package com.MyAnimaLog.Veterinary.application.shared.services;
 
-import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.shared.dto.AuthenticatedUser;
 import com.MyAnimaLog.Veterinary.application.shared.dto.ClinicContext;
 import com.MyAnimaLog.Veterinary.application.shared.ports.out.AuthenticatedUserPort;
 import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort.ClinicMembership;
 import com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus;
 import com.MyAnimaLog.Veterinary.domain.security.Permission;
 import com.MyAnimaLog.Veterinary.domain.security.RolePermissions;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.ClinicContextRequiredException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.ClinicSuspendedException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.NotClinicMemberException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.NotVeterinaryOwnerException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.PlatformAdminRequiredException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.TenantMismatchException;
 import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
-import com.MyAnimaLog.Veterinary.domain.staff.model.VeterinaryEmployee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
+/**
+ * Único lugar donde se decide qué puede hacer el caller sobre una clínica.
+ *
+ * <p><strong>El rol y el estado salen siempre de la base, no del token</strong> (Fase 3): un token
+ * de clínica vive hasta 60 min, así que sus claims {@code vet_role}/{@code vet_status} pueden estar
+ * obsoletos. Si no fuera así, un empleado al que le bajan el rol o al que retiran seguiría operando
+ * con sus permisos viejos hasta que su token expirara. El claim de clínica se usa solo para dos
+ * cosas: exigir que el caller esté operando en contexto de clínica y verificar el tenant
+ * ({@code vet_id} contra la clínica de la ruta).
+ *
+ * <p>La única excepción es {@code vet_licensed}, que se sigue tomando del claim: traerlo de la base
+ * costaría una lectura más de {@code professional_profiles} y solo <em>agrega</em> permisos clínicos
+ * ({@code CLINICAL_WRITE}). Está anotado como deuda técnica conocida en CLAUDE.md.
+ *
+ * <p>Toda la información viene de una sola consulta
+ * ({@link VeterinaryEmployeeRepositoryPort#findClinicMembership}), que reemplazó la lectura de la
+ * clínica que antes hacía {@code requireActiveMember} solo para detectar la suspensión.
+ */
 @Service
 @RequiredArgsConstructor
 public class VeterinaryAuthorizationService {
 
+    // Ya no depende de VeterinaryRepositoryPort: el estado de la clínica llega en la misma fila que
+    // la membresía (findClinicMembership), así que la lectura aparte desapareció.
     private final AuthenticatedUserPort authenticatedUserPort;
     private final VeterinaryEmployeeRepositoryPort employeeRepositoryPort;
-    private final VeterinaryRepositoryPort veterinaryRepositoryPort;
 
     /** For operations that require a specific permission over the clinic in the path. */
     public ClinicContext require(UUID veterinaryIdFromPath, Permission permission) {
         ClinicContext context = requireActiveMember(veterinaryIdFromPath);
-        if (!RolePermissions.resolve(context.role(), context.licensed(), context.status()).contains(permission)) {
-            throw new InsufficientPermissionException(permission);
-        }
-        return context;
-    }
-
-    /** For operations that only require being a member of the clinic (any role). */
-    public ClinicContext requireMember(UUID veterinaryIdFromPath) {
-        AuthenticatedUser user = authenticatedUserPort.current();
-        ClinicContext context = user.clinic().orElseThrow(ClinicContextRequiredException::new);
-        if (!context.veterinaryId().equals(veterinaryIdFromPath)) {
-            throw new TenantMismatchException();
-        }
+        requirePermission(context, permission);
         return context;
     }
 
     /**
-     * Same as {@link #requireMember(UUID)} but additionally rejects a {@code SUSPENDED} clinic — the
-     * clinic token's own {@code vet_status} claim can be up to 60 min stale, so this re-checks the
-     * database. Used by every clinic-token endpoint except the clinic status/profile screen itself
-     * (which must keep working while suspended so the frontend can show why).
+     * For operations that only require being a member of the clinic (any role).
+     *
+     * <p>No rechaza una clínica {@code SUSPENDED}: para eso está
+     * {@link #requireActiveMember(UUID)}, que es el default para cualquier endpoint con token de
+     * clínica. Este se usa solo donde la pantalla existe justamente para explicar el estado
+     * suspendido ({@code GetVeterinaryProfile}) o donde la acción debe poder hacerse igual sobre una
+     * clínica suspendida ({@code LeaveVeterinary}: irse nunca debería depender del estado de la
+     * clínica).
      */
-    public ClinicContext requireActiveMember(UUID veterinaryIdFromPath) {
-        ClinicContext context = requireMember(veterinaryIdFromPath);
-        rejectIfSuspended(veterinaryIdFromPath);
-        return context;
+    public ClinicContext requireMember(UUID veterinaryIdFromPath) {
+        return membershipContext(veterinaryIdFromPath).context();
     }
 
-    private void rejectIfSuspended(UUID veterinaryIdFromPath) {
-        veterinaryRepositoryPort.findById(veterinaryIdFromPath)
-                .filter(v -> v.getStatus() == VeterinaryStatus.SUSPENDED)
-                .ifPresent(v -> {
-                    throw new ClinicSuspendedException();
-                });
+    /**
+     * Same as {@link #requireMember(UUID)} but additionally rejects a {@code SUSPENDED} clinic. El
+     * estado viene de la misma fila que la membresía, así que no cuesta una lectura extra.
+     */
+    public ClinicContext requireActiveMember(UUID veterinaryIdFromPath) {
+        Membership membership = membershipContext(veterinaryIdFromPath);
+        if (membership.membership().veterinaryStatus() == VeterinaryStatus.SUSPENDED) {
+            throw new ClinicSuspendedException();
+        }
+        return membership.context();
     }
 
     public void requirePlatformAdmin() {
@@ -87,14 +101,14 @@ public class VeterinaryAuthorizationService {
         if (user.userId().equals(targetUserId)) {
             return;
         }
-        ClinicContext context = user.clinic().orElseThrow(() -> new InsufficientPermissionException(permission));
-        if (!context.veterinaryId().equals(veterinaryIdFromPath)) {
+        // Un caller sin contexto de clínica (o de otra clínica) actuando sobre un tercero no recibe
+        // CLINIC_CONTEXT_REQUIRED/TENANT_MISMATCH sino INSUFFICIENT_PERMISSION: desde afuera, no
+        // tener el permiso y no tener contexto son el mismo "no podés hacer esto".
+        ClinicContext claim = user.clinic().orElseThrow(() -> new InsufficientPermissionException(permission));
+        if (!claim.veterinaryId().equals(veterinaryIdFromPath)) {
             throw new InsufficientPermissionException(permission);
         }
-        if (!RolePermissions.resolve(context.role(), context.licensed(), context.status()).contains(permission)) {
-            throw new InsufficientPermissionException(permission);
-        }
-        rejectIfSuspended(veterinaryIdFromPath);
+        require(veterinaryIdFromPath, permission);
     }
 
     /**
@@ -102,20 +116,16 @@ public class VeterinaryAuthorizationService {
      * either a normal token or a clinic token (if its {@code vet_id} matches), but always verifies
      * against the database that the caller is the clinic's active OWNER employee — never trusts
      * {@code vet_role} alone, since the whole point is that this must also work while the clinic is
-     * {@code REJECTED} (no clinic token would even be issued for it).
+     * {@code REJECTED} (no clinic token would even be issued for it). Por lo mismo no mira el estado
+     * de la clínica: el dueño tiene que poder arreglar su verificación en cualquier estado.
      */
     public void requireVeterinaryOwner(UUID veterinaryIdFromPath) {
         AuthenticatedUser user = authenticatedUserPort.current();
-        if (user.clinic().isPresent() && !user.clinic().get().veterinaryId().equals(veterinaryIdFromPath)) {
-            throw new TenantMismatchException();
-        }
-        boolean isOwner = employeeRepositoryPort.findByVeterinaryIdAndUserId(veterinaryIdFromPath, user.userId())
-                .filter(employee -> employee.getRole() == EmployeeRole.OWNER)
-                .filter(employee -> Boolean.TRUE.equals(employee.getActive()))
-                .isPresent();
-        if (!isOwner) {
-            throw new NotVeterinaryOwnerException();
-        }
+        requireTenantMatch(user, veterinaryIdFromPath);
+        employeeRepositoryPort.findClinicMembership(veterinaryIdFromPath, user.userId())
+                .filter(membership -> membership.role() == EmployeeRole.OWNER)
+                .filter(ClinicMembership::active)
+                .orElseThrow(NotVeterinaryOwnerException::new);
     }
 
     /**
@@ -124,14 +134,69 @@ public class VeterinaryAuthorizationService {
      * clinic logo).
      */
     public void requireOwnerOrPermission(UUID veterinaryIdFromPath, Permission permission) {
-        rejectIfSuspended(veterinaryIdFromPath);
         AuthenticatedUser user = authenticatedUserPort.current();
-        Optional<ClinicContext> clinic = user.clinic();
-        if (clinic.isPresent()
-                && clinic.get().veterinaryId().equals(veterinaryIdFromPath)
-                && RolePermissions.resolve(clinic.get().role(), clinic.get().licensed(), clinic.get().status()).contains(permission)) {
-            return;
+        Optional<ClinicMembership> membership =
+                employeeRepositoryPort.findClinicMembership(veterinaryIdFromPath, user.userId());
+
+        if (membership.isPresent()) {
+            ClinicMembership row = membership.get();
+            if (row.veterinaryStatus() == VeterinaryStatus.SUSPENDED) {
+                throw new ClinicSuspendedException();
+            }
+            boolean actingAsClinicStaff = row.active()
+                    && user.clinic().map(claim -> claim.veterinaryId().equals(veterinaryIdFromPath)).orElse(false)
+                    && permissionsOf(row, user).contains(permission);
+            if (actingAsClinicStaff) {
+                return;
+            }
+            if (row.role() == EmployeeRole.OWNER && row.active()) {
+                requireTenantMatch(user, veterinaryIdFromPath);
+                return;
+            }
         }
-        requireVeterinaryOwner(veterinaryIdFromPath);
+        throw new NotVeterinaryOwnerException();
+    }
+
+    /**
+     * Resuelve la membresía real del caller y la convierte en el {@link ClinicContext} que ven los
+     * servicios: {@code employeeId}/{@code role}/{@code status} de la base, {@code licensed} del claim.
+     */
+    private Membership membershipContext(UUID veterinaryIdFromPath) {
+        AuthenticatedUser user = authenticatedUserPort.current();
+        ClinicContext claim = user.clinic().orElseThrow(ClinicContextRequiredException::new);
+        if (!claim.veterinaryId().equals(veterinaryIdFromPath)) {
+            throw new TenantMismatchException();
+        }
+
+        ClinicMembership row = employeeRepositoryPort.findClinicMembership(veterinaryIdFromPath, user.userId())
+                .filter(ClinicMembership::active)
+                .orElseThrow(NotClinicMemberException::new);
+
+        return new Membership(row, new ClinicContext(
+                veterinaryIdFromPath,
+                row.employeeId(),
+                row.role(),
+                claim.licensed(),
+                row.veterinaryStatus()));
+    }
+
+    private void requirePermission(ClinicContext context, Permission permission) {
+        if (!RolePermissions.resolve(context.role(), context.licensed(), context.status()).contains(permission)) {
+            throw new InsufficientPermissionException(permission);
+        }
+    }
+
+    private Set<Permission> permissionsOf(ClinicMembership row, AuthenticatedUser user) {
+        boolean licensed = user.clinic().map(ClinicContext::licensed).orElse(false);
+        return RolePermissions.resolve(row.role(), licensed, row.veterinaryStatus());
+    }
+
+    private void requireTenantMatch(AuthenticatedUser user, UUID veterinaryIdFromPath) {
+        if (user.clinic().isPresent() && !user.clinic().get().veterinaryId().equals(veterinaryIdFromPath)) {
+            throw new TenantMismatchException();
+        }
+    }
+
+    private record Membership(ClinicMembership membership, ClinicContext context) {
     }
 }

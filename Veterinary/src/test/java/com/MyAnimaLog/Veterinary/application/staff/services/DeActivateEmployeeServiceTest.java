@@ -1,14 +1,18 @@
 package com.MyAnimaLog.Veterinary.application.staff.services;
 
 import com.MyAnimaLog.Veterinary.application.shared.dto.ClinicContext;
+import com.MyAnimaLog.Veterinary.application.shared.dto.DomainEvent;
+import com.MyAnimaLog.Veterinary.application.shared.ports.out.EventPublisherPort;
 import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.application.staff.dto.DeActivateEmployeeResponse;
 import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
 import com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus;
 import com.MyAnimaLog.Veterinary.domain.security.Permission;
-import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
+import com.MyAnimaLog.Veterinary.domain.shared.enums.VeterinaryEventType;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.ClinicSuspendedException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
-import com.MyAnimaLog.Veterinary.domain.shared.exceptions.TenantMismatchException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.NotClinicMemberException;
+import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyOwnerException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyPeerAdminException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifySelfException;
@@ -17,19 +21,27 @@ import com.MyAnimaLog.Veterinary.domain.staff.model.VeterinaryEmployee;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class DeActivateEmployeeServiceTest {
 
     @Mock
@@ -38,16 +50,16 @@ class DeActivateEmployeeServiceTest {
     @Mock
     private VeterinaryAuthorizationService authorizationService;
 
+    @Mock
+    private EventPublisherPort eventPublisherPort;
+
     @InjectMocks
     private DeActivateEmployeeService deActivateEmployeeService;
 
     private UUID employeeId;
     private UUID veterinaryId;
     private UUID actingEmployeeId;
-    private VeterinaryEmployee activeEmployee;
-    private VeterinaryEmployee deactivatedEmployee;
-    private VeterinaryEmployee actingEmployee;
-    private ClinicContext callerContext;
+    private VeterinaryEmployee target;
 
     @BeforeEach
     void setUp() {
@@ -55,147 +67,125 @@ class DeActivateEmployeeServiceTest {
         veterinaryId = UUID.randomUUID();
         actingEmployeeId = UUID.randomUUID();
 
-        activeEmployee = VeterinaryEmployee.builder()
+        target = VeterinaryEmployee.builder()
                 .id(employeeId)
                 .veterinaryId(veterinaryId)
                 .userId(UUID.randomUUID())
-                .role(EmployeeRole.ADMIN)
+                .role(EmployeeRole.ASSISTANT)
                 .active(true)
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        deactivatedEmployee = activeEmployee.toBuilder()
-                .active(false)
-                .build();
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(target));
+        when(employeeRepositoryPort.save(any(VeterinaryEmployee.class))).thenAnswer(c -> c.getArgument(0));
+        actingAs(EmployeeRole.OWNER);
+    }
 
-        actingEmployee = VeterinaryEmployee.builder()
-                .id(actingEmployeeId)
-                .veterinaryId(veterinaryId)
-                .userId(UUID.randomUUID())
-                .role(EmployeeRole.OWNER)
-                .active(true)
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        callerContext = new ClinicContext(veterinaryId, actingEmployeeId, EmployeeRole.OWNER, false, VeterinaryStatus.ACTIVE);
-
-        lenient().when(authorizationService.require(veterinaryId, Permission.STAFF_MANAGE)).thenReturn(callerContext);
-        lenient().when(employeeRepositoryPort.findById(actingEmployeeId)).thenReturn(Optional.of(actingEmployee));
+    private void actingAs(EmployeeRole role) {
+        when(authorizationService.require(veterinaryId, Permission.STAFF_MANAGE)).thenReturn(
+                new ClinicContext(veterinaryId, actingEmployeeId, role, false, VeterinaryStatus.ACTIVE));
     }
 
     @Test
-    void deActivate_shouldReturnResponse_withActiveFalse() {
-        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(activeEmployee));
-        when(employeeRepositoryPort.save(any(VeterinaryEmployee.class))).thenReturn(deactivatedEmployee);
+    void deActivate_shouldDeactivateAndStampRemovedAt_insteadOfDeleting() {
+        DeActivateEmployeeResponse response = deActivateEmployeeService.deActivate(veterinaryId, employeeId);
 
-        DeActivateEmployeeResponse response = deActivateEmployeeService.deActivate(employeeId);
-
-        assertThat(response).isNotNull();
-        assertThat(response.getId()).isEqualTo(employeeId);
+        ArgumentCaptor<VeterinaryEmployee> captor = ArgumentCaptor.forClass(VeterinaryEmployee.class);
+        verify(employeeRepositoryPort).save(captor.capture());
+        assertThat(captor.getValue().getId()).isEqualTo(employeeId);
+        assertThat(captor.getValue().getActive()).isFalse();
+        assertThat(captor.getValue().getRemovedAt()).isNotNull();
         assertThat(response.getActive()).isFalse();
-        assertThat(response.getRole()).isEqualTo(EmployeeRole.ADMIN);
+    }
+
+    @Test
+    void deActivate_shouldRequireStaffManage() {
+        deActivateEmployeeService.deActivate(veterinaryId, employeeId);
+
+        verify(authorizationService).require(veterinaryId, Permission.STAFF_MANAGE);
+    }
+
+    @Test
+    void deActivate_shouldWorkWithoutAVeterinaryIdInThePath_forTheDeprecatedRoute() {
+        assertThat(deActivateEmployeeService.deActivate(null, employeeId).getActive()).isFalse();
+
+        verify(authorizationService).require(veterinaryId, Permission.STAFF_MANAGE);
+    }
+
+    @Test
+    void deActivate_shouldThrowEmployeeNotFoundException_whenTheEmployeeBelongsToAnotherClinic() {
+        assertThatThrownBy(() -> deActivateEmployeeService.deActivate(UUID.randomUUID(), employeeId))
+                .isInstanceOf(EmployeeNotFoundException.class);
+
+        verify(employeeRepositoryPort, never()).save(any());
     }
 
     @Test
     void deActivate_shouldThrowEmployeeNotFoundException_whenEmployeeDoesNotExist() {
         when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() ->
-                deActivateEmployeeService.deActivate(employeeId)
-        ).isInstanceOf(EmployeeNotFoundException.class);
+        assertThatThrownBy(() -> deActivateEmployeeService.deActivate(veterinaryId, employeeId))
+                .isInstanceOf(EmployeeNotFoundException.class);
     }
 
     @Test
-    void deActivate_shouldCallSave_withActiveFalse() {
-        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(activeEmployee));
-        when(employeeRepositoryPort.save(any(VeterinaryEmployee.class))).thenReturn(deactivatedEmployee);
+    void deActivate_shouldThrowCannotModifySelfException_whenActorTargetsItsOwnRecord() {
+        when(employeeRepositoryPort.findById(employeeId))
+                .thenReturn(Optional.of(target.toBuilder().id(actingEmployeeId).build()));
 
-        deActivateEmployeeService.deActivate(employeeId);
-
-        verify(employeeRepositoryPort, times(1)).save(argThat(e -> !e.getActive()));
-    }
-
-    @Test
-    void deActivate_shouldCallSave_once() {
-        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(activeEmployee));
-        when(employeeRepositoryPort.save(any(VeterinaryEmployee.class))).thenReturn(deactivatedEmployee);
-
-        deActivateEmployeeService.deActivate(employeeId);
-
-        verify(employeeRepositoryPort, times(1)).save(any(VeterinaryEmployee.class));
-    }
-
-    @Test
-    void deActivate_shouldNeverCallSave_whenEmployeeNotFound() {
-        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() ->
-                deActivateEmployeeService.deActivate(employeeId)
-        ).isInstanceOf(EmployeeNotFoundException.class);
+        assertThatThrownBy(() -> deActivateEmployeeService.deActivate(veterinaryId, employeeId))
+                .isInstanceOf(CannotModifySelfException.class);
 
         verify(employeeRepositoryPort, never()).save(any());
     }
 
     @Test
-    void deActivate_shouldThrowCannotModifySelfException_whenActorTargetsOwnEmployeeRecord() {
-        VeterinaryEmployee selfEmployee = activeEmployee.toBuilder().id(actingEmployeeId).build();
-        when(employeeRepositoryPort.findById(actingEmployeeId)).thenReturn(Optional.of(selfEmployee));
+    void deActivate_shouldThrowCannotModifyOwnerException_whenTargetIsTheOwner() {
+        when(employeeRepositoryPort.findById(employeeId))
+                .thenReturn(Optional.of(target.toBuilder().role(EmployeeRole.OWNER).build()));
 
-        assertThatThrownBy(() ->
-                deActivateEmployeeService.deActivate(actingEmployeeId)
-        ).isInstanceOf(CannotModifySelfException.class);
-
-        verify(employeeRepositoryPort, never()).save(any());
+        assertThatThrownBy(() -> deActivateEmployeeService.deActivate(veterinaryId, employeeId))
+                .isInstanceOf(CannotModifyOwnerException.class);
     }
 
     @Test
-    void deActivate_shouldThrowCannotModifyOwnerException_whenTargetIsOwner() {
-        VeterinaryEmployee owner = activeEmployee.toBuilder().role(EmployeeRole.OWNER).build();
-        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(owner));
+    void deActivate_shouldThrowCannotModifyPeerAdminException_whenAnAdminTargetsAnotherAdmin() {
+        actingAs(EmployeeRole.ADMIN);
+        when(employeeRepositoryPort.findById(employeeId))
+                .thenReturn(Optional.of(target.toBuilder().role(EmployeeRole.ADMIN).build()));
 
-        assertThatThrownBy(() ->
-                deActivateEmployeeService.deActivate(employeeId)
-        ).isInstanceOf(CannotModifyOwnerException.class);
-
-        verify(employeeRepositoryPort, never()).save(any());
+        assertThatThrownBy(() -> deActivateEmployeeService.deActivate(veterinaryId, employeeId))
+                .isInstanceOf(CannotModifyPeerAdminException.class);
     }
 
     @Test
-    void deActivate_shouldThrowCannotModifyPeerAdminException_whenActingAdminTargetsAnotherAdmin() {
-        VeterinaryEmployee actingAdmin = actingEmployee.toBuilder().role(EmployeeRole.ADMIN).build();
-        when(employeeRepositoryPort.findById(actingEmployeeId)).thenReturn(Optional.of(actingAdmin));
-        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(activeEmployee));
+    void deActivate_shouldPublishEmployeeDeactivatedToTheRemovedEmployee() {
+        deActivateEmployeeService.deActivate(veterinaryId, employeeId);
 
-        assertThatThrownBy(() ->
-                deActivateEmployeeService.deActivate(employeeId)
-        ).isInstanceOf(CannotModifyPeerAdminException.class);
-
-        verify(employeeRepositoryPort, never()).save(any());
+        ArgumentCaptor<DomainEvent> captor = ArgumentCaptor.forClass(DomainEvent.class);
+        verify(eventPublisherPort).publish(captor.capture());
+        DomainEvent event = captor.getValue();
+        assertThat(event.eventType()).isEqualTo(VeterinaryEventType.EMPLOYEE_DEACTIVATED);
+        assertThat(event.userId()).isEqualTo(target.getUserId());
+        assertThat(event.payload()).containsEntry("leftVoluntarily", false);
+        assertThat(event.payload()).containsKey("removedAt");
     }
 
     @Test
-    void deActivate_shouldThrowInsufficientPermissionException_whenCallerLacksStaffManage() {
-        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(activeEmployee));
-        when(authorizationService.require(veterinaryId, Permission.STAFF_MANAGE))
-                .thenThrow(new InsufficientPermissionException(Permission.STAFF_MANAGE));
+    void deActivate_shouldNotTouchAnythingWhenAuthorizationFails() {
+        for (RuntimeException rejection : new RuntimeException[]{
+                new InsufficientPermissionException(Permission.STAFF_MANAGE),
+                new NotClinicMemberException(),
+                new ClinicSuspendedException()}) {
+            // doThrow y no when(...).thenThrow(...): con when() la llamada dentro del propio when
+            // ejecutaría el stub anterior y lanzaría antes de re-stubear.
+            doThrow(rejection).when(authorizationService).require(veterinaryId, Permission.STAFF_MANAGE);
 
-        assertThatThrownBy(() ->
-                deActivateEmployeeService.deActivate(employeeId)
-        ).isInstanceOf(InsufficientPermissionException.class);
-
-        verify(employeeRepositoryPort, never()).save(any());
-    }
-
-    @Test
-    void deActivate_shouldThrowTenantMismatchException_whenCallerBelongsToAnotherVeterinary() {
-        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(activeEmployee));
-        when(authorizationService.require(veterinaryId, Permission.STAFF_MANAGE))
-                .thenThrow(new TenantMismatchException());
-
-        assertThatThrownBy(() ->
-                deActivateEmployeeService.deActivate(employeeId)
-        ).isInstanceOf(TenantMismatchException.class);
+            assertThatThrownBy(() -> deActivateEmployeeService.deActivate(veterinaryId, employeeId))
+                    .isInstanceOf(rejection.getClass());
+        }
 
         verify(employeeRepositoryPort, never()).save(any());
+        verify(eventPublisherPort, never()).publish(any());
     }
 }
