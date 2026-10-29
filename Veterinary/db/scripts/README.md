@@ -39,5 +39,6 @@ El esquema de la base de datos (Supabase/Postgres, esquema `public`) se maneja *
 | `004_verification.sql` | Fase 2B Parte 1 | 2026-10-15 | Luis Santiago Gonzalezrubio |
 | `005_original_file_name.sql` | Fase 2B Parte 3 | confirmado aplicado (fecha exacta sin registrar) | — |
 | `006_admin_review.sql` | Fase 2B Parte 4A | 2026-10-26 | Luis Santiago Gonzalezrubio |
+| `007_staff_invitations.sql` | Fase 3 (Personal) | 2026-10-29 | Luis Santiago Gonzalezrubio |
 
 `005_original_file_name.sql`: la fila de arriba decía "pendiente de ejecutar" desde la Parte 3, pero `./mvnw test` del 2026-10-26 (557/557, 0 fallos) incluye `Fase2BNewTablesPersistenceIntegrationTest.verificationDocument_shouldPersistAndReadBackOriginalFileName`, que solo pasa si la columna existe — así que ya estaba aplicado en Supabase; solo faltaba actualizar este registro. Si alguien recuerda la fecha/quién lo corrió, reemplazar el texto de la celda.

@@ -56,6 +56,8 @@ supabase:
 
 app:
   base-url: ${APP_BASE_URL}
+  invitation:
+    base-url: ${INVITATION_BASE_URL:}
   events:
     enabled: ${EVENTS_ENABLED:true}
   security:

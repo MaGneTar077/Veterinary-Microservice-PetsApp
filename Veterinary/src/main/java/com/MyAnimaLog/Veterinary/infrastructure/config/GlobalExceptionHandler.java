@@ -17,6 +17,12 @@ import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifySelfExcepti
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvalidEmployeeRoleException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvalidInvitationEmailException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvitationAlreadyPendingException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvitationExpiredException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvitationNotFoundException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvitationNotPendingException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.OnlyOwnerCanManageAdminsException;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.ActiveSubscriptionAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.NoActiveSubscriptionException;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.SubscriptionNotFoundException;
@@ -130,6 +136,36 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(EmployeeNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleEmployeeNotFound(EmployeeNotFoundException ex) {
         return build(HttpStatus.NOT_FOUND, ex.getMessage(), "EMPLOYEE_NOT_FOUND");
+    }
+
+    @ExceptionHandler(InvitationNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleInvitationNotFound(InvitationNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage(), "INVITATION_NOT_FOUND");
+    }
+
+    @ExceptionHandler(InvitationAlreadyPendingException.class)
+    public ResponseEntity<Map<String, Object>> handleInvitationAlreadyPending(InvitationAlreadyPendingException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), "INVITATION_ALREADY_PENDING");
+    }
+
+    @ExceptionHandler(InvitationNotPendingException.class)
+    public ResponseEntity<Map<String, Object>> handleInvitationNotPending(InvitationNotPendingException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), "INVITATION_NOT_PENDING");
+    }
+
+    @ExceptionHandler(InvitationExpiredException.class)
+    public ResponseEntity<Map<String, Object>> handleInvitationExpired(InvitationExpiredException ex) {
+        return build(HttpStatus.GONE, ex.getMessage(), "INVITATION_EXPIRED");
+    }
+
+    @ExceptionHandler(InvalidInvitationEmailException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidInvitationEmail(InvalidInvitationEmailException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "VALIDATION_ERROR");
+    }
+
+    @ExceptionHandler(OnlyOwnerCanManageAdminsException.class)
+    public ResponseEntity<Map<String, Object>> handleOnlyOwnerCanManageAdmins(OnlyOwnerCanManageAdminsException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage(), "ONLY_OWNER_CAN_MANAGE_ADMINS");
     }
 
     @ExceptionHandler(SubscriptionNotFoundException.class)

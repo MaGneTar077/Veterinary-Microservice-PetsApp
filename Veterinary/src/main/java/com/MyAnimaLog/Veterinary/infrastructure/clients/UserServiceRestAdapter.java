@@ -10,6 +10,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Component
@@ -51,6 +54,23 @@ public class UserServiceRestAdapter implements UserServicePort {
             log.error("User service lookup failed for userId={}", userId, ex);
             throw new ExternalServiceUnavailableException("User service lookup failed", ex);
         }
+    }
+
+    @Override
+    public Map<UUID, UserInfo> getUsers(List<UUID> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, UserInfo> resolved = new LinkedHashMap<>();
+        for (UUID userId : userIds.stream().distinct().toList()) {
+            try {
+                resolved.put(userId, getUser(userId));
+            } catch (ExternalServiceUnavailableException ex) {
+                // Best-effort por contrato del puerto: el id queda fuera del mapa y el caller decide.
+                log.warn("User service lookup skipped for userId={}", userId);
+            }
+        }
+        return resolved;
     }
 
     private record UserResponse(UUID id, String email, Boolean emailVerified, String name) {
