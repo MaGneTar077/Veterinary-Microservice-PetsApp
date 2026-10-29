@@ -82,6 +82,8 @@ class UpdateEmployeeRoleServiceTest {
 
         when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(target));
         when(employeeRepositoryPort.save(any(VeterinaryEmployee.class))).thenAnswer(c -> c.getArgument(0));
+        // Por defecto, el token del caller es de la misma clínica que el empleado objetivo.
+        when(authorizationService.currentClinicId()).thenReturn(Optional.of(veterinaryId));
         actingAs(EmployeeRole.OWNER, VeterinaryStatus.ACTIVE);
     }
 
@@ -120,6 +122,22 @@ class UpdateEmployeeRoleServiceTest {
 
         assertThat(response.getRole()).isEqualTo(EmployeeRole.ASSISTANT);
         verify(authorizationService).require(veterinaryId, Permission.STAFF_MANAGE);
+    }
+
+    @Test
+    void updateRole_shouldThrowEmployeeNotFound_whenTheDeprecatedRouteTargetsAnEmployeeOfAnotherClinic() {
+        // ADMIN de la clínica A usando el alias viejo (sin clínica en la ruta) sobre un empleado de
+        // la clínica B: la clínica efectiva sale del token, así que es un 404 y no un 403 que
+        // delataría que ese employeeId existe en otra clínica.
+        UUID clinicOfTheCaller = UUID.randomUUID();
+        when(authorizationService.currentClinicId()).thenReturn(Optional.of(clinicOfTheCaller));
+
+        assertThatThrownBy(() -> updateEmployeeRoleService.updateRole(null, employeeId,
+                UpdateEmployeeRoleRequest.builder().role(EmployeeRole.ASSISTANT).build()))
+                .isInstanceOf(EmployeeNotFoundException.class);
+
+        verify(employeeRepositoryPort, never()).save(any());
+        verify(authorizationService, never()).require(any(), any());
     }
 
     @Test

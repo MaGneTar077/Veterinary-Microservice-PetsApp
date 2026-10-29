@@ -23,7 +23,9 @@ import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvitationEmailMismatch
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvitationExpiredException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvitationNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvitationNotPendingException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.InvalidOwnershipTransferException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.OnlyOwnerCanManageAdminsException;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.OwnershipTransferConflictException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.OwnerCannotLeaveException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.NotClinicMemberException;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.ActiveSubscriptionAlreadyExistsException;
@@ -154,6 +156,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvitationNotPendingException.class)
     public ResponseEntity<Map<String, Object>> handleInvitationNotPending(InvitationNotPendingException ex) {
         return build(HttpStatus.CONFLICT, ex.getMessage(), "INVITATION_NOT_PENDING");
+    }
+
+    @ExceptionHandler(InvalidOwnershipTransferException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidOwnershipTransfer(InvalidOwnershipTransferException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "VALIDATION_ERROR");
+    }
+
+    @ExceptionHandler(OwnershipTransferConflictException.class)
+    public ResponseEntity<Map<String, Object>> handleOwnershipTransferConflict(OwnershipTransferConflictException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), "OWNERSHIP_TRANSFER_CONFLICT");
     }
 
     @ExceptionHandler(NotClinicMemberException.class)

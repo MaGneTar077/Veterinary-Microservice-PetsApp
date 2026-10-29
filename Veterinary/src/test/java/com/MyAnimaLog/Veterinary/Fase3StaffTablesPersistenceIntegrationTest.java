@@ -229,6 +229,65 @@ class Fase3StaffTablesPersistenceIntegrationTest {
         assertThat(employeeRepositoryPort.findClinicMembership(veterinaryId, UUID.randomUUID())).isEmpty();
     }
 
+    /**
+     * La transferencia de propiedad depende de este {@code UPDATE} condicional y del orden en que se
+     * aplica: bajar al OWNER actual y después subir al nuevo. Hacerlo al revés viola el índice único
+     * parcial {@code ux_one_owner_per_vet} (un solo OWNER activo por clínica), y eso solo se puede
+     * comprobar contra Postgres real — con mocks el orden parece irrelevante.
+     */
+    @Test
+    void claimRoleTransition_shouldSupportTheTransferOrder_demoteTheOwnerThenPromoteTheNewOne() {
+        UUID veterinaryId = persistClinic();
+        VeterinaryEmployee owner = persistEmployee(veterinaryId, EmployeeRole.OWNER);
+        VeterinaryEmployee vet = persistEmployee(veterinaryId, EmployeeRole.VETERINARIAN);
+
+        assertThat(employeeRepositoryPort.claimRoleTransition(
+                owner.getId(), EmployeeRole.OWNER, EmployeeRole.ADMIN)).isTrue();
+        assertThat(employeeRepositoryPort.claimRoleTransition(
+                vet.getId(), EmployeeRole.VETERINARIAN, EmployeeRole.OWNER)).isTrue();
+
+        assertThat(employeeRepositoryPort.findById(owner.getId()))
+                .get().extracting(VeterinaryEmployee::getRole).isEqualTo(EmployeeRole.ADMIN);
+        assertThat(employeeRepositoryPort.findById(vet.getId()))
+                .get().extracting(VeterinaryEmployee::getRole).isEqualTo(EmployeeRole.OWNER);
+    }
+
+    @Test
+    void claimRoleTransition_shouldReturnFalse_whenTheRoleIsNotTheExpectedOne() {
+        UUID veterinaryId = persistClinic();
+        VeterinaryEmployee assistant = persistEmployee(veterinaryId, EmployeeRole.ASSISTANT);
+
+        // Es la carrera: otro llegó antes y el rol ya no es el que esperábamos.
+        assertThat(employeeRepositoryPort.claimRoleTransition(
+                assistant.getId(), EmployeeRole.OWNER, EmployeeRole.ADMIN)).isFalse();
+        assertThat(employeeRepositoryPort.findById(assistant.getId()))
+                .get().extracting(VeterinaryEmployee::getRole).isEqualTo(EmployeeRole.ASSISTANT);
+    }
+
+    @Test
+    void claimRoleTransition_shouldReturnFalse_whenTheEmployeeWasRemoved() {
+        UUID veterinaryId = persistClinic();
+        VeterinaryEmployee removed = employeeRepositoryPort.save(
+                persistEmployee(veterinaryId, EmployeeRole.VETERINARIAN).toBuilder()
+                        .active(false)
+                        .removedAt(LocalDateTime.now())
+                        .build());
+
+        assertThat(employeeRepositoryPort.claimRoleTransition(
+                removed.getId(), EmployeeRole.VETERINARIAN, EmployeeRole.OWNER)).isFalse();
+    }
+
+    private VeterinaryEmployee persistEmployee(UUID veterinaryId, EmployeeRole role) {
+        return employeeRepositoryPort.save(VeterinaryEmployee.builder()
+                .id(UUID.randomUUID())
+                .veterinaryId(veterinaryId)
+                .userId(UUID.randomUUID())
+                .role(role)
+                .active(true)
+                .createdAt(LocalDateTime.now())
+                .build());
+    }
+
     @Test
     void employeeEmployee_shouldPersistAndReadBackRemovedAt() {
         UUID veterinaryId = persistClinic();

@@ -44,7 +44,7 @@ public class UpdateEmployeeRoleService implements UpdateEmployeeRoleUseCase {
 
         VeterinaryEmployee employee = employeeRepositoryPort.findById(employeeId)
                 .orElseThrow(EmployeeNotFoundException::new);
-        StaffManagementRules.requireSameClinic(employee, veterinaryIdFromPath);
+        StaffManagementRules.requireSameClinic(employee, veterinaryIdFromPath, authorizationService);
 
         // El contexto trae rol y employeeId de la base, no del claim: un actor al que acaban de
         // bajar el rol o retirar no pasa de acá aunque su token siga vigente.

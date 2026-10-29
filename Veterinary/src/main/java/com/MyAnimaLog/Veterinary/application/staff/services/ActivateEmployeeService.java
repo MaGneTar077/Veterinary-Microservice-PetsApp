@@ -25,6 +25,10 @@ public class ActivateEmployeeService implements ActivateEmployeeUseCase {
         VeterinaryEmployee employee = employeeRepositoryPort.findById(employeeId)
                 .orElseThrow(EmployeeNotFoundException::new);
 
+        // Esta ruta es solo el alias viejo (no lleva la clínica en la ruta), así que la clínica
+        // efectiva sale del token: un employeeId de otra clínica responde 404, no TENANT_MISMATCH.
+        StaffManagementRules.requireSameClinic(employee, null, authorizationService);
+
         authorizationService.require(employee.getVeterinaryId(), Permission.STAFF_MANAGE);
 
         VeterinaryEmployee updated = employee.toBuilder()

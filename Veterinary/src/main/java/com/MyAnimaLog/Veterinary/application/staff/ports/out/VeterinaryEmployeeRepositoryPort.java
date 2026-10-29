@@ -45,6 +45,17 @@ public interface VeterinaryEmployeeRepositoryPort {
     Optional<ClinicMembership> findClinicMembership(UUID veterinaryId, UUID userId);
 
     /**
+     * Cambia el rol de un empleado activo <strong>solo si</strong> su rol en la base sigue siendo
+     * {@code expectedRole} ({@code UPDATE ... WHERE id = ? AND role = ? AND active = true}, mismo
+     * patrón que {@code VeterinaryRepositoryPort.claimStatusTransition}). Devuelve {@code false} si
+     * no actualizó ninguna fila, es decir si alguien más cambió ese rol en el medio: el caller debe
+     * tratarlo como un conflicto, nunca seguir de largo.
+     *
+     * <p>Lo usa la transferencia de propiedad, que son dos de estos encadenados en una transacción.
+     */
+    boolean claimRoleTransition(UUID employeeId, EmployeeRole expectedRole, EmployeeRole newRole);
+
+    /**
      * @param employeeId id del registro de empleado (lo que el token llama {@code employee_id})
      * @param role rol actual en la base, no el del claim
      * @param active {@code false} si el empleado fue retirado

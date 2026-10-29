@@ -1,6 +1,7 @@
 package com.MyAnimaLog.Veterinary.application.staff.services;
 
 import com.MyAnimaLog.Veterinary.application.shared.dto.ClinicContext;
+import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
 import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyOwnerException;
 import com.MyAnimaLog.Veterinary.domain.staff.exceptions.CannotModifyPeerAdminException;
@@ -31,10 +32,17 @@ public final class StaffManagementRules {
      *
      * <p>{@code veterinaryIdFromPath} puede ser {@code null}: son las rutas viejas
      * {@code /api/veterinary/employees/{employeeId}/...}, que no llevan la clínica en la ruta y
-     * quedaron como alias {@code @Deprecated}. En ese caso la clínica se toma del empleado.
+     * quedaron como alias {@code @Deprecated}. En ese caso la clínica efectiva es la del token de
+     * clínica del caller, de modo que el alias aplique exactamente el mismo criterio que la ruta
+     * nueva: un {@code employeeId} de otra clínica responde {@code 404} y no un
+     * {@code TENANT_MISMATCH} que delataría su existencia.
      */
-    public static void requireSameClinic(VeterinaryEmployee target, UUID veterinaryIdFromPath) {
-        if (veterinaryIdFromPath != null && !veterinaryIdFromPath.equals(target.getVeterinaryId())) {
+    public static void requireSameClinic(VeterinaryEmployee target, UUID veterinaryIdFromPath,
+                                          VeterinaryAuthorizationService authorizationService) {
+        UUID effectiveClinicId = veterinaryIdFromPath != null
+                ? veterinaryIdFromPath
+                : authorizationService.currentClinicId().orElse(null);
+        if (effectiveClinicId != null && !effectiveClinicId.equals(target.getVeterinaryId())) {
             throw new EmployeeNotFoundException();
         }
     }

@@ -3,6 +3,7 @@ package com.MyAnimaLog.Veterinary.infrastructure.staff.repositories;
 import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
 import com.MyAnimaLog.Veterinary.infrastructure.staff.entity.VeterinaryEmployeeEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -34,4 +35,16 @@ public interface VeterinaryEmployeeJpaRepository extends JpaRepository<Veterinar
             """)
     Optional<ClinicMembershipProjection> findClinicMembership(@Param("veterinaryId") UUID veterinaryId,
                                                                @Param("userId") UUID userId);
+
+    /**
+     * {@code UPDATE} condicional del rol. {@code clearAutomatically} limpia el contexto de
+     * persistencia para que una entidad ya cargada no quede con el rol viejo en la misma
+     * transacción (igual que {@code updateStatusIfCurrentlyIs} en el módulo clinic).
+     */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE VeterinaryEmployeeEntity e SET e.role = :newRole "
+            + "WHERE e.id = :id AND e.role = :expectedRole AND e.active = true")
+    int updateRoleIfCurrentlyIs(@Param("id") UUID id,
+                                 @Param("expectedRole") EmployeeRole expectedRole,
+                                 @Param("newRole") EmployeeRole newRole);
 }

@@ -71,6 +71,11 @@ public class VeterinaryEmployeeRepositoryAdapter implements VeterinaryEmployeeRe
     }
 
     @Override
+    public boolean claimRoleTransition(UUID employeeId, EmployeeRole expectedRole, EmployeeRole newRole) {
+        return jpaRepository.updateRoleIfCurrentlyIs(employeeId, expectedRole, newRole) == 1;
+    }
+
+    @Override
     public Optional<ClinicMembership> findClinicMembership(UUID veterinaryId, UUID userId) {
         return jpaRepository.findClinicMembership(veterinaryId, userId)
                 .map(projection -> new ClinicMembership(

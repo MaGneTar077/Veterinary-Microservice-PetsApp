@@ -57,6 +57,33 @@ class ActivateEmployeeServiceTest {
         activatedEmployee = inactiveEmployee.toBuilder()
                 .active(true)
                 .build();
+
+        lenient().when(authorizationService.currentClinicId()).thenReturn(Optional.of(veterinaryId));
+    }
+
+    @Test
+    void activate_shouldThrowEmployeeNotFound_whenTheEmployeeBelongsToAnotherClinic() {
+        // Solo existe la ruta vieja (sin clínica en la ruta): la clínica efectiva sale del token.
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(inactiveEmployee));
+        when(authorizationService.currentClinicId()).thenReturn(Optional.of(UUID.randomUUID()));
+
+        assertThatThrownBy(() -> activateEmployeeService.activate(employeeId))
+                .isInstanceOf(EmployeeNotFoundException.class);
+
+        verify(employeeRepositoryPort, never()).save(any());
+        verify(authorizationService, never()).require(any(), any());
+    }
+
+    @Test
+    void activate_shouldClearTheRemovalDate_whenTheEmployeeComesBack() {
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(
+                inactiveEmployee.toBuilder().removedAt(LocalDateTime.now().minusMonths(2)).build()));
+        when(employeeRepositoryPort.save(any(VeterinaryEmployee.class))).thenAnswer(c -> c.getArgument(0));
+
+        activateEmployeeService.activate(employeeId);
+
+        verify(employeeRepositoryPort).save(argThat(employee ->
+                Boolean.TRUE.equals(employee.getActive()) && employee.getRemovedAt() == null));
     }
 
     @Test

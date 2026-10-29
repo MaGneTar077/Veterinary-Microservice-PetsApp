@@ -162,6 +162,32 @@ class VeterinaryAuthorizationServiceTest {
     }
 
     @Test
+    void require_shouldNotGrantClinicalWrite_whenTheClaimSaysLicensedButTheDatabaseRoleCannotHaveIt() {
+        // licensed sigue saliendo del claim (deuda técnica conocida), pero solo puede sumar
+        // CLINICAL_WRITE sobre un rol que la matriz permite: nunca sobre RECEPTIONIST.
+        when(authenticatedUserPort.current()).thenReturn(new AuthenticatedUser(userId, "user@example.com",
+                true, false,
+                Optional.of(new ClinicContext(veterinaryId, employeeId, EmployeeRole.VETERINARIAN,
+                        true, VeterinaryStatus.ACTIVE))));
+        membership(EmployeeRole.RECEPTIONIST, true, VeterinaryStatus.ACTIVE);
+
+        assertThatThrownBy(() -> authorizationService.require(veterinaryId, Permission.CLINICAL_WRITE))
+                .isInstanceOf(InsufficientPermissionException.class);
+    }
+
+    @Test
+    void require_shouldGrantClinicalWrite_whenLicensedAndTheDatabaseRoleAllowsIt() {
+        when(authenticatedUserPort.current()).thenReturn(new AuthenticatedUser(userId, "user@example.com",
+                true, false,
+                Optional.of(new ClinicContext(veterinaryId, employeeId, EmployeeRole.RECEPTIONIST,
+                        true, VeterinaryStatus.ACTIVE))));
+        membership(EmployeeRole.VETERINARIAN, true, VeterinaryStatus.ACTIVE);
+
+        assertThatNoException().isThrownBy(() ->
+                authorizationService.require(veterinaryId, Permission.CLINICAL_WRITE));
+    }
+
+    @Test
     void requireActiveMember_shouldReturnTheEmployeeIdFromTheDatabase() {
         UUID realEmployeeId = UUID.randomUUID();
         when(authenticatedUserPort.current()).thenReturn(clinicToken(EmployeeRole.ADMIN, VeterinaryStatus.ACTIVE));

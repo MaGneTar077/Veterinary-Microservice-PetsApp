@@ -83,6 +83,17 @@ public class VeterinaryAuthorizationService {
         return membership.context();
     }
 
+    /**
+     * Clínica del token de clínica del caller, si hay. Solo para las rutas viejas de empleados
+     * ({@code /api/veterinary/employees/{employeeId}/...}), que no llevan la clínica en la ruta: con
+     * esto pueden aplicar el mismo criterio que las nuevas y responder {@code 404} si el empleado
+     * objetivo es de otra clínica, en vez de delatar su existencia con un {@code TENANT_MISMATCH}.
+     * No autoriza nada por sí solo: el permiso se sigue exigiendo con {@link #require}.
+     */
+    public Optional<UUID> currentClinicId() {
+        return authenticatedUserPort.current().clinic().map(ClinicContext::veterinaryId);
+    }
+
     public void requirePlatformAdmin() {
         AuthenticatedUser user = authenticatedUserPort.current();
         if (!user.platformAdmin()) {
@@ -119,10 +130,10 @@ public class VeterinaryAuthorizationService {
      * {@code REJECTED} (no clinic token would even be issued for it). Por lo mismo no mira el estado
      * de la clínica: el dueño tiene que poder arreglar su verificación en cualquier estado.
      */
-    public void requireVeterinaryOwner(UUID veterinaryIdFromPath) {
+    public ClinicMembership requireVeterinaryOwner(UUID veterinaryIdFromPath) {
         AuthenticatedUser user = authenticatedUserPort.current();
         requireTenantMatch(user, veterinaryIdFromPath);
-        employeeRepositoryPort.findClinicMembership(veterinaryIdFromPath, user.userId())
+        return employeeRepositoryPort.findClinicMembership(veterinaryIdFromPath, user.userId())
                 .filter(membership -> membership.role() == EmployeeRole.OWNER)
                 .filter(ClinicMembership::active)
                 .orElseThrow(NotVeterinaryOwnerException::new);

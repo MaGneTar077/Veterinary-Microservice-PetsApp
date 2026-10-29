@@ -78,6 +78,7 @@ class DeActivateEmployeeServiceTest {
 
         when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(target));
         when(employeeRepositoryPort.save(any(VeterinaryEmployee.class))).thenAnswer(c -> c.getArgument(0));
+        when(authorizationService.currentClinicId()).thenReturn(Optional.of(veterinaryId));
         actingAs(EmployeeRole.OWNER);
     }
 
@@ -110,6 +111,17 @@ class DeActivateEmployeeServiceTest {
         assertThat(deActivateEmployeeService.deActivate(null, employeeId).getActive()).isFalse();
 
         verify(authorizationService).require(veterinaryId, Permission.STAFF_MANAGE);
+    }
+
+    @Test
+    void deActivate_shouldThrowEmployeeNotFound_whenTheDeprecatedRouteTargetsAnEmployeeOfAnotherClinic() {
+        when(authorizationService.currentClinicId()).thenReturn(Optional.of(UUID.randomUUID()));
+
+        assertThatThrownBy(() -> deActivateEmployeeService.deActivate(null, employeeId))
+                .isInstanceOf(EmployeeNotFoundException.class);
+
+        verify(employeeRepositoryPort, never()).save(any());
+        verify(authorizationService, never()).require(any(), any());
     }
 
     @Test

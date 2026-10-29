@@ -34,7 +34,7 @@ public class DeActivateEmployeeService implements DeActivateEmployeeUseCase {
     public DeActivateEmployeeResponse deActivate(UUID veterinaryIdFromPath, UUID employeeId) {
         VeterinaryEmployee employee = employeeRepositoryPort.findById(employeeId)
                 .orElseThrow(EmployeeNotFoundException::new);
-        StaffManagementRules.requireSameClinic(employee, veterinaryIdFromPath);
+        StaffManagementRules.requireSameClinic(employee, veterinaryIdFromPath, authorizationService);
 
         ClinicContext actor = authorizationService.require(employee.getVeterinaryId(), Permission.STAFF_MANAGE);
         StaffManagementRules.requireCanManage(actor, employee);
