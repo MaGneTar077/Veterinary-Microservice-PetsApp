@@ -42,7 +42,9 @@ spring:
           jwk-set-uri: ${JWT_JWKS_URI}
 
 server:
-  port: ${SERVER_PORT:8082}
+  # Cloud Run inyecta PORT y manda; en local sigue valiendo SERVER_PORT del .env, y si
+  # no hay ninguna de las dos, 8082.
+  port: ${PORT:${SERVER_PORT:8082}}
 
 springdoc:
   api-docs:
