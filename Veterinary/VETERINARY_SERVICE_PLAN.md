@@ -576,6 +576,13 @@ Respuesta de `members`:
 
 ## 6. Módulo personal
 
+> **Implementado (Fase 3, 2026-10-30).** Las rutas reales difieren de las de esta tabla, que era el
+> diseño previo: van bajo `/api/veterinary/**` (el único prefijo que el gateway enruta a este
+> servicio), las invitaciones son `/{id}/invitations` (no `/employee-invitations`), y las tres del
+> invitado son `POST /api/veterinary/invitations/{preview,accept,decline}` con el **token en el
+> cuerpo** en vez de en la ruta. La tabla autoritativa es la de `FASE_3_PERSONAL.md §3`; la de aquí
+> abajo se conserva como registro del diseño original.
+
 | Método | Ruta | Token / permiso | Caso de uso |
 |---|---|---|---|
 | GET | `/veterinaries/{id}/employees` | miembro | `ListEmployees` 🆕 (enriquecido con nombre/email desde `UserServicePort` batch) |
@@ -846,13 +853,16 @@ APP_BASE_URL, SUPPORT_EMAIL
 - ☑ **VET-18** Análisis asíncrono con `IaVerificationPort` + `rerun-ai` — Fase 2B Parte 4A. A diferencia de lo que dice esta fila, el adaptador sin IA (`NoOpIaVerificationAdapter`) no "devuelve `FAILED`" — simplemente no se llama (`isEnabled()=false`), así que `ai_status` se queda en `NOT_RUN`; `FAILED` es solo el resultado de un fallo real del adaptador HTTP cuando la IA sí está encendida.
 - ☑ **VET-19** Eventos de verificación y clínica — `VERIFICATION_SUBMITTED` (Fase 2B Parte 2/3), `VERIFICATION_APPROVED`/`VERIFICATION_REJECTED`/`VERIFICATION_CORRECTION_REQUESTED`/`SUBSCRIPTION_TRIAL_STARTED` (Fase 2B Parte 4A).
 
-### Fase 3 — Personal
+### Fase 3 — Personal ✅ COMPLETA (2026-10-30)
 
-- ☐ **VET-20** Script 006 (**numeración ya usada**: `006_admin_review.sql` se consumió en Fase 2B Parte 4A para `rejection_reason_code`/`suspended_at`/`suspension_reason` — el script de este ítem será `007_...sql`). `UserServicePort` *(requiere USER-06)* — **ya existe** (`application/shared/ports/out/UserServicePort`, adaptador `UserServiceRestAdapter`), adelantado en Fase 2B Parte 4A para resolver `account` en el detalle del admin; este ítem solo necesita reusarlo, no crearlo de nuevo.
-- ☐ **VET-21** Invitaciones de empleado: invitar, listar, reenviar, cancelar, mis invitaciones, aceptar, rechazar.
-- ☐ **VET-22** `ListEmployees`, `GetEmployee` (enriquecidos), reglas nuevas de `UpdateEmployeeRole`/`Activate`/`Deactivate`.
-- ☐ **VET-23** `TransferOwnership`, `LeaveVeterinary`. Deprecar el endpoint público `CreateVeterinaryEmployee`.
-- ☐ **VET-24** Eventos de personal.
+Contrato para el frontend y Notifications: **`FASE_3_PERSONAL.md`**. Suite 919/919.
+
+- ☑ **VET-20** Script `007_staff_invitations.sql` (tabla `employee_invitations` + `veterinary_employee.removed_at`), ejecutado en Supabase el 2026-10-29. `UserServicePort` reusado (ya existía desde Fase 2B Parte 4A); se le agregó `getUsers(List<UUID>)`, resolución en lote **best-effort que nunca lanza**, para enriquecer el listado de empleados y el chequeo de correo duplicado al invitar sin que una caída del User service tumbe la operación.
+- ☑ **VET-21** Invitaciones: invitar, listar, reenviar, revocar, vista previa, aceptar, rechazar, mis invitaciones. Token de 256 bits con solo su hash SHA-256 en la base, vencimiento a 7 días derivado de `expires_at` (sin estado `EXPIRED`), y el token **en el cuerpo** de la petición, nunca en la URL.
+- ☑ **VET-22** `ListEmployees` (enriquecido con nombre/correo), reglas nuevas de `UpdateEmployeeRole`/`DeActivateEmployee` (`StaffManagementRules`: no a uno mismo, nadie toca al OWNER, ADMIN no toca a otro ADMIN, solo el OWNER crea ADMINs) y rutas anidadas por clínica; las viejas quedan como alias `@Deprecated`. `GetEmployee` individual **no** se implementó: el listado ya trae todo lo que la pantalla necesita y el perfil profesional de un empleado ya tenía su propio endpoint desde la Fase 2B — si hace falta, es un caso de uso nuevo.
+- ☑ **VET-23** `TransferOwnership` (dos `UPDATE` condicionales en orden OWNER→ADMIN y después destino→OWNER, por `ux_one_owner_per_vet`; `409` si se pierde la carrera) y `LeaveVeterinary`. `CreateVeterinaryEmployee` quedó `@Deprecated(forRemoval = true)`: **eliminar antes del despliegue** (ver "Deuda técnica conocida" en `CLAUDE.md`).
+- ☑ **VET-24** Eventos de personal: `EMPLOYEE_INVITED`, `EMPLOYEE_JOINED`, `EMPLOYEE_ROLE_UPDATED`, `EMPLOYEE_DEACTIVATED` (con `leftVoluntarily`), `OWNERSHIP_TRANSFERRED` (dos, con `recipientIsNewOwner`). Se reusaron los nombres que ya existían en `VeterinaryEventType`, sin agregar valores nuevos.
+- ☑ **Extra no planeado (PASO 0b)**: el rol y el estado de la clínica pasaron a resolverse **desde la base** en cada petición (`findClinicMembership`, una sola consulta que reemplazó la lectura de clínica que ya existía). Antes salían de los claims `vet_role`/`vet_status`, así que un empleado retirado o con el rol rebajado seguía operando hasta 60 min. Único resto: `licensed` sigue viniendo del claim (deuda documentada).
 
 ### Fase 4 — Pacientes *(requiere PETS-04, PETS-05, PETS-06)*
 

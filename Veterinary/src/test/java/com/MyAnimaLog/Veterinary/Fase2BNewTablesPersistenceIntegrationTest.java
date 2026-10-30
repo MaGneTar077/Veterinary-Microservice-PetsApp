@@ -1,5 +1,6 @@
 package com.MyAnimaLog.Veterinary;
 
+import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.legal.ports.out.LegalConsentRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.professional.ports.out.ProfessionalProfileRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationDocumentRepositoryPort;
@@ -19,6 +20,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,6 +36,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>{@code @Transactional} rolls every save back at the end of each test — nothing is left behind
  * in Supabase.
+ *
+ * <p><strong>Cada test tiene que leer lo que guardó</strong> (Fase 3): {@code save(...)} sobre una
+ * entidad con id asignado no hace flush por sí solo, y {@code @Transactional} revierte antes del
+ * commit, así que un test que solo guarda pasa en verde <em>sin haber ejecutado el INSERT</em> — no
+ * prueba nada de la base. La lectura posterior fuerza el flush. Por lo mismo, las tablas con FK a
+ * {@code public.veterinary} necesitan una clínica real ({@link TestClinics#persist}) y no un
+ * {@code UUID} inventado.
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -52,27 +61,37 @@ class Fase2BNewTablesPersistenceIntegrationTest {
     @Autowired
     private VerificationDocumentRepositoryPort verificationDocumentRepositoryPort;
 
+    @Autowired
+    private VeterinaryRepositoryPort veterinaryRepositoryPort;
+
     @Test
     void legalConsent_shouldPersist_withOnlyTheFieldsRegisterVeterinarySets() {
+        UUID userId = UUID.randomUUID();
         LegalConsent consent = LegalConsent.builder()
                 .id(UUID.randomUUID())
-                .userId(UUID.randomUUID())
-                .veterinaryId(UUID.randomUUID())
+                .userId(userId)
+                // Clínica real: legal_consents.veterinary_id tiene FK a public.veterinary.
+                .veterinaryId(TestClinics.persist(veterinaryRepositoryPort))
                 .consentType(ConsentType.DATA_TREATMENT)
                 .version("2026-10-v1")
                 // acceptedAt intentionally omitted: must fall back to @Builder.Default, not DB DEFAULT.
                 .build();
 
-        LegalConsent saved = legalConsentRepositoryPort.save(consent);
+        legalConsentRepositoryPort.save(consent);
 
-        assertThat(saved.getAcceptedAt()).isNotNull();
+        // La lectura fuerza el flush: sin ella el INSERT no llegaría a Postgres.
+        List<LegalConsent> saved = legalConsentRepositoryPort.findByUserId(userId);
+        assertThat(saved).hasSize(1);
+        assertThat(saved.get(0).getAcceptedAt()).isNotNull();
+        assertThat(saved.get(0).getConsentType()).isEqualTo(ConsentType.DATA_TREATMENT);
     }
 
     @Test
     void professionalProfile_shouldPersist_withOnlyTheMinimalRequiredFields() {
+        UUID userId = UUID.randomUUID();
         ProfessionalProfile profile = ProfessionalProfile.builder()
                 .id(UUID.randomUUID())
-                .userId(UUID.randomUUID())
+                .userId(userId)
                 .fullName("Integration Test Vet")
                 .documentType(IdDocumentType.CC)
                 .documentNumber("123456789")
@@ -81,8 +100,9 @@ class Fase2BNewTablesPersistenceIntegrationTest {
                 // licenseStatus/createdAt/updatedAt intentionally omitted.
                 .build();
 
-        ProfessionalProfile saved = professionalProfileRepositoryPort.save(profile);
+        professionalProfileRepositoryPort.save(profile);
 
+        ProfessionalProfile saved = professionalProfileRepositoryPort.findByUserId(userId).orElseThrow();
         assertThat(saved.getLicenseStatus()).isNotNull();
         assertThat(saved.getCreatedAt()).isNotNull();
         assertThat(saved.getUpdatedAt()).isNotNull();
@@ -99,8 +119,9 @@ class Fase2BNewTablesPersistenceIntegrationTest {
                 // attemptNumber/aiStatus/registryChecked/createdAt intentionally omitted.
                 .build();
 
-        VerificationRequest saved = verificationRequestRepositoryPort.save(request);
+        verificationRequestRepositoryPort.save(request);
 
+        VerificationRequest saved = verificationRequestRepositoryPort.findById(request.getId()).orElseThrow();
         assertThat(saved.getAttemptNumber()).isNotNull();
         assertThat(saved.getAiStatus()).isNotNull();
         assertThat(saved.getRegistryChecked()).isNotNull();
@@ -128,9 +149,11 @@ class Fase2BNewTablesPersistenceIntegrationTest {
                 // uploadedAt intentionally omitted.
                 .build();
 
-        VerificationDocument saved = verificationDocumentRepositoryPort.save(document);
+        verificationDocumentRepositoryPort.save(document);
 
+        VerificationDocument saved = verificationDocumentRepositoryPort.findById(document.getId()).orElseThrow();
         assertThat(saved.getUploadedAt()).isNotNull();
+        assertThat(saved.getRequestId()).isEqualTo(request.getId());
     }
 
     @Test
@@ -154,8 +177,9 @@ class Fase2BNewTablesPersistenceIntegrationTest {
                 .originalFileName("tarjeta profesional.pdf")
                 .build();
 
-        VerificationDocument saved = verificationDocumentRepositoryPort.save(document);
+        verificationDocumentRepositoryPort.save(document);
 
+        VerificationDocument saved = verificationDocumentRepositoryPort.findById(document.getId()).orElseThrow();
         assertThat(saved.getOriginalFileName()).isEqualTo("tarjeta profesional.pdf");
         assertThat(saved.displayFileName()).isEqualTo("tarjeta profesional.pdf");
     }

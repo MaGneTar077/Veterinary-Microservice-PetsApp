@@ -55,22 +55,7 @@ class Fase3StaffTablesPersistenceIntegrationTest {
      * que luego se revierte.
      */
     private UUID persistClinic() {
-        return veterinaryRepositoryPort.save(Veterinary.builder()
-                .id(UUID.randomUUID())
-                .name("Clínica de prueba " + UUID.randomUUID())
-                .city("Bogotá")
-                .tenantId(UUID.randomUUID().toString())
-                .status(VeterinaryStatus.ACTIVE)
-                .active(true)
-                .timezone("America/Bogota")
-                .currency("COP")
-                .defaultAppointmentMinutes(30)
-                .allowOnlineBooking(true)
-                .bookingRequiresConfirmation(true)
-                .cancellationMinHours(4)
-                .directoryVisible(true)
-                .createdAt(LocalDateTime.now())
-                .build()).getId();
+        return TestClinics.persist(veterinaryRepositoryPort);
     }
 
     @Test
