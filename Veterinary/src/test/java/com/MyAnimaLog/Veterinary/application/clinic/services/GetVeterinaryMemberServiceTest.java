@@ -209,4 +209,45 @@ class GetVeterinaryMemberServiceTest {
 
         assertThat(response.getVeterinaryStatus()).isEqualTo(VeterinaryStatus.SUSPENDED);
     }
+
+    @Test
+    void getMember_returnsRejectedStatus_whenVeterinaryWasRejected() {
+        Veterinary rejectedVeterinary = activeVeterinary.toBuilder()
+                .active(false)
+                .status(VeterinaryStatus.REJECTED)
+                .build();
+        when(veterinaryRepositoryPort.findById(veterinaryId)).thenReturn(Optional.of(rejectedVeterinary));
+        when(subscriptionRepositoryPort.existsActiveByVeterinaryId(veterinaryId)).thenReturn(false);
+        when(employeeRepositoryPort.findByVeterinaryIdAndUserId(veterinaryId, userId))
+                .thenReturn(Optional.empty());
+
+        GetVeterinaryMemberResponse response = getVeterinaryMemberService.getMember(veterinaryId, userId);
+
+        assertThat(response.getVeterinaryStatus()).isEqualTo(VeterinaryStatus.REJECTED);
+        assertThat(response.isMember()).isFalse();
+    }
+
+    @Test
+    void getMember_returnsPendingDocumentsStatus_whenVeterinaryIsNotYetApproved() {
+        Veterinary pendingVeterinary = activeVeterinary.toBuilder()
+                .active(false)
+                .status(VeterinaryStatus.PENDING_DOCUMENTS)
+                .build();
+        when(veterinaryRepositoryPort.findById(veterinaryId)).thenReturn(Optional.of(pendingVeterinary));
+        when(subscriptionRepositoryPort.existsActiveByVeterinaryId(veterinaryId)).thenReturn(false);
+        VeterinaryEmployee owner = VeterinaryEmployee.builder()
+                .id(UUID.randomUUID())
+                .veterinaryId(veterinaryId)
+                .userId(userId)
+                .role(EmployeeRole.OWNER)
+                .active(true)
+                .build();
+        when(employeeRepositoryPort.findByVeterinaryIdAndUserId(veterinaryId, userId))
+                .thenReturn(Optional.of(owner));
+
+        GetVeterinaryMemberResponse response = getVeterinaryMemberService.getMember(veterinaryId, userId);
+
+        assertThat(response.getVeterinaryStatus()).isEqualTo(VeterinaryStatus.PENDING_DOCUMENTS);
+        assertThat(response.isMember()).isTrue();
+    }
 }
