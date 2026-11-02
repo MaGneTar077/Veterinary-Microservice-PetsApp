@@ -1,0 +1,11 @@
+app:
+  events:
+    enabled: false
+
+spring:
+  cloud:
+    gcp:
+      pubsub:
+        enabled: false
+      core:
+        enabled: false

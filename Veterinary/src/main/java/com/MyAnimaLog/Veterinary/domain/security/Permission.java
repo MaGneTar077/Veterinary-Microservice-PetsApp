@@ -1,0 +1,15 @@
+package com.MyAnimaLog.Veterinary.domain.security;
+
+public enum Permission {
+    CLINIC_CONFIGURE,
+    SUBSCRIPTION_MANAGE,
+    STAFF_MANAGE,
+    APPOINTMENT_MANAGE,
+    PATIENT_REGISTER,
+    CLINICAL_READ,
+    CLINICAL_READ_BASIC,
+    CLINICAL_WRITE,
+    NURSING_WRITE,
+    DOCUMENT_UPLOAD,
+    REPORTS_VIEW
+}

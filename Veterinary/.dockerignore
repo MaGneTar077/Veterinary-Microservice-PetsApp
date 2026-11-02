@@ -1,0 +1,48 @@
+# Build local: la imagen compila desde cero en la etapa 1.
+target/
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Git e IDEs
+.git/
+.github/
+.gitignore
+.gitattributes
+.idea/
+.vscode/
+.settings/
+.project
+.classpath
+*.iml
+*.iws
+*.ipr
+/out/
+
+# Secretos: NUNCA dentro de la imagen. En Cloud Run llegan como variables de
+# entorno o referencias a Secret Manager, nunca como archivos copiados.
+.env
+.env.*
+*.env
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+keys/
+secrets/
+credentials*.json
+sa-*.json
+service-account*.json
+src/main/resources/application-local.yml
+src/main/resources/application-dev.yml
+
+# Documentación y herramientas que no se usan en runtime
+postman/
+scripts/
+db/
+*.md
+
+# Logs y temporales
+*.log
+logs/
+.claude/

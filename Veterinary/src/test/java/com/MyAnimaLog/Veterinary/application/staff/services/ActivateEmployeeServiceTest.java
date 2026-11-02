@@ -1,0 +1,154 @@
+package com.MyAnimaLog.Veterinary.application.staff.services;
+
+import com.MyAnimaLog.Veterinary.application.shared.services.VeterinaryAuthorizationService;
+import com.MyAnimaLog.Veterinary.application.staff.dto.ActivateEmployeeResponse;
+import com.MyAnimaLog.Veterinary.application.staff.ports.out.VeterinaryEmployeeRepositoryPort;
+import com.MyAnimaLog.Veterinary.domain.security.Permission;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InsufficientPermissionException;
+import com.MyAnimaLog.Veterinary.domain.staff.enums.EmployeeRole;
+import com.MyAnimaLog.Veterinary.domain.staff.exceptions.EmployeeNotFoundException;
+import com.MyAnimaLog.Veterinary.domain.staff.model.VeterinaryEmployee;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class ActivateEmployeeServiceTest {
+
+    @Mock
+    private VeterinaryEmployeeRepositoryPort employeeRepositoryPort;
+
+    @Mock
+    private VeterinaryAuthorizationService authorizationService;
+
+    @InjectMocks
+    private ActivateEmployeeService activateEmployeeService;
+
+    private UUID employeeId;
+    private UUID veterinaryId;
+    private VeterinaryEmployee inactiveEmployee;
+    private VeterinaryEmployee activatedEmployee;
+
+    @BeforeEach
+    void setUp() {
+        employeeId = UUID.randomUUID();
+        veterinaryId = UUID.randomUUID();
+
+        inactiveEmployee = VeterinaryEmployee.builder()
+                .id(employeeId)
+                .veterinaryId(veterinaryId)
+                .userId(UUID.randomUUID())
+                .role(EmployeeRole.VETERINARIAN)
+                .active(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        activatedEmployee = inactiveEmployee.toBuilder()
+                .active(true)
+                .build();
+
+        lenient().when(authorizationService.currentClinicId()).thenReturn(Optional.of(veterinaryId));
+    }
+
+    @Test
+    void activate_shouldThrowEmployeeNotFound_whenTheEmployeeBelongsToAnotherClinic() {
+        // Solo existe la ruta vieja (sin clínica en la ruta): la clínica efectiva sale del token.
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(inactiveEmployee));
+        when(authorizationService.currentClinicId()).thenReturn(Optional.of(UUID.randomUUID()));
+
+        assertThatThrownBy(() -> activateEmployeeService.activate(employeeId))
+                .isInstanceOf(EmployeeNotFoundException.class);
+
+        verify(employeeRepositoryPort, never()).save(any());
+        verify(authorizationService, never()).require(any(), any());
+    }
+
+    @Test
+    void activate_shouldClearTheRemovalDate_whenTheEmployeeComesBack() {
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(
+                inactiveEmployee.toBuilder().removedAt(LocalDateTime.now().minusMonths(2)).build()));
+        when(employeeRepositoryPort.save(any(VeterinaryEmployee.class))).thenAnswer(c -> c.getArgument(0));
+
+        activateEmployeeService.activate(employeeId);
+
+        verify(employeeRepositoryPort).save(argThat(employee ->
+                Boolean.TRUE.equals(employee.getActive()) && employee.getRemovedAt() == null));
+    }
+
+    @Test
+    void activate_shouldReturnResponse_withActiveTrue() {
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(inactiveEmployee));
+        when(employeeRepositoryPort.save(any(VeterinaryEmployee.class))).thenReturn(activatedEmployee);
+
+        ActivateEmployeeResponse response = activateEmployeeService.activate(employeeId);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getId()).isEqualTo(employeeId);
+        assertThat(response.getActive()).isTrue();
+        assertThat(response.getRole()).isEqualTo(EmployeeRole.VETERINARIAN);
+    }
+
+    @Test
+    void activate_shouldThrowEmployeeNotFoundException_whenEmployeeDoesNotExist() {
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() ->
+                activateEmployeeService.activate(employeeId)
+        ).isInstanceOf(EmployeeNotFoundException.class);
+    }
+
+    @Test
+    void activate_shouldCallSave_withActiveTrue() {
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(inactiveEmployee));
+        when(employeeRepositoryPort.save(any(VeterinaryEmployee.class))).thenReturn(activatedEmployee);
+
+        activateEmployeeService.activate(employeeId);
+
+        verify(employeeRepositoryPort, times(1)).save(argThat(VeterinaryEmployee::getActive));
+    }
+
+    @Test
+    void activate_shouldCallSave_once() {
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(inactiveEmployee));
+        when(employeeRepositoryPort.save(any(VeterinaryEmployee.class))).thenReturn(activatedEmployee);
+
+        activateEmployeeService.activate(employeeId);
+
+        verify(employeeRepositoryPort, times(1)).save(any(VeterinaryEmployee.class));
+    }
+
+    @Test
+    void activate_shouldNeverCallSave_whenEmployeeNotFound() {
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() ->
+                activateEmployeeService.activate(employeeId)
+        ).isInstanceOf(EmployeeNotFoundException.class);
+
+        verify(employeeRepositoryPort, never()).save(any());
+    }
+
+    @Test
+    void activate_shouldThrowInsufficientPermissionException_whenCallerLacksStaffManage() {
+        when(employeeRepositoryPort.findById(employeeId)).thenReturn(Optional.of(inactiveEmployee));
+        doThrow(new InsufficientPermissionException(Permission.STAFF_MANAGE))
+                .when(authorizationService).require(veterinaryId, Permission.STAFF_MANAGE);
+
+        assertThatThrownBy(() ->
+                activateEmployeeService.activate(employeeId)
+        ).isInstanceOf(InsufficientPermissionException.class);
+
+        verify(employeeRepositoryPort, never()).save(any());
+    }
+}

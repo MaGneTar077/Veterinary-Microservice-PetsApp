@@ -1,0 +1,16 @@
+package com.MyAnimaLog.Veterinary.infrastructure.subscription.repositories;
+
+import com.MyAnimaLog.Veterinary.infrastructure.subscription.entity.VeterinarySubscriptionEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+public interface VeterinarySubscriptionJpaRepository extends JpaRepository<VeterinarySubscriptionEntity, UUID> {
+    Optional<VeterinarySubscriptionEntity> findByVeterinaryIdAndActiveTrue(UUID veterinaryId);
+    Optional<VeterinarySubscriptionEntity> findTopByVeterinaryIdOrderByEndDateDesc(UUID veterinaryId);
+    boolean existsByVeterinaryIdAndActiveTrue(UUID veterinaryId);
+    List<VeterinarySubscriptionEntity> findByVeterinaryIdInAndActiveTrue(List<UUID> veterinaryIds);
+}
