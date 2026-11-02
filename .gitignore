@@ -1,8 +1,7 @@
-# Compiled class file
-*.class
-
-# Log file
-*.log
+HELP.md
+target/
+!**/src/main/**/target/
+!**/src/test/**/target/
 
 # BlueJ files
 *.ctxt
@@ -10,7 +9,17 @@
 # Mobile Tools for Java (J2ME)
 .mtj.tmp/
 
-# Package Files #
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+# Maven / Package files
+*.class
 *.jar
 *.war
 *.nar
@@ -22,3 +31,41 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+/out/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+# Spring Boot
+*.log
+logs/
+
+# Variables de entorno y secretos
+.env
+.env.*
+*.env
+!.env.example
+*.pem
+*.key
+
+# Application properties con secretos
+src/main/resources/application-local.yml
+src/main/resources/application-local.yaml
+src/main/resources/application-dev.yml
+src/main/resources/application-dev.yaml
