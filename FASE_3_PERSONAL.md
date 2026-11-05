@@ -1,3 +1,5 @@
+> Para implementar, empieza por docs/GUIA_INTEGRACION_FRONTEND.md
+
 # Fase 3 — Personal (equipo de la clínica)
 
 Contrato de la Fase 3 del `veterinary-service` para el **frontend web** y para **Notifications**.
