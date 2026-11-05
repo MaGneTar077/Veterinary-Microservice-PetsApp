@@ -1,3 +1,5 @@
+> Para implementar, empieza por docs/GUIA_INTEGRACION_FRONTEND.md
+
 # Fase 2B — Registro y verificación de clínicas (veterinary-service)
 
 > Especificación cerrada de la Fase 2B. Fuente: diseño de Figma del registro (`MYANIMALOG_VET_REGISTRO.md`, frames `1861:19` a `1911:368`, panel admin `2040:300` y `2040:753`) + decisiones del equipo (15 oct 2026).
