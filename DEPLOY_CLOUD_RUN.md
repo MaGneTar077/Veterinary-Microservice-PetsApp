@@ -71,6 +71,11 @@ No hay perfil `prod`: el único `application.yaml` **es** la configuración de p
 ponerlo en `prod` no carga nada extra, solo confunde. Si querés dejarlo explícito, usá
 `SPRING_PROFILES_ACTIVE=default`.
 
+Ver `.env.example` en la raíz del repo para la lista completa con comentarios (qué es, obligatoria,
+secreto, default, qué pasa si falta) — este archivo es la referencia rápida para armar el
+`gcloud run deploy`, pero `.env.example` es la fuente que hay que mantener sincronizada con
+`application.yaml` cuando se agrega una variable nueva.
+
 Leyenda de **Secreto**: ✅ = va en Secret Manager y se referencia desde Cloud Run (nunca como texto
 plano en la consola ni en un `.yaml` versionado).
 
@@ -79,6 +84,8 @@ plano en la consola ni en un `.yaml` versionado).
 | `DB_URL` | **Sí** | — | ✅ (lleva el host del proyecto) | La app **no arranca**: Hikari no puede resolver `spring.datasource.url`. Usar el pooler transaccional de Supabase (puerto 6543). |
 | `DB_USERNAME` | **Sí** | — | ✅ | No arranca. |
 | `DB_PASSWORD` | **Sí** | — | ✅ | No arranca. |
+| `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE` | No | `10` (default de Hikari) | No | Con varias instancias de Cloud Run compitiendo por el cupo compartido del pooler de Supabase, un pool de 10 por instancia agota ese cupo rápido. Ponelo en un número chico (`3`) por instancia. Spring Boot lo toma por relaxed binding, sin tocar `application.yaml`. |
+| `SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT` | No | `30000` ms (default de Hikari) | No | Con el pool agotado, una petición puede quedar colgada hasta 30s esperando una conexión antes de fallar con `500` — esto fue justo lo que causó el bug de ~30s observado en `POST .../verification/documents`. Bajalo a `8000` para fallar rápido. |
 | `JWT_JWKS_URI` | **Sí** | — | No (es una URL pública) | **No arranca**: `spring.security.oauth2.resourceserver.jwt.jwk-set-uri` no se puede resolver. Valor: `{USER_SERVICE_URL}/.well-known/jwks.json`. |
 | `INTERNAL_API_KEY` | **Sí** | — | ✅ | No arranca (`InternalApiKeyFilter` la pide en el constructor). Debe ser **idéntica** en todos los servicios. |
 | `SUPABASE_URL` | **Sí** | — | No | No arranca (`SupabaseStorageAdapter`). |
@@ -146,6 +153,7 @@ gcloud run deploy veterinary-service \
   --min-instances 0 \
   --service-account veterinary-service@<PROYECTO>.iam.gserviceaccount.com \
   --set-env-vars EVENTS_ENABLED=false,AI_VERIFICATION_ENABLED=false \
+  --set-env-vars SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=3,SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT=8000 \
   --set-env-vars SUPABASE_URL=https://<ref>.supabase.co \
   --set-env-vars APP_BASE_URL=https://app.myanimalog.com \
   --set-env-vars INVITATION_BASE_URL=https://app.myanimalog.com/<RUTA-DEL-FRONT> \
