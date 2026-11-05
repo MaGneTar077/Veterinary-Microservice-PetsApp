@@ -9,6 +9,21 @@ spring:
     driver-class-name: org.postgresql.Driver
     hikari:
       connection-init-sql: "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED"
+      # No pongas SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE / SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT
+      # como variables de entorno reales (Cloud Run, OS env): Spring las bindea sobre HikariDataSource
+      # con el mismo prefijo que ya usa connection-init-sql arriba, pero viniendo de OTRA fuente de
+      # propiedades (el entorno del SO, de mayor precedencia que este archivo). Eso hace que el Binder
+      # de Spring, al resolver "connection-timeout", termine invocando el getter sin argumentos
+      # HikariDataSource.getConnection() (colisiona con el patrón de nombre de bean property "connection"
+      # que expone la interfaz DataSource) -- abriendo una conexión real y SELLANDO el pool a mitad de la
+      # configuración, antes de que se pueda aplicar connection-init-sql: "IllegalStateException: The
+      # configuration of the pool is sealed once started". Confirmado con un debugger (stack trace real:
+      # JavaBeanBinder$BeanProperty.getValue -> HikariDataSource.getConnection -> HikariConfig.seal).
+      # Por eso estos dos valores viven ACÁ, en el mismo archivo que connection-init-sql (una sola fuente
+      # de propiedades para todo el prefijo spring.datasource.hikari), tomando el valor de variables con
+      # OTRO nombre que nunca chocan con ese prefijo.
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:3}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:8000}
 
   jpa:
     properties:
