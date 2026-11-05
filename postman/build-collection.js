@@ -782,12 +782,15 @@ const f03 = folder({
         '`documentType`: `RUT`, `CHAMBER_OF_COMMERCE`, `LEGAL_REP_ID` (obligatorios) o `FACADE_PHOTO`',
         '(opcional). PDF, JPEG o PNG, máximo **10 MB**, validados por firma real del archivo.',
         '',
-        'Subir dos veces el mismo tipo **reemplaza** el anterior (borra la fila y el archivo viejo).',
-        'Van a un bucket **privado**: solo se leen con URLs firmadas de 10 minutos desde el panel del admin.',
+        'Subir dos veces el mismo tipo **reemplaza** el anterior: misma fila (mismo `documentId`,',
+        '`UPDATE`), nunca una fila nueva. El archivo nuevo sube primero; el viejo se borra del bucket',
+        '**después del commit** (si falla el borrado, solo log — no afecta la respuesta). Van a un',
+        'bucket **privado**: solo se leen con URLs firmadas de 10 minutos desde el panel del admin.',
         '',
         '- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`',
         '- `409 VERIFICATION_LOCKED` — solicitud no editable.',
         '- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, ese tipo no estaba entre los pedidos.',
+        '- `409 DOCUMENT_UPLOAD_CONFLICT` — dos subidas del mismo tipo llegaron a la vez (carrera); reintentá.',
       ].join('\n'),
       body: formdataBody([
         { key: 'file', type: 'file', src: [], description: 'PDF/JPEG/PNG ≤ 10MB' },
@@ -802,10 +805,9 @@ const f03 = folder({
           code: 'Created',
           body: {
             documentId: 'd1e2f3a4-b5c6-4d78-9e0f-1a2b3c4d5e6f',
+            requestId: 'c3d4e5f6-a7b8-4910-8c2d-3e4f5a6b7c8d',
             documentType: 'RUT',
             fileName: 'rut-el-bosque.pdf',
-            mimeType: 'application/pdf',
-            fileSizeBytes: 284512,
             uploadedAt: '2026-10-30T09:12:00',
           },
         },
@@ -839,7 +841,8 @@ const f03 = folder({
         'corregir se pueden tocar — el resto → `409 DOCUMENT_NOT_IN_CORRECTION`.',
         '',
         'Orden: primero los 3 obligatorios (`RUT`, `CHAMBER_OF_COMMERCE`, `LEGAL_REP_ID`), después',
-        'el opcional (`FACADE_PHOTO`). Subir dos veces el mismo tipo reemplaza al anterior.',
+        'el opcional (`FACADE_PHOTO`). Subir dos veces el mismo tipo **reemplaza** al anterior: misma',
+        'fila (mismo `documentId`, `UPDATE`), el archivo viejo se borra del bucket después del commit.',
       ].join('\n'),
       items: [
         ...[
@@ -890,6 +893,7 @@ const f03 = folder({
               '- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.',
               '- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.',
               '- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.',
+              '- `409 DOCUMENT_UPLOAD_CONFLICT` — dos subidas de este tipo llegaron a la vez (carrera); reintentá.',
             ].join('\n'),
             body: formdataBody([
               { key: 'file', type: 'file', src: [], description: 'PDF/JPEG/PNG ≤ 10MB' },
@@ -1102,7 +1106,9 @@ const f04 = folder({
         '`documentType`: `PROFESSIONAL_CARD` e `ID_DOCUMENT` (obligatorios para enviar) o `DEGREE`',
         '(opcional). PDF/JPEG/PNG ≤ 10 MB, por firma real. Bucket privado.',
         '',
-        'Mismas reglas de reemplazo y de `NEEDS_CORRECTION` que los documentos de la clínica.',
+        'Mismas reglas de reemplazo y de `NEEDS_CORRECTION` que los documentos de la clínica: subir',
+        'de nuevo el mismo tipo actualiza la misma fila (`UPDATE`), el archivo viejo se borra después',
+        'del commit, y una carrera entre dos subidas responde `409 DOCUMENT_UPLOAD_CONFLICT`.',
       ].join('\n'),
       body: formdataBody([
         { key: 'file', type: 'file', src: [], description: 'PDF/JPEG/PNG ≤ 10MB' },

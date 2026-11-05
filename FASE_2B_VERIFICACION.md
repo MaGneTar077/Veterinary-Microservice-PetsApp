@@ -78,7 +78,7 @@ Lo maneja el **User service**. Veterinary no recibe nada.
 | Cédula del representante | `LEGAL_REP_ID` | Sí |
 | Foto de la fachada | `FACADE_PHOTO` | No |
 
-PDF, JPEG o PNG, hasta 10 MB. Un documento activo por tipo: subir otro del mismo tipo **reemplaza** al anterior (borra el archivo viejo).
+PDF, JPEG o PNG, hasta 10 MB. Un documento activo por tipo: subir otro del mismo tipo **reemplaza** al anterior — misma fila (`UPDATE`, mismo `documentId`), nunca una fila nueva, porque `ux_verification_documents_request_type` solo permite un documento por `(request_id, document_type)`. El archivo nuevo sube a Storage primero; el archivo viejo se borra del bucket **después del commit** de la transacción (si el borrado falla, solo queda un log de error, nunca falla la respuesta). Si la transacción de base de datos falla, el archivo nuevo se borra como compensación. Si dos subidas del mismo tipo chocan por la carrera, la segunda responde `409 DOCUMENT_UPLOAD_CONFLICT` en vez de un 500 (ver sección 8). Mismo comportamiento para el documento del perfil profesional (Paso 5bis más abajo).
 
 ### Paso 5 · Perfil profesional (`1910:131`) — `PUT /api/veterinary/me/professional-profile`
 
@@ -103,6 +103,11 @@ Documentos del perfil (`POST /api/veterinary/me/professional-profile/documents`)
 | Título | `DEGREE` | No |
 
 La firma (PNG) **no** va en el registro: se sube después desde "Mi perfil profesional".
+
+Mismo PDF/JPEG/PNG ≤10MB y mismas reglas de reemplazo que los documentos de la clínica (Paso 4):
+subir de nuevo el mismo `documentType` actualiza la misma fila en vez de insertar otra, el archivo
+viejo se borra después del commit, y una carrera entre dos subidas responde `409
+DOCUMENT_UPLOAD_CONFLICT` (sección 8).
 
 ### Paso 6 · Revisa y envía (`1910:244`) — `POST /api/veterinary/{id}/verification/submit`
 
@@ -286,7 +291,7 @@ Formato: `{ timestamp, status, error, message, code }`. Se agrega `code` a **tod
 | 401 | `UNAUTHENTICATED` |
 | 403 | `EMAIL_NOT_VERIFIED`, `NOT_VETERINARY_OWNER`, `TENANT_MISMATCH`, `INSUFFICIENT_PERMISSION`, `PLATFORM_ADMIN_REQUIRED`, `CANNOT_MODIFY_SELF`, `CANNOT_MODIFY_OWNER`, `CANNOT_REVIEW_OWN_REQUEST`, `CLINIC_SUSPENDED` (Parte 4B — token de clínica sobre una clínica `SUSPENDED`, excepto `GetVeterinaryProfile`), `CANNOT_MANAGE_OWN_CLINIC` (Parte 4B — un admin no puede suspender/reactivar una clínica donde es empleado/dueño) |
 | 404 | `VETERINARY_NOT_FOUND`, `DOCUMENT_NOT_FOUND`, `PROFESSIONAL_PROFILE_NOT_FOUND`, `VERIFICATION_REQUEST_NOT_FOUND` |
-| 409 | `VETERINARY_NAME_TAKEN`, `VETERINARY_EMAIL_TAKEN`, `NIT_TAKEN`, `LICENSE_NUMBER_TAKEN`, `CONSENT_VERSION_OUTDATED`, `VERIFICATION_LOCKED`, `INVALID_VERIFICATION_STATE`, `VERIFICATION_ATTEMPTS_EXHAUSTED`, `OWNER_CLINIC_LIMIT_REACHED`, `VETERINARY_NOT_ACTIVE`, `DOCUMENT_NOT_IN_CORRECTION`, `AI_VERIFICATION_DISABLED`, `CLINIC_NOT_ACTIVE` (Parte 4B — `suspend` fuera de `ACTIVE`), `CLINIC_NOT_SUSPENDED` (Parte 4B — `reactivate` fuera de `SUSPENDED`) |
+| 409 | `VETERINARY_NAME_TAKEN`, `VETERINARY_EMAIL_TAKEN`, `NIT_TAKEN`, `LICENSE_NUMBER_TAKEN`, `CONSENT_VERSION_OUTDATED`, `VERIFICATION_LOCKED`, `INVALID_VERIFICATION_STATE`, `VERIFICATION_ATTEMPTS_EXHAUSTED`, `OWNER_CLINIC_LIMIT_REACHED`, `VETERINARY_NOT_ACTIVE`, `DOCUMENT_NOT_IN_CORRECTION`, `AI_VERIFICATION_DISABLED`, `CLINIC_NOT_ACTIVE` (Parte 4B — `suspend` fuera de `ACTIVE`), `CLINIC_NOT_SUSPENDED` (Parte 4B — `reactivate` fuera de `SUSPENDED`), `DOCUMENT_UPLOAD_CONFLICT` (bugfix "reemplazar documento existente" — dos subidas del mismo `documentType` chocan contra `ux_verification_documents_request_type`; antes esto salía como `500 INTERNAL_ERROR`) |
 | 413 | `FILE_TOO_LARGE` |
 | 503 | `EXTERNAL_SERVICE_UNAVAILABLE` |
 

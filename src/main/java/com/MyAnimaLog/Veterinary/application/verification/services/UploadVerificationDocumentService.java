@@ -15,16 +15,13 @@ import com.MyAnimaLog.Veterinary.domain.verification.enums.VerificationRequestSt
 import com.MyAnimaLog.Veterinary.domain.verification.exceptions.InvalidDocumentTypeException;
 import com.MyAnimaLog.Veterinary.domain.verification.model.VerificationDocument;
 import com.MyAnimaLog.Veterinary.domain.verification.model.VerificationRequest;
-import com.MyAnimaLog.Veterinary.infrastructure.storage.FileNameSanitizer;
 import com.MyAnimaLog.Veterinary.infrastructure.storage.FileSignatureDetector;
 import com.MyAnimaLog.Veterinary.infrastructure.storage.FileSignatureDetector.DetectedType;
-import com.MyAnimaLog.Veterinary.infrastructure.storage.Sha256;
 import com.MyAnimaLog.Veterinary.infrastructure.storage.StorageProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -42,6 +39,7 @@ public class UploadVerificationDocumentService implements UploadVerificationDocu
     private final StorageProperties storageProperties;
 
     @Override
+    @Transactional
     public UploadVerificationDocumentResponse uploadDocument(UUID veterinaryId, String documentType, byte[] content, String originalFileName) {
         authorizationService.requireVeterinaryOwner(veterinaryId);
 
@@ -59,40 +57,9 @@ public class UploadVerificationDocumentService implements UploadVerificationDocu
                 .filter(ALLOWED_TYPES::contains)
                 .orElseThrow(() -> new InvalidFileTypeException("Document must be a PDF, JPEG, or PNG file"));
 
-        Optional<VerificationDocument> existing = verificationDocumentRepositoryPort.findByRequestId(request.getId())
-                .stream()
-                .filter(d -> d.getDocumentType().equals(type.name()))
-                .findFirst();
-
-        UUID documentId = UUID.randomUUID();
-        String storagePath = "verifications/" + request.getId() + "/" + documentId + "." + detectedType.extension();
         String bucket = storageProperties.getVerificationBucket();
-
-        fileStoragePort.uploadPrivate(bucket, storagePath, content, detectedType.mimeType());
-
-        VerificationDocument document = VerificationDocument.builder()
-                .id(documentId)
-                .requestId(request.getId())
-                .documentType(type.name())
-                .storagePath(storagePath)
-                .mimeType(detectedType.mimeType())
-                .fileSizeBytes((long) content.length)
-                .sha256(Sha256.hex(content))
-                .uploadedAt(LocalDateTime.now())
-                .originalFileName(FileNameSanitizer.sanitize(originalFileName))
-                .build();
-
-        try {
-            verificationDocumentRepositoryPort.save(document);
-        } catch (RuntimeException e) {
-            fileStoragePort.delete(bucket, storagePath);
-            throw e;
-        }
-
-        existing.ifPresent(old -> {
-            verificationDocumentRepositoryPort.deleteById(old.getId());
-            fileStoragePort.delete(bucket, old.getStoragePath());
-        });
+        VerificationDocument document = VerificationDocumentUpsert.upsert(verificationDocumentRepositoryPort,
+                fileStoragePort, bucket, request.getId(), type.name(), content, detectedType, originalFileName);
 
         return UploadVerificationDocumentResponse.builder()
                 .documentId(document.getId())

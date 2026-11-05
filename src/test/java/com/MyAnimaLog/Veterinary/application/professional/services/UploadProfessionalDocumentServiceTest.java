@@ -10,6 +10,7 @@ import com.MyAnimaLog.Veterinary.application.verification.ports.out.Verification
 import com.MyAnimaLog.Veterinary.domain.professional.exceptions.ProfessionalProfileNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.professional.model.ProfessionalProfile;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.DocumentNotInCorrectionException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.DocumentUploadConflictException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InvalidFileTypeException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VerificationLockedException;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.SubjectType;
@@ -17,11 +18,16 @@ import com.MyAnimaLog.Veterinary.domain.verification.enums.VerificationRequestSt
 import com.MyAnimaLog.Veterinary.domain.verification.model.VerificationDocument;
 import com.MyAnimaLog.Veterinary.domain.verification.model.VerificationRequest;
 import com.MyAnimaLog.Veterinary.infrastructure.storage.StorageProperties;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -79,6 +85,13 @@ class UploadProfessionalDocumentServiceTest {
                 .thenAnswer(inv -> inv.getArgument(0));
     }
 
+    @AfterEach
+    void tearDown() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
     @Test
     void uploadDocument_shouldSucceed_forProfessionalCard() {
         UploadProfessionalDocumentResponse response = service.uploadDocument("PROFESSIONAL_CARD", PDF_BYTES, "tarjeta.pdf");
@@ -129,18 +142,70 @@ class UploadProfessionalDocumentServiceTest {
     }
 
     @Test
-    void uploadDocument_shouldReplaceExistingDocumentOfSameType() {
+    void uploadDocument_shouldReplaceExistingDocumentOfSameType_reusingSameRowId() {
         VerificationDocument existing = VerificationDocument.builder()
                 .id(UUID.randomUUID())
                 .requestId(openRequest.getId())
                 .documentType("ID_DOCUMENT")
-                .storagePath("verifications/" + openRequest.getId() + "/old.pdf")
+                .storagePath("verifications/" + openRequest.getId() + "/" + UUID.randomUUID() + ".pdf")
                 .build();
         when(verificationDocumentRepositoryPort.findByRequestId(openRequest.getId())).thenReturn(List.of(existing));
 
-        service.uploadDocument("ID_DOCUMENT", PDF_BYTES, "cedula.pdf");
+        UploadProfessionalDocumentResponse response = service.uploadDocument("ID_DOCUMENT", PDF_BYTES, "cedula.pdf");
 
-        verify(verificationDocumentRepositoryPort, times(1)).deleteById(existing.getId());
+        assertThat(response.getDocumentId()).isEqualTo(existing.getId());
+        ArgumentCaptor<VerificationDocument> savedCaptor = ArgumentCaptor.forClass(VerificationDocument.class);
+        verify(verificationDocumentRepositoryPort, times(1)).save(savedCaptor.capture());
+        assertThat(savedCaptor.getValue().getId()).isEqualTo(existing.getId());
+        verify(verificationDocumentRepositoryPort, never()).deleteById(any());
+    }
+
+    @Test
+    void uploadDocument_shouldDeleteNewFile_whenTransactionFails() {
+        when(verificationDocumentRepositoryPort.save(any(VerificationDocument.class)))
+                .thenThrow(new RuntimeException("db commit failed"));
+
+        assertThatThrownBy(() -> service.uploadDocument("ID_DOCUMENT", PDF_BYTES, "cedula.pdf"))
+                .isInstanceOf(RuntimeException.class);
+
+        verify(fileStoragePort, times(1)).uploadPrivate(eq("verification-documents"), any(), any(), any());
+        verify(fileStoragePort, times(1)).delete(eq("verification-documents"), any());
+    }
+
+    @Test
+    void uploadDocument_shouldDeleteOldFile_onlyAfterCommit() {
+        VerificationDocument existing = VerificationDocument.builder()
+                .id(UUID.randomUUID())
+                .requestId(openRequest.getId())
+                .documentType("ID_DOCUMENT")
+                .storagePath("verifications/" + openRequest.getId() + "/old-id.jpg")
+                .build();
+        when(verificationDocumentRepositoryPort.findByRequestId(openRequest.getId())).thenReturn(List.of(existing));
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.uploadDocument("ID_DOCUMENT", PDF_BYTES, "cedula.pdf");
+
+            verify(fileStoragePort, never()).delete(eq("verification-documents"), eq(existing.getStoragePath()));
+
+            List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager.getSynchronizations();
+            assertThat(synchronizations).hasSize(1);
+            synchronizations.forEach(TransactionSynchronization::afterCommit);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
         verify(fileStoragePort, times(1)).delete("verification-documents", existing.getStoragePath());
+    }
+
+    @Test
+    void uploadDocument_shouldThrowConflict409_whenUniqueConstraintIsViolatedByARace() {
+        when(verificationDocumentRepositoryPort.save(any(VerificationDocument.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint \"ux_verification_documents_request_type\""));
+
+        assertThatThrownBy(() -> service.uploadDocument("ID_DOCUMENT", PDF_BYTES, "cedula.pdf"))
+                .isInstanceOf(DocumentUploadConflictException.class);
+
+        verify(fileStoragePort, times(1)).delete(eq("verification-documents"), any());
     }
 }
