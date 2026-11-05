@@ -1554,6 +1554,732 @@
           ]
         },
         {
+          "name": "Documentos por tipo",
+          "description": "Un request listo por cada `ClinicDocumentType`, en vez del genérico de arriba —\nútil para probar el asistente tipo por tipo sin editar el form-data a mano.\n\nToken: **normal del OWNER** (también acepta token de clínica si el `vet_id` coincide,\nsiempre verificado contra la base con `requireVeterinaryOwner`).\n\nSe permite subir/borrar mientras la solicitud esté **`DRAFT`** o **`NEEDS_CORRECTION`**\n(clínica en `PENDING_DOCUMENTS` o `NEEDS_CORRECTION`); en cualquier otro estado →\n`409 VERIFICATION_LOCKED`. En `NEEDS_CORRECTION`, solo los tipos que el admin pidió\ncorregir se pueden tocar — el resto → `409 DOCUMENT_NOT_IN_CORRECTION`.\n\nOrden: primero los 3 obligatorios (`RUT`, `CHAMBER_OF_COMMERCE`, `LEGAL_REP_ID`), después\nel opcional (`FACADE_PHOTO`). Subir dos veces el mismo tipo reemplaza al anterior.",
+          "item": [
+            {
+              "name": "POST Subir RUT",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/verification/documents",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "verification",
+                    "documents"
+                  ]
+                },
+                "description": "Registro Único Tributario de la clínica. Tipo **obligatorio** (`RUT`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`RUT`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": [],
+                      "description": "PDF/JPEG/PNG ≤ 10MB"
+                    },
+                    {
+                      "key": "documentType",
+                      "type": "text",
+                      "value": "RUT",
+                      "description": "Fijo en RUT"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"status 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 201) {",
+                      "    const body = pm.response.json();",
+                      "    if (body.documentId || body.id) {",
+                      "        pm.environment.set(\"documentId_RUT\", body.documentId || body.id);",
+                      "        console.log(\"documentId_RUT =\", body.documentId || body.id);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "response": [
+                {
+                  "name": "201 · RUT subido",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [],
+                    "url": {
+                      "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/verification/documents",
+                      "host": [
+                        "{{vet_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "veterinary",
+                        "{{veterinaryId}}",
+                        "verification",
+                        "documents"
+                      ]
+                    },
+                    "description": "Registro Único Tributario de la clínica. Tipo **obligatorio** (`RUT`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`RUT`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.",
+                    "body": {
+                      "mode": "formdata",
+                      "formdata": [
+                        {
+                          "key": "file",
+                          "type": "file",
+                          "src": [],
+                          "description": "PDF/JPEG/PNG ≤ 10MB"
+                        },
+                        {
+                          "key": "documentType",
+                          "type": "text",
+                          "value": "RUT",
+                          "description": "Fijo en RUT"
+                        }
+                      ]
+                    }
+                  },
+                  "status": "Created",
+                  "code": 201,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"documentId\": \"d1e2f3a4-b5c6-4d78-9e0f-1a2b3c4d5e6f\",\n  \"requestId\": \"c3d4e5f6-a7b8-4910-8c2d-3e4f5a6b7c8d\",\n  \"documentType\": \"RUT\",\n  \"fileName\": \"rut-el-bosque.pdf\",\n  \"uploadedAt\": \"2026-10-30T09:12:00\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "DELETE Borrar RUT",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/verification/documents/{{documentId_RUT}}",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "verification",
+                    "documents",
+                    "{{documentId_RUT}}"
+                  ]
+                },
+                "description": "Borra el documento `RUT` subido más arriba (fila + archivo del bucket privado).\n\nToken: **normal del OWNER**.\n\n- `404 DOCUMENT_NOT_FOUND` — no existe o no es de esta clínica.\n- `409 VERIFICATION_LOCKED` · `409 DOCUMENT_NOT_IN_CORRECTION`."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"status 204\", function () {",
+                      "    pm.response.to.have.status(204);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "response": [
+                {
+                  "name": "204 · Documento eliminado",
+                  "originalRequest": {
+                    "method": "DELETE",
+                    "header": [],
+                    "url": {
+                      "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/verification/documents/{{documentId_RUT}}",
+                      "host": [
+                        "{{vet_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "veterinary",
+                        "{{veterinaryId}}",
+                        "verification",
+                        "documents",
+                        "{{documentId_RUT}}"
+                      ]
+                    },
+                    "description": "Borra el documento `RUT` subido más arriba (fila + archivo del bucket privado).\n\nToken: **normal del OWNER**.\n\n- `404 DOCUMENT_NOT_FOUND` — no existe o no es de esta clínica.\n- `409 VERIFICATION_LOCKED` · `409 DOCUMENT_NOT_IN_CORRECTION`."
+                  },
+                  "status": "No Content",
+                  "code": 204,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{}"
+                }
+              ]
+            },
+            {
+              "name": "POST Subir cámara de comercio",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/verification/documents",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "verification",
+                    "documents"
+                  ]
+                },
+                "description": "Certificado de existencia y representación legal (Cámara de Comercio). Tipo **obligatorio** (`CHAMBER_OF_COMMERCE`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`CHAMBER_OF_COMMERCE`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": [],
+                      "description": "PDF/JPEG/PNG ≤ 10MB"
+                    },
+                    {
+                      "key": "documentType",
+                      "type": "text",
+                      "value": "CHAMBER_OF_COMMERCE",
+                      "description": "Fijo en CHAMBER_OF_COMMERCE"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"status 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 201) {",
+                      "    const body = pm.response.json();",
+                      "    if (body.documentId || body.id) {",
+                      "        pm.environment.set(\"documentId_CHAMBER_OF_COMMERCE\", body.documentId || body.id);",
+                      "        console.log(\"documentId_CHAMBER_OF_COMMERCE =\", body.documentId || body.id);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "response": [
+                {
+                  "name": "201 · cámara de comercio subido",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [],
+                    "url": {
+                      "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/verification/documents",
+                      "host": [
+                        "{{vet_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "veterinary",
+                        "{{veterinaryId}}",
+                        "verification",
+                        "documents"
+                      ]
+                    },
+                    "description": "Certificado de existencia y representación legal (Cámara de Comercio). Tipo **obligatorio** (`CHAMBER_OF_COMMERCE`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`CHAMBER_OF_COMMERCE`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.",
+                    "body": {
+                      "mode": "formdata",
+                      "formdata": [
+                        {
+                          "key": "file",
+                          "type": "file",
+                          "src": [],
+                          "description": "PDF/JPEG/PNG ≤ 10MB"
+                        },
+                        {
+                          "key": "documentType",
+                          "type": "text",
+                          "value": "CHAMBER_OF_COMMERCE",
+                          "description": "Fijo en CHAMBER_OF_COMMERCE"
+                        }
+                      ]
+                    }
+                  },
+                  "status": "Created",
+                  "code": 201,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"documentId\": \"d1e2f3a4-b5c6-4d78-9e0f-1a2b3c4d5e6f\",\n  \"requestId\": \"c3d4e5f6-a7b8-4910-8c2d-3e4f5a6b7c8d\",\n  \"documentType\": \"CHAMBER_OF_COMMERCE\",\n  \"fileName\": \"camara-comercio.pdf\",\n  \"uploadedAt\": \"2026-10-30T09:12:00\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "DELETE Borrar cámara de comercio",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/verification/documents/{{documentId_CHAMBER_OF_COMMERCE}}",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "verification",
+                    "documents",
+                    "{{documentId_CHAMBER_OF_COMMERCE}}"
+                  ]
+                },
+                "description": "Borra el documento `CHAMBER_OF_COMMERCE` subido más arriba (fila + archivo del bucket privado).\n\nToken: **normal del OWNER**.\n\n- `404 DOCUMENT_NOT_FOUND` — no existe o no es de esta clínica.\n- `409 VERIFICATION_LOCKED` · `409 DOCUMENT_NOT_IN_CORRECTION`."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"status 204\", function () {",
+                      "    pm.response.to.have.status(204);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "response": [
+                {
+                  "name": "204 · Documento eliminado",
+                  "originalRequest": {
+                    "method": "DELETE",
+                    "header": [],
+                    "url": {
+                      "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/verification/documents/{{documentId_CHAMBER_OF_COMMERCE}}",
+                      "host": [
+                        "{{vet_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "veterinary",
+                        "{{veterinaryId}}",
+                        "verification",
+                        "documents",
+                        "{{documentId_CHAMBER_OF_COMMERCE}}"
+                      ]
+                    },
+                    "description": "Borra el documento `CHAMBER_OF_COMMERCE` subido más arriba (fila + archivo del bucket privado).\n\nToken: **normal del OWNER**.\n\n- `404 DOCUMENT_NOT_FOUND` — no existe o no es de esta clínica.\n- `409 VERIFICATION_LOCKED` · `409 DOCUMENT_NOT_IN_CORRECTION`."
+                  },
+                  "status": "No Content",
+                  "code": 204,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{}"
+                }
+              ]
+            },
+            {
+              "name": "POST Subir cédula del representante legal",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/verification/documents",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "verification",
+                    "documents"
+                  ]
+                },
+                "description": "Documento de identidad de quien firma legalmente por la clínica (ver `legalRepDocumentType`). Tipo **obligatorio** (`LEGAL_REP_ID`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`LEGAL_REP_ID`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": [],
+                      "description": "PDF/JPEG/PNG ≤ 10MB"
+                    },
+                    {
+                      "key": "documentType",
+                      "type": "text",
+                      "value": "LEGAL_REP_ID",
+                      "description": "Fijo en LEGAL_REP_ID"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"status 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 201) {",
+                      "    const body = pm.response.json();",
+                      "    if (body.documentId || body.id) {",
+                      "        pm.environment.set(\"documentId_LEGAL_REP_ID\", body.documentId || body.id);",
+                      "        console.log(\"documentId_LEGAL_REP_ID =\", body.documentId || body.id);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "response": [
+                {
+                  "name": "201 · cédula del representante legal subido",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [],
+                    "url": {
+                      "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/verification/documents",
+                      "host": [
+                        "{{vet_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "veterinary",
+                        "{{veterinaryId}}",
+                        "verification",
+                        "documents"
+                      ]
+                    },
+                    "description": "Documento de identidad de quien firma legalmente por la clínica (ver `legalRepDocumentType`). Tipo **obligatorio** (`LEGAL_REP_ID`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`LEGAL_REP_ID`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.",
+                    "body": {
+                      "mode": "formdata",
+                      "formdata": [
+                        {
+                          "key": "file",
+                          "type": "file",
+                          "src": [],
+                          "description": "PDF/JPEG/PNG ≤ 10MB"
+                        },
+                        {
+                          "key": "documentType",
+                          "type": "text",
+                          "value": "LEGAL_REP_ID",
+                          "description": "Fijo en LEGAL_REP_ID"
+                        }
+                      ]
+                    }
+                  },
+                  "status": "Created",
+                  "code": 201,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"documentId\": \"d1e2f3a4-b5c6-4d78-9e0f-1a2b3c4d5e6f\",\n  \"requestId\": \"c3d4e5f6-a7b8-4910-8c2d-3e4f5a6b7c8d\",\n  \"documentType\": \"LEGAL_REP_ID\",\n  \"fileName\": \"cedula-representante.pdf\",\n  \"uploadedAt\": \"2026-10-30T09:12:00\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "DELETE Borrar cédula del representante legal",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/verification/documents/{{documentId_LEGAL_REP_ID}}",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "verification",
+                    "documents",
+                    "{{documentId_LEGAL_REP_ID}}"
+                  ]
+                },
+                "description": "Borra el documento `LEGAL_REP_ID` subido más arriba (fila + archivo del bucket privado).\n\nToken: **normal del OWNER**.\n\n- `404 DOCUMENT_NOT_FOUND` — no existe o no es de esta clínica.\n- `409 VERIFICATION_LOCKED` · `409 DOCUMENT_NOT_IN_CORRECTION`."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"status 204\", function () {",
+                      "    pm.response.to.have.status(204);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "response": [
+                {
+                  "name": "204 · Documento eliminado",
+                  "originalRequest": {
+                    "method": "DELETE",
+                    "header": [],
+                    "url": {
+                      "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/verification/documents/{{documentId_LEGAL_REP_ID}}",
+                      "host": [
+                        "{{vet_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "veterinary",
+                        "{{veterinaryId}}",
+                        "verification",
+                        "documents",
+                        "{{documentId_LEGAL_REP_ID}}"
+                      ]
+                    },
+                    "description": "Borra el documento `LEGAL_REP_ID` subido más arriba (fila + archivo del bucket privado).\n\nToken: **normal del OWNER**.\n\n- `404 DOCUMENT_NOT_FOUND` — no existe o no es de esta clínica.\n- `409 VERIFICATION_LOCKED` · `409 DOCUMENT_NOT_IN_CORRECTION`."
+                  },
+                  "status": "No Content",
+                  "code": 204,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{}"
+                }
+              ]
+            },
+            {
+              "name": "POST Subir foto de la fachada",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/verification/documents",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "verification",
+                    "documents"
+                  ]
+                },
+                "description": "Foto de la fachada del local de la clínica. Tipo **opcional** (`FACADE_PHOTO`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`FACADE_PHOTO`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": [],
+                      "description": "PDF/JPEG/PNG ≤ 10MB"
+                    },
+                    {
+                      "key": "documentType",
+                      "type": "text",
+                      "value": "FACADE_PHOTO",
+                      "description": "Fijo en FACADE_PHOTO"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"status 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 201) {",
+                      "    const body = pm.response.json();",
+                      "    if (body.documentId || body.id) {",
+                      "        pm.environment.set(\"documentId_FACADE_PHOTO\", body.documentId || body.id);",
+                      "        console.log(\"documentId_FACADE_PHOTO =\", body.documentId || body.id);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "response": [
+                {
+                  "name": "201 · foto de la fachada subido",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [],
+                    "url": {
+                      "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/verification/documents",
+                      "host": [
+                        "{{vet_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "veterinary",
+                        "{{veterinaryId}}",
+                        "verification",
+                        "documents"
+                      ]
+                    },
+                    "description": "Foto de la fachada del local de la clínica. Tipo **opcional** (`FACADE_PHOTO`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`FACADE_PHOTO`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.",
+                    "body": {
+                      "mode": "formdata",
+                      "formdata": [
+                        {
+                          "key": "file",
+                          "type": "file",
+                          "src": [],
+                          "description": "PDF/JPEG/PNG ≤ 10MB"
+                        },
+                        {
+                          "key": "documentType",
+                          "type": "text",
+                          "value": "FACADE_PHOTO",
+                          "description": "Fijo en FACADE_PHOTO"
+                        }
+                      ]
+                    }
+                  },
+                  "status": "Created",
+                  "code": 201,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"documentId\": \"d1e2f3a4-b5c6-4d78-9e0f-1a2b3c4d5e6f\",\n  \"requestId\": \"c3d4e5f6-a7b8-4910-8c2d-3e4f5a6b7c8d\",\n  \"documentType\": \"FACADE_PHOTO\",\n  \"fileName\": \"fachada-el-bosque.jpg\",\n  \"uploadedAt\": \"2026-10-30T09:12:00\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "DELETE Borrar foto de la fachada",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/verification/documents/{{documentId_FACADE_PHOTO}}",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "verification",
+                    "documents",
+                    "{{documentId_FACADE_PHOTO}}"
+                  ]
+                },
+                "description": "Borra el documento `FACADE_PHOTO` subido más arriba (fila + archivo del bucket privado).\n\nToken: **normal del OWNER**.\n\n- `404 DOCUMENT_NOT_FOUND` — no existe o no es de esta clínica.\n- `409 VERIFICATION_LOCKED` · `409 DOCUMENT_NOT_IN_CORRECTION`."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"status 204\", function () {",
+                      "    pm.response.to.have.status(204);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "response": [
+                {
+                  "name": "204 · Documento eliminado",
+                  "originalRequest": {
+                    "method": "DELETE",
+                    "header": [],
+                    "url": {
+                      "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/verification/documents/{{documentId_FACADE_PHOTO}}",
+                      "host": [
+                        "{{vet_url}}"
+                      ],
+                      "path": [
+                        "api",
+                        "veterinary",
+                        "{{veterinaryId}}",
+                        "verification",
+                        "documents",
+                        "{{documentId_FACADE_PHOTO}}"
+                      ]
+                    },
+                    "description": "Borra el documento `FACADE_PHOTO` subido más arriba (fila + archivo del bucket privado).\n\nToken: **normal del OWNER**.\n\n- `404 DOCUMENT_NOT_FOUND` — no existe o no es de esta clínica.\n- `409 VERIFICATION_LOCKED` · `409 DOCUMENT_NOT_IN_CORRECTION`."
+                  },
+                  "status": "No Content",
+                  "code": 204,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{}"
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "POST Enviar verificación a revisión",
           "request": {
             "method": "POST",

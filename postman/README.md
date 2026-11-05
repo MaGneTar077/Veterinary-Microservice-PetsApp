@@ -62,7 +62,7 @@ este repo no contienen ningún secreto real, y Postman las oculta al compartir.
 00 · Login                        → access_token
 01 · Registrar clínica            → veterinaryId   (o 02 · GET Mis clínicas si ya tenés una)
 00 · Token de clínica             → clinic_token
-03 · Verificación: representante legal → 3 documentos → GET (canSubmit) → submit
+03 · Verificación: representante legal → 3 documentos (o "Documentos por tipo") → GET (canSubmit) → submit
 05 · Admin: cola → detalle → approve            (con admin_token)   → clínica ACTIVE
 00 · Token de clínica             (de nuevo: el status de la clínica cambió)
 08 · Invitar empleado             → invitationId
