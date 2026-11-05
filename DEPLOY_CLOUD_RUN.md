@@ -84,8 +84,10 @@ plano en la consola ni en un `.yaml` versionado).
 | `DB_URL` | **Sí** | — | ✅ (lleva el host del proyecto) | La app **no arranca**: Hikari no puede resolver `spring.datasource.url`. Usar el pooler transaccional de Supabase (puerto 6543). |
 | `DB_USERNAME` | **Sí** | — | ✅ | No arranca. |
 | `DB_PASSWORD` | **Sí** | — | ✅ | No arranca. |
-| `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE` | No | `10` (default de Hikari) | No | Con varias instancias de Cloud Run compitiendo por el cupo compartido del pooler de Supabase, un pool de 10 por instancia agota ese cupo rápido. Ponelo en un número chico (`3`) por instancia. Spring Boot lo toma por relaxed binding, sin tocar `application.yaml`. |
-| `SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT` | No | `30000` ms (default de Hikari) | No | Con el pool agotado, una petición puede quedar colgada hasta 30s esperando una conexión antes de fallar con `500` — esto fue justo lo que causó el bug de ~30s observado en `POST .../verification/documents`. Bajalo a `8000` para fallar rápido. |
+| `DB_POOL_MAX_SIZE` | No | `3` (fijado en `application.yaml`) | No | Con varias instancias de Cloud Run compitiendo por el cupo compartido del pooler de Supabase, un pool grande por instancia lo agota rápido. Sin esta variable, usa el default `3`. |
+| `DB_CONNECTION_TIMEOUT_MS` | No | `8000` ms (fijado en `application.yaml`) | No | Con el pool agotado, una petición puede quedar colgada esperando una conexión antes de fallar con `500` — con el default de Hikari (30000ms) esto fue justo lo que causó el bug de ~30s observado en `POST .../verification/documents`. Sin esta variable, usa el default `8000`. |
+
+> ⚠️ **No pongas `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE` ni `SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT` como variables de entorno reales, ni en Cloud Run ni en ningún otro lado.** Como variables del sistema operativo (no como propiedad de `application.yaml`), rompen el arranque: `APPLICATION FAILED TO START — ... The configuration of the pool is sealed once started`. Causa confirmada con un debugger: Spring, al bindear `spring.datasource.hikari.connection-timeout` desde el entorno del SO (una fuente de propiedades distinta a `application.yaml`), termina invocando el getter sin argumentos `HikariDataSource.getConnection()` — que colisiona con el patrón de nombre de bean property "connection" que expone la interfaz `DataSource` — abriendo una conexión real y sellando el pool a mitad de la configuración, antes de que `connection-init-sql` se pueda aplicar. Por eso el pool se tunea **solo** con `DB_POOL_MAX_SIZE`/`DB_CONNECTION_TIMEOUT_MS` (nombres propios, sin el prefijo `spring.datasource.hikari`, que nunca entran en esa colisión), resueltos dentro de `application.yaml` junto con `connection-init-sql`.
 | `JWT_JWKS_URI` | **Sí** | — | No (es una URL pública) | **No arranca**: `spring.security.oauth2.resourceserver.jwt.jwk-set-uri` no se puede resolver. Valor: `{USER_SERVICE_URL}/.well-known/jwks.json`. |
 | `INTERNAL_API_KEY` | **Sí** | — | ✅ | No arranca (`InternalApiKeyFilter` la pide en el constructor). Debe ser **idéntica** en todos los servicios. |
 | `SUPABASE_URL` | **Sí** | — | No | No arranca (`SupabaseStorageAdapter`). |
@@ -153,7 +155,7 @@ gcloud run deploy veterinary-service \
   --min-instances 0 \
   --service-account veterinary-service@<PROYECTO>.iam.gserviceaccount.com \
   --set-env-vars EVENTS_ENABLED=false,AI_VERIFICATION_ENABLED=false \
-  --set-env-vars SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=3,SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT=8000 \
+  --set-env-vars DB_POOL_MAX_SIZE=3,DB_CONNECTION_TIMEOUT_MS=8000 \
   --set-env-vars SUPABASE_URL=https://<ref>.supabase.co \
   --set-env-vars APP_BASE_URL=https://app.myanimalog.com \
   --set-env-vars INVITATION_BASE_URL=https://app.myanimalog.com/<RUTA-DEL-FRONT> \
@@ -269,3 +271,11 @@ servicio, poner `EVENTS_ENABLED=true` + `GCP_PROJECT_ID`, y que Notifications co
       `service_role`.
 - [ ] Revisar los índices de búsqueda del panel admin (`pg_trgm`) si se espera volumen — está en la
       deuda técnica de `CLAUDE.md`.
+- [ ] **Decidir si quitar `connection-init-sql`** (`SET SESSION CHARACTERISTICS AS TRANSACTION
+      ISOLATION LEVEL READ COMMITTED`, en `application.yaml`, junto a `DB_POOL_MAX_SIZE`/
+      `DB_CONNECTION_TIMEOUT_MS`). `READ COMMITTED` ya es el nivel de aislamiento por defecto de
+      Postgres, así que no cambia nada en la práctica. Además, es una `SET SESSION` — con el
+      Transaction pooler de Supabase (puerto 6543, PgBouncer en modo transacción) cada transacción
+      puede caer en una conexión física distinta del servidor, y PgBouncer no garantiza que un `SET`
+      a nivel de sesión persista ni se aísle correctamente entre clientes en ese modo. No se quitó en
+      este trabajo (pendiente de decisión), pero recomendado: sacarlo.
