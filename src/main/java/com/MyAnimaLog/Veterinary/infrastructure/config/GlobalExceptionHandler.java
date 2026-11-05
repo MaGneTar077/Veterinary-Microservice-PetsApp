@@ -63,6 +63,7 @@ import com.MyAnimaLog.Veterinary.domain.verification.exceptions.RegistryCheckReq
 import com.MyAnimaLog.Veterinary.domain.verification.exceptions.InvalidReviewDecisionException;
 import com.MyAnimaLog.Veterinary.domain.verification.exceptions.CannotReviewOwnRequestException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.DocumentNotInCorrectionException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.DocumentUploadConflictException;
 import com.MyAnimaLog.Veterinary.domain.verification.exceptions.AiVerificationDisabledException;
 import com.MyAnimaLog.Veterinary.domain.professional.exceptions.ProfessionalProfileNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.professional.exceptions.LicenseNumberAlreadyExistsException;
@@ -426,6 +427,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DocumentNotInCorrectionException.class)
     public ResponseEntity<Map<String, Object>> handleDocumentNotInCorrection(DocumentNotInCorrectionException ex) {
         return build(HttpStatus.CONFLICT, ex.getMessage(), "DOCUMENT_NOT_IN_CORRECTION");
+    }
+
+    @ExceptionHandler(DocumentUploadConflictException.class)
+    public ResponseEntity<Map<String, Object>> handleDocumentUploadConflict(DocumentUploadConflictException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), "DOCUMENT_UPLOAD_CONFLICT");
     }
 
     @ExceptionHandler(AiVerificationDisabledException.class)

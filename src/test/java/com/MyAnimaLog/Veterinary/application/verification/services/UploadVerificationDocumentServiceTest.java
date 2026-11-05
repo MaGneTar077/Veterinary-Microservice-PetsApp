@@ -13,14 +13,20 @@ import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VerificationLockedExce
 import com.MyAnimaLog.Veterinary.domain.verification.enums.SubjectType;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.VerificationRequestStatus;
 import com.MyAnimaLog.Veterinary.domain.verification.exceptions.InvalidDocumentTypeException;
+import com.MyAnimaLog.Veterinary.domain.shared.exceptions.DocumentUploadConflictException;
 import com.MyAnimaLog.Veterinary.domain.verification.model.VerificationDocument;
 import com.MyAnimaLog.Veterinary.domain.verification.model.VerificationRequest;
 import com.MyAnimaLog.Veterinary.infrastructure.storage.StorageProperties;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -68,6 +74,13 @@ class UploadVerificationDocumentServiceTest {
                 .thenReturn(List.of());
         lenient().when(verificationDocumentRepositoryPort.save(any(VerificationDocument.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     @Test
@@ -128,19 +141,98 @@ class UploadVerificationDocumentServiceTest {
     }
 
     @Test
-    void uploadDocument_shouldReplaceExistingDocumentOfSameType_deletingOldRowAndOldFile() {
+    void uploadDocument_shouldReplaceExistingDocumentOfSameType_reusingSameRowId() {
         VerificationDocument existing = VerificationDocument.builder()
                 .id(UUID.randomUUID())
                 .requestId(openRequest.getId())
                 .documentType("RUT")
-                .storagePath("verifications/" + openRequest.getId() + "/old-id.pdf")
+                .storagePath("verifications/" + openRequest.getId() + "/" + UUID.randomUUID() + ".pdf")
                 .build();
         when(verificationDocumentRepositoryPort.findByRequestId(openRequest.getId())).thenReturn(List.of(existing));
 
-        service.uploadDocument(veterinaryId, "RUT", PDF_BYTES, "rut.pdf");
+        UploadVerificationDocumentResponse response = service.uploadDocument(veterinaryId, "RUT", PDF_BYTES, "rut-nuevo.pdf");
 
-        verify(verificationDocumentRepositoryPort, times(1)).deleteById(existing.getId());
+        assertThat(response.getDocumentId()).isEqualTo(existing.getId());
+        ArgumentCaptor<VerificationDocument> savedCaptor = ArgumentCaptor.forClass(VerificationDocument.class);
+        verify(verificationDocumentRepositoryPort, times(1)).save(savedCaptor.capture());
+        assertThat(savedCaptor.getValue().getId()).isEqualTo(existing.getId());
+        verify(verificationDocumentRepositoryPort, never()).deleteById(any());
+        verify(fileStoragePort, times(1)).uploadPrivate(eq("verification-documents"), any(), any(), any());
+    }
+
+    @Test
+    void uploadDocument_shouldReplaceInNeedsCorrection_andStatusGoesBackToReady() {
+        VerificationRequest needsCorrection = openRequest.toBuilder()
+                .status(VerificationRequestStatus.NEEDS_CORRECTION)
+                .correctionDocumentTypes(List.of("RUT"))
+                .correctionRequestedAt(LocalDateTime.now())
+                .build();
+        VerificationDocument existing = VerificationDocument.builder()
+                .id(UUID.randomUUID())
+                .requestId(needsCorrection.getId())
+                .documentType("RUT")
+                .storagePath("verifications/" + needsCorrection.getId() + "/" + UUID.randomUUID() + ".pdf")
+                .uploadedAt(needsCorrection.getCorrectionRequestedAt().minusDays(1))
+                .build();
+        when(verificationRequestRepositoryPort.findLatestBySubject(SubjectType.CLINIC, veterinaryId))
+                .thenReturn(Optional.of(needsCorrection));
+        when(verificationDocumentRepositoryPort.findByRequestId(needsCorrection.getId())).thenReturn(List.of(existing));
+
+        UploadVerificationDocumentResponse response = service.uploadDocument(veterinaryId, "RUT", PDF_BYTES, "rut-corregido.pdf");
+
+        assertThat(response.getDocumentId()).isEqualTo(existing.getId());
+        assertThat(VerificationDocumentStatusCalculator.statusFor(needsCorrection, "RUT",
+                VerificationDocument.builder().uploadedAt(response.getUploadedAt()).build()))
+                .isEqualTo("READY");
+    }
+
+    @Test
+    void uploadDocument_shouldDeleteNewFile_whenTransactionFails() {
+        when(verificationDocumentRepositoryPort.save(any(VerificationDocument.class)))
+                .thenThrow(new RuntimeException("db commit failed"));
+
+        assertThatThrownBy(() -> service.uploadDocument(veterinaryId, "RUT", PDF_BYTES, "rut.pdf"))
+                .isInstanceOf(RuntimeException.class);
+
+        verify(fileStoragePort, times(1)).uploadPrivate(eq("verification-documents"), any(), any(), any());
+        verify(fileStoragePort, times(1)).delete(eq("verification-documents"), any());
+    }
+
+    @Test
+    void uploadDocument_shouldDeleteOldFile_onlyAfterCommit() {
+        VerificationDocument existing = VerificationDocument.builder()
+                .id(UUID.randomUUID())
+                .requestId(openRequest.getId())
+                .documentType("RUT")
+                .storagePath("verifications/" + openRequest.getId() + "/old-id.jpg")
+                .build();
+        when(verificationDocumentRepositoryPort.findByRequestId(openRequest.getId())).thenReturn(List.of(existing));
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.uploadDocument(veterinaryId, "RUT", PDF_BYTES, "rut.pdf");
+
+            verify(fileStoragePort, never()).delete(eq("verification-documents"), eq(existing.getStoragePath()));
+
+            List<TransactionSynchronization> synchronizations = TransactionSynchronizationManager.getSynchronizations();
+            assertThat(synchronizations).hasSize(1);
+            synchronizations.forEach(TransactionSynchronization::afterCommit);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
         verify(fileStoragePort, times(1)).delete("verification-documents", existing.getStoragePath());
+    }
+
+    @Test
+    void uploadDocument_shouldThrowConflict409_whenUniqueConstraintIsViolatedByARace() {
+        when(verificationDocumentRepositoryPort.save(any(VerificationDocument.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint \"ux_verification_documents_request_type\""));
+
+        assertThatThrownBy(() -> service.uploadDocument(veterinaryId, "RUT", PDF_BYTES, "rut.pdf"))
+                .isInstanceOf(DocumentUploadConflictException.class);
+
+        verify(fileStoragePort, times(1)).delete(eq("verification-documents"), any());
     }
 
     @Test
@@ -173,16 +265,5 @@ class UploadVerificationDocumentServiceTest {
         UploadVerificationDocumentResponse response = service.uploadDocument(veterinaryId, "RUT", PDF_BYTES, "rut.pdf");
 
         assertThat(response.getDocumentType()).isEqualTo("RUT");
-    }
-
-    @Test
-    void uploadDocument_shouldCompensateByDeletingUploadedFile_whenSaveFails() {
-        when(verificationDocumentRepositoryPort.save(any(VerificationDocument.class)))
-                .thenThrow(new RuntimeException("db down"));
-
-        assertThatThrownBy(() -> service.uploadDocument(veterinaryId, "RUT", PDF_BYTES, "rut.pdf"))
-                .isInstanceOf(RuntimeException.class);
-
-        verify(fileStoragePort, times(1)).delete(eq("verification-documents"), any());
     }
 }

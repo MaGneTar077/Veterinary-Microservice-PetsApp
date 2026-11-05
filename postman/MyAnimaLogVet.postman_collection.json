@@ -1391,7 +1391,7 @@
                 "documents"
               ]
             },
-            "description": "`multipart/form-data` con **`file`** y **`documentType`**.\n\n`documentType`: `RUT`, `CHAMBER_OF_COMMERCE`, `LEGAL_REP_ID` (obligatorios) o `FACADE_PHOTO`\n(opcional). PDF, JPEG o PNG, máximo **10 MB**, validados por firma real del archivo.\n\nSubir dos veces el mismo tipo **reemplaza** el anterior (borra la fila y el archivo viejo).\nVan a un bucket **privado**: solo se leen con URLs firmadas de 10 minutos desde el panel del admin.\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `409 VERIFICATION_LOCKED` — solicitud no editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, ese tipo no estaba entre los pedidos.",
+            "description": "`multipart/form-data` con **`file`** y **`documentType`**.\n\n`documentType`: `RUT`, `CHAMBER_OF_COMMERCE`, `LEGAL_REP_ID` (obligatorios) o `FACADE_PHOTO`\n(opcional). PDF, JPEG o PNG, máximo **10 MB**, validados por firma real del archivo.\n\nSubir dos veces el mismo tipo **reemplaza** el anterior: misma fila (mismo `documentId`,\n`UPDATE`), nunca una fila nueva. El archivo nuevo sube primero; el viejo se borra del bucket\n**después del commit** (si falla el borrado, solo log — no afecta la respuesta). Van a un\nbucket **privado**: solo se leen con URLs firmadas de 10 minutos desde el panel del admin.\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `409 VERIFICATION_LOCKED` — solicitud no editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, ese tipo no estaba entre los pedidos.\n- `409 DOCUMENT_UPLOAD_CONFLICT` — dos subidas del mismo tipo llegaron a la vez (carrera); reintentá.",
             "body": {
               "mode": "formdata",
               "formdata": [
@@ -1450,7 +1450,7 @@
                     "documents"
                   ]
                 },
-                "description": "`multipart/form-data` con **`file`** y **`documentType`**.\n\n`documentType`: `RUT`, `CHAMBER_OF_COMMERCE`, `LEGAL_REP_ID` (obligatorios) o `FACADE_PHOTO`\n(opcional). PDF, JPEG o PNG, máximo **10 MB**, validados por firma real del archivo.\n\nSubir dos veces el mismo tipo **reemplaza** el anterior (borra la fila y el archivo viejo).\nVan a un bucket **privado**: solo se leen con URLs firmadas de 10 minutos desde el panel del admin.\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `409 VERIFICATION_LOCKED` — solicitud no editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, ese tipo no estaba entre los pedidos.",
+                "description": "`multipart/form-data` con **`file`** y **`documentType`**.\n\n`documentType`: `RUT`, `CHAMBER_OF_COMMERCE`, `LEGAL_REP_ID` (obligatorios) o `FACADE_PHOTO`\n(opcional). PDF, JPEG o PNG, máximo **10 MB**, validados por firma real del archivo.\n\nSubir dos veces el mismo tipo **reemplaza** el anterior: misma fila (mismo `documentId`,\n`UPDATE`), nunca una fila nueva. El archivo nuevo sube primero; el viejo se borra del bucket\n**después del commit** (si falla el borrado, solo log — no afecta la respuesta). Van a un\nbucket **privado**: solo se leen con URLs firmadas de 10 minutos desde el panel del admin.\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `409 VERIFICATION_LOCKED` — solicitud no editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, ese tipo no estaba entre los pedidos.\n- `409 DOCUMENT_UPLOAD_CONFLICT` — dos subidas del mismo tipo llegaron a la vez (carrera); reintentá.",
                 "body": {
                   "mode": "formdata",
                   "formdata": [
@@ -1479,7 +1479,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\n  \"documentId\": \"d1e2f3a4-b5c6-4d78-9e0f-1a2b3c4d5e6f\",\n  \"documentType\": \"RUT\",\n  \"fileName\": \"rut-el-bosque.pdf\",\n  \"mimeType\": \"application/pdf\",\n  \"fileSizeBytes\": 284512,\n  \"uploadedAt\": \"2026-10-30T09:12:00\"\n}"
+              "body": "{\n  \"documentId\": \"d1e2f3a4-b5c6-4d78-9e0f-1a2b3c4d5e6f\",\n  \"requestId\": \"c3d4e5f6-a7b8-4910-8c2d-3e4f5a6b7c8d\",\n  \"documentType\": \"RUT\",\n  \"fileName\": \"rut-el-bosque.pdf\",\n  \"uploadedAt\": \"2026-10-30T09:12:00\"\n}"
             }
           ]
         },
@@ -1555,7 +1555,7 @@
         },
         {
           "name": "Documentos por tipo",
-          "description": "Un request listo por cada `ClinicDocumentType`, en vez del genérico de arriba —\nútil para probar el asistente tipo por tipo sin editar el form-data a mano.\n\nToken: **normal del OWNER** (también acepta token de clínica si el `vet_id` coincide,\nsiempre verificado contra la base con `requireVeterinaryOwner`).\n\nSe permite subir/borrar mientras la solicitud esté **`DRAFT`** o **`NEEDS_CORRECTION`**\n(clínica en `PENDING_DOCUMENTS` o `NEEDS_CORRECTION`); en cualquier otro estado →\n`409 VERIFICATION_LOCKED`. En `NEEDS_CORRECTION`, solo los tipos que el admin pidió\ncorregir se pueden tocar — el resto → `409 DOCUMENT_NOT_IN_CORRECTION`.\n\nOrden: primero los 3 obligatorios (`RUT`, `CHAMBER_OF_COMMERCE`, `LEGAL_REP_ID`), después\nel opcional (`FACADE_PHOTO`). Subir dos veces el mismo tipo reemplaza al anterior.",
+          "description": "Un request listo por cada `ClinicDocumentType`, en vez del genérico de arriba —\nútil para probar el asistente tipo por tipo sin editar el form-data a mano.\n\nToken: **normal del OWNER** (también acepta token de clínica si el `vet_id` coincide,\nsiempre verificado contra la base con `requireVeterinaryOwner`).\n\nSe permite subir/borrar mientras la solicitud esté **`DRAFT`** o **`NEEDS_CORRECTION`**\n(clínica en `PENDING_DOCUMENTS` o `NEEDS_CORRECTION`); en cualquier otro estado →\n`409 VERIFICATION_LOCKED`. En `NEEDS_CORRECTION`, solo los tipos que el admin pidió\ncorregir se pueden tocar — el resto → `409 DOCUMENT_NOT_IN_CORRECTION`.\n\nOrden: primero los 3 obligatorios (`RUT`, `CHAMBER_OF_COMMERCE`, `LEGAL_REP_ID`), después\nel opcional (`FACADE_PHOTO`). Subir dos veces el mismo tipo **reemplaza** al anterior: misma\nfila (mismo `documentId`, `UPDATE`), el archivo viejo se borra del bucket después del commit.",
           "item": [
             {
               "name": "POST Subir RUT",
@@ -1575,7 +1575,7 @@
                     "documents"
                   ]
                 },
-                "description": "Registro Único Tributario de la clínica. Tipo **obligatorio** (`RUT`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`RUT`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.",
+                "description": "Registro Único Tributario de la clínica. Tipo **obligatorio** (`RUT`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`RUT`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.\n- `409 DOCUMENT_UPLOAD_CONFLICT` — dos subidas de este tipo llegaron a la vez (carrera); reintentá.",
                 "body": {
                   "mode": "formdata",
                   "formdata": [
@@ -1634,7 +1634,7 @@
                         "documents"
                       ]
                     },
-                    "description": "Registro Único Tributario de la clínica. Tipo **obligatorio** (`RUT`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`RUT`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.",
+                    "description": "Registro Único Tributario de la clínica. Tipo **obligatorio** (`RUT`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`RUT`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.\n- `409 DOCUMENT_UPLOAD_CONFLICT` — dos subidas de este tipo llegaron a la vez (carrera); reintentá.",
                     "body": {
                       "mode": "formdata",
                       "formdata": [
@@ -1755,7 +1755,7 @@
                     "documents"
                   ]
                 },
-                "description": "Certificado de existencia y representación legal (Cámara de Comercio). Tipo **obligatorio** (`CHAMBER_OF_COMMERCE`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`CHAMBER_OF_COMMERCE`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.",
+                "description": "Certificado de existencia y representación legal (Cámara de Comercio). Tipo **obligatorio** (`CHAMBER_OF_COMMERCE`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`CHAMBER_OF_COMMERCE`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.\n- `409 DOCUMENT_UPLOAD_CONFLICT` — dos subidas de este tipo llegaron a la vez (carrera); reintentá.",
                 "body": {
                   "mode": "formdata",
                   "formdata": [
@@ -1814,7 +1814,7 @@
                         "documents"
                       ]
                     },
-                    "description": "Certificado de existencia y representación legal (Cámara de Comercio). Tipo **obligatorio** (`CHAMBER_OF_COMMERCE`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`CHAMBER_OF_COMMERCE`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.",
+                    "description": "Certificado de existencia y representación legal (Cámara de Comercio). Tipo **obligatorio** (`CHAMBER_OF_COMMERCE`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`CHAMBER_OF_COMMERCE`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.\n- `409 DOCUMENT_UPLOAD_CONFLICT` — dos subidas de este tipo llegaron a la vez (carrera); reintentá.",
                     "body": {
                       "mode": "formdata",
                       "formdata": [
@@ -1935,7 +1935,7 @@
                     "documents"
                   ]
                 },
-                "description": "Documento de identidad de quien firma legalmente por la clínica (ver `legalRepDocumentType`). Tipo **obligatorio** (`LEGAL_REP_ID`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`LEGAL_REP_ID`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.",
+                "description": "Documento de identidad de quien firma legalmente por la clínica (ver `legalRepDocumentType`). Tipo **obligatorio** (`LEGAL_REP_ID`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`LEGAL_REP_ID`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.\n- `409 DOCUMENT_UPLOAD_CONFLICT` — dos subidas de este tipo llegaron a la vez (carrera); reintentá.",
                 "body": {
                   "mode": "formdata",
                   "formdata": [
@@ -1994,7 +1994,7 @@
                         "documents"
                       ]
                     },
-                    "description": "Documento de identidad de quien firma legalmente por la clínica (ver `legalRepDocumentType`). Tipo **obligatorio** (`LEGAL_REP_ID`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`LEGAL_REP_ID`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.",
+                    "description": "Documento de identidad de quien firma legalmente por la clínica (ver `legalRepDocumentType`). Tipo **obligatorio** (`LEGAL_REP_ID`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`LEGAL_REP_ID`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.\n- `409 DOCUMENT_UPLOAD_CONFLICT` — dos subidas de este tipo llegaron a la vez (carrera); reintentá.",
                     "body": {
                       "mode": "formdata",
                       "formdata": [
@@ -2115,7 +2115,7 @@
                     "documents"
                   ]
                 },
-                "description": "Foto de la fachada del local de la clínica. Tipo **opcional** (`FACADE_PHOTO`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`FACADE_PHOTO`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.",
+                "description": "Foto de la fachada del local de la clínica. Tipo **opcional** (`FACADE_PHOTO`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`FACADE_PHOTO`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.\n- `409 DOCUMENT_UPLOAD_CONFLICT` — dos subidas de este tipo llegaron a la vez (carrera); reintentá.",
                 "body": {
                   "mode": "formdata",
                   "formdata": [
@@ -2174,7 +2174,7 @@
                         "documents"
                       ]
                     },
-                    "description": "Foto de la fachada del local de la clínica. Tipo **opcional** (`FACADE_PHOTO`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`FACADE_PHOTO`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.",
+                    "description": "Foto de la fachada del local de la clínica. Tipo **opcional** (`FACADE_PHOTO`).\n\n`multipart/form-data` con **`file`** (PDF, JPEG o PNG, máximo **10 MB**, validado por\nla firma real del archivo, no por `Content-Type`) y **`documentType`** fijo en\n`FACADE_PHOTO`.\n\nToken: **normal del OWNER**. Permitido con la solicitud en `DRAFT`/`NEEDS_CORRECTION`\n(clínica `PENDING_DOCUMENTS`/`NEEDS_CORRECTION`).\n\n- `400 INVALID_FILE_TYPE` · `413 FILE_TOO_LARGE`\n- `403 NOT_VETERINARY_OWNER` — no sos el dueño activo de esa clínica.\n- `409 VERIFICATION_LOCKED` — la solicitud ya no es editable.\n- `409 DOCUMENT_NOT_IN_CORRECTION` — en `NEEDS_CORRECTION`, este tipo no estaba entre los pedidos.\n- `409 DOCUMENT_UPLOAD_CONFLICT` — dos subidas de este tipo llegaron a la vez (carrera); reintentá.",
                     "body": {
                       "mode": "formdata",
                       "formdata": [
@@ -2699,7 +2699,7 @@
                 "documents"
               ]
             },
-            "description": "`multipart/form-data` con **`file`** y **`documentType`**.\n\n`documentType`: `PROFESSIONAL_CARD` e `ID_DOCUMENT` (obligatorios para enviar) o `DEGREE`\n(opcional). PDF/JPEG/PNG ≤ 10 MB, por firma real. Bucket privado.\n\nMismas reglas de reemplazo y de `NEEDS_CORRECTION` que los documentos de la clínica.",
+            "description": "`multipart/form-data` con **`file`** y **`documentType`**.\n\n`documentType`: `PROFESSIONAL_CARD` e `ID_DOCUMENT` (obligatorios para enviar) o `DEGREE`\n(opcional). PDF/JPEG/PNG ≤ 10 MB, por firma real. Bucket privado.\n\nMismas reglas de reemplazo y de `NEEDS_CORRECTION` que los documentos de la clínica: subir\nde nuevo el mismo tipo actualiza la misma fila (`UPDATE`), el archivo viejo se borra después\ndel commit, y una carrera entre dos subidas responde `409 DOCUMENT_UPLOAD_CONFLICT`.",
             "body": {
               "mode": "formdata",
               "formdata": [
@@ -2758,7 +2758,7 @@
                     "documents"
                   ]
                 },
-                "description": "`multipart/form-data` con **`file`** y **`documentType`**.\n\n`documentType`: `PROFESSIONAL_CARD` e `ID_DOCUMENT` (obligatorios para enviar) o `DEGREE`\n(opcional). PDF/JPEG/PNG ≤ 10 MB, por firma real. Bucket privado.\n\nMismas reglas de reemplazo y de `NEEDS_CORRECTION` que los documentos de la clínica.",
+                "description": "`multipart/form-data` con **`file`** y **`documentType`**.\n\n`documentType`: `PROFESSIONAL_CARD` e `ID_DOCUMENT` (obligatorios para enviar) o `DEGREE`\n(opcional). PDF/JPEG/PNG ≤ 10 MB, por firma real. Bucket privado.\n\nMismas reglas de reemplazo y de `NEEDS_CORRECTION` que los documentos de la clínica: subir\nde nuevo el mismo tipo actualiza la misma fila (`UPDATE`), el archivo viejo se borra después\ndel commit, y una carrera entre dos subidas responde `409 DOCUMENT_UPLOAD_CONFLICT`.",
                 "body": {
                   "mode": "formdata",
                   "formdata": [
