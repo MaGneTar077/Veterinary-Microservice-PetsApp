@@ -76,6 +76,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
@@ -447,6 +448,21 @@ public class GlobalExceptionHandler {
         if (message.isBlank()) {
             message = "Validation failed";
         }
+        return build(HttpStatus.BAD_REQUEST, message, "VALIDATION_ERROR");
+    }
+
+    /**
+     * A query/path param that doesn't convert to its declared type — most commonly an invalid value
+     * for an enum-typed filter such as {@code ?status=FOO} on an admin listing endpoint (e.g.
+     * {@code VeterinaryStatus}, {@code VerificationRequestStatus}, {@code SubjectType}). An empty
+     * value ({@code ?status=}) never reaches here: Spring's {@code StringToEnumConverterFactory}
+     * already converts an empty string to {@code null} before binding, so it's treated as "filter
+     * absent", not an error.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        String requiredType = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "the expected type";
+        String message = ex.getName() + ": '" + ex.getValue() + "' is not a valid value for " + requiredType;
         return build(HttpStatus.BAD_REQUEST, message, "VALIDATION_ERROR");
     }
 

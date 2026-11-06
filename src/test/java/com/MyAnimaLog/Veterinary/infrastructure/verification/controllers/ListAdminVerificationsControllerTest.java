@@ -70,6 +70,26 @@ class ListAdminVerificationsControllerTest {
     }
 
     @Test
+    void list_shouldReturn400_whenStatusIsInvalid() throws Exception {
+        mockMvc.perform(get("/api/veterinary/admin/verifications")
+                        .param("status", "NOT_A_REAL_STATUS")
+                        .with(csrf())
+                        .with(jwt().authorities(new SimpleGrantedAuthority("PLATFORM_ADMIN"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void list_shouldReturn400_whenSubjectTypeIsInvalid() throws Exception {
+        mockMvc.perform(get("/api/veterinary/admin/verifications")
+                        .param("subjectType", "NOT_A_REAL_SUBJECT_TYPE")
+                        .with(csrf())
+                        .with(jwt().authorities(new SimpleGrantedAuthority("PLATFORM_ADMIN"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
     void list_shouldReturn403_whenCallerLacksPlatformAdminAuthority() throws Exception {
         mockMvc.perform(get("/api/veterinary/admin/verifications")
                         .with(csrf())
