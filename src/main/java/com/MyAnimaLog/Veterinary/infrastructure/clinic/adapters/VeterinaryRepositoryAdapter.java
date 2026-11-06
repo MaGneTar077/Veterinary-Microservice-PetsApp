@@ -5,10 +5,13 @@ import com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
 import com.MyAnimaLog.Veterinary.infrastructure.clinic.entity.VeterinaryEntity;
 import com.MyAnimaLog.Veterinary.infrastructure.clinic.mapper.VeterinaryMapper;
+import com.MyAnimaLog.Veterinary.infrastructure.clinic.repositories.VeterinaryAdminSpecifications;
 import com.MyAnimaLog.Veterinary.infrastructure.clinic.repositories.VeterinaryJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -72,14 +75,10 @@ public class VeterinaryRepositoryAdapter implements VeterinaryRepositoryPort {
     @Override
     public AdminClinicPage findForAdminList(VeterinaryStatus status, String search, String plan, String city,
                                              String department, int page, int size) {
-        String likeSearch = search != null ? "%" + search.toLowerCase() + "%" : null;
-        Page<VeterinaryEntity> result = jpaRepository.findForAdminList(
-                status != null ? status.name() : null,
-                likeSearch,
-                plan,
-                city,
-                department,
-                PageRequest.of(page, size));
+        Specification<VeterinaryEntity> specification =
+                VeterinaryAdminSpecifications.build(status, search, plan, city, department);
+        Page<VeterinaryEntity> result = jpaRepository.findAll(specification,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
         List<Veterinary> items = result.getContent().stream().map(mapper::toDomain).toList();
         return new AdminClinicPage(items, result.getTotalElements());
     }

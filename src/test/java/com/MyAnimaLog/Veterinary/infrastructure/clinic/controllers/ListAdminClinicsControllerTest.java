@@ -72,6 +72,16 @@ class ListAdminClinicsControllerTest {
     }
 
     @Test
+    void list_shouldReturn400_whenStatusIsInvalid() throws Exception {
+        mockMvc.perform(get("/api/veterinary/admin/veterinaries")
+                        .param("status", "NOT_A_REAL_STATUS")
+                        .with(csrf())
+                        .with(jwt().authorities(new SimpleGrantedAuthority("PLATFORM_ADMIN"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
     void list_shouldReturn403_whenCallerLacksPlatformAdminAuthority() throws Exception {
         mockMvc.perform(get("/api/veterinary/admin/veterinaries")
                         .with(csrf())

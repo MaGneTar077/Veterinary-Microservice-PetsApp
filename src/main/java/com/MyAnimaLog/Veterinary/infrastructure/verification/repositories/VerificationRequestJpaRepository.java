@@ -3,9 +3,8 @@ package com.MyAnimaLog.Veterinary.infrastructure.verification.repositories;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.SubjectType;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.VerificationRequestStatus;
 import com.MyAnimaLog.Veterinary.infrastructure.verification.entity.VerificationRequestEntity;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -14,21 +13,27 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-public interface VerificationRequestJpaRepository extends JpaRepository<VerificationRequestEntity, UUID> {
+public interface VerificationRequestJpaRepository extends JpaRepository<VerificationRequestEntity, UUID>,
+        JpaSpecificationExecutor<VerificationRequestEntity> {
     List<VerificationRequestEntity> findBySubjectTypeAndSubjectIdOrderByCreatedAtDesc(SubjectType subjectType, UUID subjectId);
 
-    @Query("SELECT v FROM VerificationRequestEntity v "
-            + "WHERE v.status = :status AND (:subjectType IS NULL OR v.subjectType = :subjectType) "
-            + "ORDER BY v.submittedAt ASC")
-    Page<VerificationRequestEntity> findForAdminQueue(@Param("status") VerificationRequestStatus status,
-                                                       @Param("subjectType") SubjectType subjectType,
-                                                       Pageable pageable);
-
+    /**
+     * {@code subjectType} present: the only two patterns actually called by {@code countByStatusForAdminQueue}'s
+     * two call sites in the adapter — never a (:subjectType IS NULL OR ...) guard, which used to 500 on
+     * PostgreSQL when the parameter had no value (see VerificationRequestAdminSpecifications for the
+     * equivalent fix on findForAdminQueue, where a Specification is used instead since it's a Page of
+     * entities rather than a GROUP BY aggregate).
+     */
     @Query("SELECT v.status AS status, COUNT(v) AS total FROM VerificationRequestEntity v "
-            + "WHERE (:subjectType IS NULL OR v.subjectType = :subjectType) "
+            + "WHERE v.subjectType = :subjectType "
             + "AND v.status IN ('UNDER_REVIEW', 'NEEDS_CORRECTION', 'APPROVED', 'REJECTED') "
             + "GROUP BY v.status")
-    List<StatusCount> countByStatusForAdminQueue(@Param("subjectType") SubjectType subjectType);
+    List<StatusCount> countByStatusForAdminQueueAndSubjectType(@Param("subjectType") SubjectType subjectType);
+
+    @Query("SELECT v.status AS status, COUNT(v) AS total FROM VerificationRequestEntity v "
+            + "WHERE v.status IN ('UNDER_REVIEW', 'NEEDS_CORRECTION', 'APPROVED', 'REJECTED') "
+            + "GROUP BY v.status")
+    List<StatusCount> countByStatusForAdminQueue();
 
     interface StatusCount {
         VerificationRequestStatus getStatus();

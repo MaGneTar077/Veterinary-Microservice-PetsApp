@@ -206,10 +206,12 @@ class VeterinaryRepositoryAdapterTest {
     }
 
     @Test
-    void findForAdminList_shouldMapPageAndLowercaseSearchForLike() {
+    void findForAdminList_shouldMapPage_whenFiltersAreProvided() {
         org.springframework.data.domain.Page<VeterinaryEntity> page =
                 new org.springframework.data.domain.PageImpl<>(java.util.List.of(entity));
-        when(jpaRepository.findForAdminList(eq("ACTIVE"), eq("%clinica%"), eq("PRO"), eq("Bogota"), eq("Bogota D.C."), any()))
+        when(jpaRepository.findAll(
+                org.mockito.ArgumentMatchers.<org.springframework.data.jpa.domain.Specification<VeterinaryEntity>>any(),
+                any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(page);
         when(mapper.toDomain(any(VeterinaryEntity.class))).thenReturn(domain);
 
@@ -220,20 +222,27 @@ class VeterinaryRepositoryAdapterTest {
 
         assertThat(result.items()).hasSize(1);
         assertThat(result.total()).isEqualTo(1);
-        verify(jpaRepository, times(1))
-                .findForAdminList(eq("ACTIVE"), eq("%clinica%"), eq("PRO"), eq("Bogota"), eq("Bogota D.C."), any());
+        verify(jpaRepository, times(1)).findAll(
+                org.mockito.ArgumentMatchers.<org.springframework.data.jpa.domain.Specification<VeterinaryEntity>>any(),
+                any(org.springframework.data.domain.Pageable.class));
     }
 
     @Test
-    void findForAdminList_shouldPassNullFilters_whenNoneProvided() {
+    void findForAdminList_shouldMapEmptyPage_whenNoFiltersProvided() {
         org.springframework.data.domain.Page<VeterinaryEntity> page =
                 new org.springframework.data.domain.PageImpl<>(java.util.List.of());
-        when(jpaRepository.findForAdminList(isNull(), isNull(), isNull(), isNull(), isNull(), any()))
+        when(jpaRepository.findAll(
+                org.mockito.ArgumentMatchers.<org.springframework.data.jpa.domain.Specification<VeterinaryEntity>>any(),
+                any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(page);
 
-        veterinaryRepositoryAdapter.findForAdminList(null, null, null, null, null, 0, 20);
+        com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort.AdminClinicPage result =
+                veterinaryRepositoryAdapter.findForAdminList(null, null, null, null, null, 0, 20);
 
-        verify(jpaRepository, times(1))
-                .findForAdminList(isNull(), isNull(), isNull(), isNull(), isNull(), any());
+        assertThat(result.items()).isEmpty();
+        assertThat(result.total()).isZero();
+        verify(jpaRepository, times(1)).findAll(
+                org.mockito.ArgumentMatchers.<org.springframework.data.jpa.domain.Specification<VeterinaryEntity>>any(),
+                any(org.springframework.data.domain.Pageable.class));
     }
 }
