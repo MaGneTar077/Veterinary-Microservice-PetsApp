@@ -2,18 +2,18 @@ package com.MyAnimaLog.Veterinary.application.patients.services;
 
 import com.MyAnimaLog.Veterinary.application.patients.dto.LinkByCodeRequest;
 import com.MyAnimaLog.Veterinary.application.patients.dto.LinkByCodeResponse;
-import com.MyAnimaLog.Veterinary.application.patients.ports.out.UserVeterinaryLinkRepositoryPort;
-import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.patients.dto.LinkToVeterinaryRequest;
+import com.MyAnimaLog.Veterinary.application.patients.dto.LinkToVeterinaryResponse;
+import com.MyAnimaLog.Veterinary.application.patients.ports.in.LinkToVeterinaryUseCase;
 import com.MyAnimaLog.Veterinary.application.shared.dto.AuthenticatedUser;
 import com.MyAnimaLog.Veterinary.application.shared.ports.out.AuthenticatedUserPort;
+import com.MyAnimaLog.Veterinary.domain.patients.enums.LinkStatus;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.InvalidInviteCodeException;
-import com.MyAnimaLog.Veterinary.domain.patients.exceptions.UserAlreadyLinkedException;
-import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotActiveException;
-import com.MyAnimaLog.Veterinary.domain.patients.model.UserVeterinaryLink;
-import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
+import com.MyAnimaLog.Veterinary.domain.patients.exceptions.LinkCodeNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -22,18 +22,25 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+/**
+ * El alias {@code @Deprecated} de la ruta vieja {@code POST /api/veterinary/link/code}. Lo único que
+ * hay que probar acá es que <strong>delega</strong>: toda la lógica (código → clínica
+ * {@code ACTIVE}, idempotencia, snapshot, evento) está probada en
+ * {@link LinkToVeterinaryServiceTest}, y tener acá una copia de esos casos solo haría creer que son
+ * dos caminos independientes.
+ */
 @ExtendWith(MockitoExtension.class)
 class LinkByCodeServiceTest {
 
     @Mock
-    private VeterinaryRepositoryPort veterinaryRepositoryPort;
-
-    @Mock
-    private UserVeterinaryLinkRepositoryPort linkRepositoryPort;
+    private LinkToVeterinaryUseCase linkToVeterinaryUseCase;
 
     @Mock
     private AuthenticatedUserPort authenticatedUserPort;
@@ -42,144 +49,92 @@ class LinkByCodeServiceTest {
     private LinkByCodeService linkByCodeService;
 
     private UUID userId;
-    private Veterinary activeVeterinary;
-    private Veterinary inactiveVeterinary;
-    private UserVeterinaryLink savedLink;
-    private LinkByCodeRequest validRequest;
+    private UUID veterinaryId;
+    private LinkToVeterinaryResponse delegateResponse;
 
     @BeforeEach
     void setUp() {
         userId = UUID.randomUUID();
-        UUID veterinaryId = UUID.randomUUID();
+        veterinaryId = UUID.randomUUID();
 
         lenient().when(authenticatedUserPort.current()).thenReturn(
-                new AuthenticatedUser(userId, "owner@example.com", true, false, Optional.empty()));
+                new AuthenticatedUser(userId, "ana@correo.com", true, false, Optional.empty()));
 
-        activeVeterinary = Veterinary.builder()
-                .id(veterinaryId)
-                .name("Clínica El Bosque")
-                .city("Cartagena")
-                .email("elbosque@veterinaria.com")
-                .tenantId(UUID.randomUUID().toString())
-                .inviteCode("VET-DNU4WXDQ")
-                .active(true)
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        inactiveVeterinary = activeVeterinary.toBuilder()
-                .active(false)
-                .build();
-
-        savedLink = UserVeterinaryLink.builder()
+        delegateResponse = LinkToVeterinaryResponse.builder()
                 .id(UUID.randomUUID())
-                .userId(userId)
                 .veterinaryId(veterinaryId)
-                .status("LINKED")
+                .veterinaryName("Clínica El Bosque")
+                .status(LinkStatus.LINKED)
                 .linkedAt(LocalDateTime.now())
-                .build();
-
-        validRequest = LinkByCodeRequest.builder()
-                .inviteCode("VET-DNU4WXDQ")
+                .alreadyLinked(false)
                 .build();
     }
 
     @Test
-    void linkByCode_shouldReturnResponse_whenRequestIsValid() {
-        when(veterinaryRepositoryPort.findByInviteCode("VET-DNU4WXDQ"))
-                .thenReturn(Optional.of(activeVeterinary));
-        when(linkRepositoryPort.existsByUserIdAndVeterinaryId(any(), any())).thenReturn(false);
-        when(linkRepositoryPort.save(any(UserVeterinaryLink.class))).thenReturn(savedLink);
+    void linkByCode_shouldDelegateToLinkToVeterinary_withTheSameCode() {
+        when(linkToVeterinaryUseCase.link(any(LinkToVeterinaryRequest.class))).thenReturn(delegateResponse);
 
-        LinkByCodeResponse response = linkByCodeService.linkByCode(validRequest);
+        linkByCodeService.linkByCode(LinkByCodeRequest.builder().inviteCode("ABCD2345").build());
 
-        assertThat(response).isNotNull();
+        ArgumentCaptor<LinkToVeterinaryRequest> delegated =
+                ArgumentCaptor.forClass(LinkToVeterinaryRequest.class);
+        verify(linkToVeterinaryUseCase).link(delegated.capture());
+        assertThat(delegated.getValue().getCode()).isEqualTo("ABCD2345");
+    }
+
+    @Test
+    void linkByCode_shouldKeepTheOldResponseShape() {
+        when(linkToVeterinaryUseCase.link(any(LinkToVeterinaryRequest.class))).thenReturn(delegateResponse);
+
+        LinkByCodeResponse response = linkByCodeService.linkByCode(
+                LinkByCodeRequest.builder().inviteCode("ABCD2345").build());
+
+        assertThat(response.getId()).isEqualTo(delegateResponse.getId());
+        assertThat(response.getVeterinaryId()).isEqualTo(veterinaryId);
+        // El userId no viene en el DTO nuevo (es siempre el del token), pero la respuesta vieja lo
+        // incluía, así que el alias lo rellena.
         assertThat(response.getUserId()).isEqualTo(userId);
         assertThat(response.getStatus()).isEqualTo("LINKED");
-        assertThat(response.getLinkedAt()).isNotNull();
-        assertThat(response.getVeterinaryId()).isEqualTo(activeVeterinary.getId());
+        assertThat(response.getLinkedAt()).isEqualTo(delegateResponse.getLinkedAt());
     }
 
     @Test
-    void linkByCode_shouldThrowInvalidInviteCodeException_whenCodeIsNull() {
-        validRequest.setInviteCode(null);
+    void linkByCode_shouldReturn200_whenUserWasAlreadyLinked() {
+        // Cambio de contrato heredado de la lógica nueva: antes era 409 USER_ALREADY_LINKED.
+        when(linkToVeterinaryUseCase.link(any(LinkToVeterinaryRequest.class)))
+                .thenReturn(LinkToVeterinaryResponse.builder()
+                        .id(delegateResponse.getId())
+                        .veterinaryId(veterinaryId)
+                        .status(LinkStatus.LINKED)
+                        .linkedAt(delegateResponse.getLinkedAt())
+                        .alreadyLinked(true)
+                        .build());
 
-        assertThatThrownBy(() ->
-                linkByCodeService.linkByCode(validRequest)
-        ).isInstanceOf(InvalidInviteCodeException.class);
+        LinkByCodeResponse response = linkByCodeService.linkByCode(
+                LinkByCodeRequest.builder().inviteCode("ABCD2345").build());
+
+        assertThat(response.getStatus()).isEqualTo("LINKED");
     }
 
     @Test
-    void linkByCode_shouldThrowInvalidInviteCodeException_whenCodeIsBlank() {
-        validRequest.setInviteCode("   ");
+    void linkByCode_shouldPropagateLinkCodeNotFound_whenCodeDoesNotResolve() {
+        // Antes esto era 400 INVALID_INVITE_CODE / 409 VETERINARY_NOT_ACTIVE; ahora los dos casos
+        // son el mismo 404, para no poder enumerar clínicas probando códigos.
+        when(linkToVeterinaryUseCase.link(any(LinkToVeterinaryRequest.class)))
+                .thenThrow(new LinkCodeNotFoundException());
 
-        assertThatThrownBy(() ->
-                linkByCodeService.linkByCode(validRequest)
-        ).isInstanceOf(InvalidInviteCodeException.class);
+        assertThatThrownBy(() -> linkByCodeService.linkByCode(
+                LinkByCodeRequest.builder().inviteCode("ABCD2345").build()))
+                .isInstanceOf(LinkCodeNotFoundException.class);
     }
 
     @Test
-    void linkByCode_shouldThrowInvalidInviteCodeException_whenCodeDoesNotExist() {
-        when(veterinaryRepositoryPort.findByInviteCode(any())).thenReturn(Optional.empty());
+    void linkByCode_shouldPropagateInvalidInviteCode_whenCodeIsMissing() {
+        when(linkToVeterinaryUseCase.link(any(LinkToVeterinaryRequest.class)))
+                .thenThrow(new InvalidInviteCodeException("Link code is required"));
 
-        assertThatThrownBy(() ->
-                linkByCodeService.linkByCode(validRequest)
-        ).isInstanceOf(InvalidInviteCodeException.class);
-    }
-
-    @Test
-    void linkByCode_shouldThrowVeterinaryNotActiveException_whenVeterinaryIsInactive() {
-        when(veterinaryRepositoryPort.findByInviteCode("VET-DNU4WXDQ"))
-                .thenReturn(Optional.of(inactiveVeterinary));
-
-        assertThatThrownBy(() ->
-                linkByCodeService.linkByCode(validRequest)
-        ).isInstanceOf(VeterinaryNotActiveException.class);
-    }
-
-    @Test
-    void linkByCode_shouldThrowUserAlreadyLinkedException_whenUserAlreadyLinked() {
-        when(veterinaryRepositoryPort.findByInviteCode("VET-DNU4WXDQ"))
-                .thenReturn(Optional.of(activeVeterinary));
-        when(linkRepositoryPort.existsByUserIdAndVeterinaryId(any(), any())).thenReturn(true);
-
-        assertThatThrownBy(() ->
-                linkByCodeService.linkByCode(validRequest)
-        ).isInstanceOf(UserAlreadyLinkedException.class);
-    }
-
-    @Test
-    void linkByCode_shouldCallSave_once() {
-        when(veterinaryRepositoryPort.findByInviteCode("VET-DNU4WXDQ"))
-                .thenReturn(Optional.of(activeVeterinary));
-        when(linkRepositoryPort.existsByUserIdAndVeterinaryId(any(), any())).thenReturn(false);
-        when(linkRepositoryPort.save(any(UserVeterinaryLink.class))).thenReturn(savedLink);
-
-        linkByCodeService.linkByCode(validRequest);
-
-        verify(linkRepositoryPort, times(1)).save(any(UserVeterinaryLink.class));
-    }
-
-    @Test
-    void linkByCode_shouldNeverCallSave_whenCodeIsInvalid() {
-        when(veterinaryRepositoryPort.findByInviteCode(any())).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() ->
-                linkByCodeService.linkByCode(validRequest)
-        ).isInstanceOf(InvalidInviteCodeException.class);
-
-        verify(linkRepositoryPort, never()).save(any());
-    }
-
-    @Test
-    void linkByCode_shouldNeverCallSave_whenUserAlreadyLinked() {
-        when(veterinaryRepositoryPort.findByInviteCode("VET-DNU4WXDQ"))
-                .thenReturn(Optional.of(activeVeterinary));
-        when(linkRepositoryPort.existsByUserIdAndVeterinaryId(any(), any())).thenReturn(true);
-
-        assertThatThrownBy(() ->
-                linkByCodeService.linkByCode(validRequest)
-        ).isInstanceOf(UserAlreadyLinkedException.class);
-
-        verify(linkRepositoryPort, never()).save(any());
+        assertThatThrownBy(() -> linkByCodeService.linkByCode(
+                LinkByCodeRequest.builder().inviteCode(null).build()))
+                .isInstanceOf(InvalidInviteCodeException.class);
     }
 }

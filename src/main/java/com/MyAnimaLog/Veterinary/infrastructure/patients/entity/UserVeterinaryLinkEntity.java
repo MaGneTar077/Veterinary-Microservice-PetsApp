@@ -1,5 +1,6 @@
 package com.MyAnimaLog.Veterinary.infrastructure.patients.entity;
 
+import com.MyAnimaLog.Veterinary.domain.patients.enums.LinkStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -27,9 +28,22 @@ public class UserVeterinaryLinkEntity {
     @Column(name = "veterinary_id", nullable = false)
     private UUID veterinaryId;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private String status;
+    private LinkStatus status;
 
     @Column(name = "linked_at", nullable = false)
     private LocalDateTime linkedAt;
+
+    @Column(name = "unlinked_at")
+    private LocalDateTime unlinkedAt;
+
+    @Column(name = "owner_name", length = 200)
+    private String ownerName;
+
+    @Column(name = "owner_email", length = 200)
+    private String ownerEmail;
+
+    @Column(name = "owner_phone", length = 30)
+    private String ownerPhone;
 }

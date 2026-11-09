@@ -4,8 +4,7 @@ import com.MyAnimaLog.Veterinary.application.patients.dto.LinkByCodeRequest;
 import com.MyAnimaLog.Veterinary.application.patients.dto.LinkByCodeResponse;
 import com.MyAnimaLog.Veterinary.application.patients.ports.in.LinkByCodeUseCase;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.InvalidInviteCodeException;
-import com.MyAnimaLog.Veterinary.domain.patients.exceptions.UserAlreadyLinkedException;
-import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotActiveException;
+import com.MyAnimaLog.Veterinary.domain.patients.exceptions.LinkCodeNotFoundException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
 import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
 import com.MyAnimaLog.Veterinary.infrastructure.patients.controllers.LinkByCodeController;
@@ -52,7 +51,7 @@ class LinkByCodeControllerTest {
         userId = UUID.randomUUID();
 
         validRequest = LinkByCodeRequest.builder()
-                .inviteCode("VET-DNU4WXDQ")
+                .inviteCode("ABCD2345")
                 .build();
 
         validResponse = LinkByCodeResponse.builder()
@@ -65,7 +64,7 @@ class LinkByCodeControllerTest {
     }
 
     @Test
-    void linkByCode_shouldReturn201_whenRequestIsValid() throws Exception {
+    void linkByCode_shouldReturn200_whenRequestIsValid() throws Exception {
         when(linkByCodeUseCase.linkByCode(any(LinkByCodeRequest.class))).thenReturn(validResponse);
 
         mockMvc.perform(post("/api/veterinary/link/code")
@@ -73,7 +72,7 @@ class LinkByCodeControllerTest {
                         .content(objectMapper.writeValueAsString(validRequest))
                         .with(csrf())
                         .with(jwt()))
-                .andExpect(status().isCreated())
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(userId.toString()))
                 .andExpect(jsonPath("$.status").value("LINKED"))
                 .andExpect(jsonPath("$.linkedAt").isNotEmpty());
@@ -94,31 +93,19 @@ class LinkByCodeControllerTest {
     }
 
     @Test
-    void linkByCode_shouldReturn409_whenVeterinaryIsInactive() throws Exception {
+    void linkByCode_shouldReturn404_whenCodeDoesNotResolveToAnActiveClinic() throws Exception {
+        // Desde la Fase 4A el alias hereda el contrato nuevo: un código inexistente y una clínica
+        // no ACTIVE son el mismo 404 (antes 400 INVALID_INVITE_CODE y 409 VETERINARY_NOT_ACTIVE).
         when(linkByCodeUseCase.linkByCode(any(LinkByCodeRequest.class)))
-                .thenThrow(new VeterinaryNotActiveException());
+                .thenThrow(new LinkCodeNotFoundException());
 
         mockMvc.perform(post("/api/veterinary/link/code")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(validRequest))
                         .with(csrf())
                         .with(jwt()))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.message").value("Veterinary is not active"));
-    }
-
-    @Test
-    void linkByCode_shouldReturn409_whenUserAlreadyLinked() throws Exception {
-        when(linkByCodeUseCase.linkByCode(any(LinkByCodeRequest.class)))
-                .thenThrow(new UserAlreadyLinkedException());
-
-        mockMvc.perform(post("/api/veterinary/link/code")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(validRequest))
-                        .with(csrf())
-                        .with(jwt()))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.message").value("User is already linked to this veterinary"));
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("LINK_CODE_NOT_FOUND"));
     }
 
     @Test
