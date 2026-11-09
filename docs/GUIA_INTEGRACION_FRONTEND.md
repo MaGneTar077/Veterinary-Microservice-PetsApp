@@ -9,6 +9,9 @@ Lectores: desarrollador frontend de la app de dueños (Ionic/Angular) y de la we
 (MyAnimaLogVet, Angular). Todos los ejemplos de request/response son literales de los DTOs del
 backend — no inventados.
 
+**Vinculación de dueños, mascotas compartidas y clientes/pacientes de la clínica (Fase 4A)** no
+están en esta guía: ver [`docs/FASE_4A_VINCULACION.md`](./FASE_4A_VINCULACION.md).
+
 ## Índice
 
 - [0. Cómo usar esta guía + glosario](#0-cómo-usar-esta-guía--glosario)
@@ -22,6 +25,7 @@ backend — no inventados.
   - [f. Perfil profesional del veterinario](#2f-perfil-profesional-del-veterinario)
   - [g. Panel admin](#2g-panel-admin)
   - [h. Equipo](#2h-equipo)
+  - i. Vinculación, mascotas compartidas y clientes/pacientes (Fase 4A) → [`docs/FASE_4A_VINCULACION.md`](./FASE_4A_VINCULACION.md)
 - [3. Mapa estado → pantalla](#3-mapa-estado--pantalla)
 - [4. Interfaces TypeScript](#4-interfaces-typescript)
 - [5. Ejemplos Angular](#5-ejemplos-angular)

@@ -864,13 +864,17 @@ Contrato para el frontend y Notifications: **`FASE_3_PERSONAL.md`**. Suite 919/9
 - ☑ **VET-24** Eventos de personal: `EMPLOYEE_INVITED`, `EMPLOYEE_JOINED`, `EMPLOYEE_ROLE_UPDATED`, `EMPLOYEE_DEACTIVATED` (con `leftVoluntarily`), `OWNERSHIP_TRANSFERRED` (dos, con `recipientIsNewOwner`). Se reusaron los nombres que ya existían en `VeterinaryEventType`, sin agregar valores nuevos.
 - ☑ **Extra no planeado (PASO 0b)**: el rol y el estado de la clínica pasaron a resolverse **desde la base** en cada petición (`findClinicMembership`, una sola consulta que reemplazó la lectura de clínica que ya existía). Antes salían de los claims `vet_role`/`vet_status`, así que un empleado retirado o con el rol rebajado seguía operando hasta 60 min. Único resto: `licensed` sigue viniendo del claim (deuda documentada).
 
-### Fase 4 — Pacientes *(requiere PETS-04, PETS-05, PETS-06)*
+### Fase 4A — Vinculación y pacientes compartidos *(completa)*
 
-- ☐ **VET-25** Script 007. `PetsServicePort`.
-- ☐ **VET-26** `LinkToVeterinary` (unifica), `Unlink` desde ambos lados con revocación en cascada, `ListClients`, `GetMyLinkedVeterinaries`, preview por código.
-- ☐ **VET-27** `SharePetsWithVeterinary`, `RevokePetShare`, `GetVeterinariesForPet`.
-- ☐ **VET-28** `ListVeterinaryPatients` (búsqueda), `GetVeterinaryPatient`, `RegisterWalkInPatient` con compensación, `SendPetClaimInvitation`.
-- ☐ **VET-29** Endpoint interno `access` (§7.4) con test de cada caso de `hasAccess=false`. *Desbloquea PETS-03, MED-03, CAL-02.*
+- ☑ **VET-25** Script `008_patients.sql` (ciclo de vida real de `user_veterinary_link` + tabla `veterinary_patients`). `PetsServicePort`/`PetsServiceRestAdapter` — a diferencia de `UserServicePort.getUsers`, **sí** lanza 503 si Pets no responde (autoriza, no solo enriquece).
+- ☑ **VET-26** `LinkToVeterinary` (idempotente, reactiva la fila al re-vincular), `GetMyLinkedVeterinaries`, `PreviewVeterinaryLink`, `UnlinkMyVeterinary`/`RemoveClient` (mismo `UnlinkService`, revocación en cascada de las mascotas compartidas), `ListClients`. `LinkByCode`/`LinkByUrl`/`UnlinkController` viejos quedan alias `@Deprecated`.
+- ☑ **VET-27** `SharePetsWithVeterinary` (todo o nada, una sola llamada batch a Pets), `RevokePetShare` (no depende de Pets), `GetVeterinariesForPet`.
+- ☑ **VET-29** Endpoint interno `access` (§7.4, una sola consulta JPQL) y `summary`, con test de cada caso de `hasAccess=false` contra Postgres real. *Desbloqueó PETS-03, MED-03, CAL-02 — Medical ya consume `access`/`summary` en producción.*
+- Documentación: `docs/FASE_4A_VINCULACION.md` (frontend) y `docs/integracion/VETERINARY_REQUERIMIENTOS_DESDE_MEDICAL.md` (contrato con Medical).
+
+### Fase 4B — Pacientes sin app *(pendiente, requiere PETS-05/06)*
+
+- ☐ **VET-28** `ListVeterinaryPatients`/`GetVeterinaryPatient` ya existen desde la 4A; falta `RegisterWalkInPatient` (con compensación si falla el guardado después de crear la mascota en Pets) y `SendPetClaimInvitation`.
 
 ### Fase 5 — Catálogo, horarios y agenda
 

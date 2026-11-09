@@ -1,6 +1,6 @@
 # Colección de Postman — `veterinary-service`
 
-Cubre los **61 endpoints** del servicio (todos los del código, incluidos los `/internal/**` y los
+Cubre los **75 endpoints** del servicio (todos los del código, incluidos los `/internal/**` y los
 deprecados), más 4 requests del User service para conseguir tokens.
 
 | Archivo | Qué es |

@@ -2,6 +2,79 @@
 
 Written for: equipo del microservicio de Veterinary.
 
+> ✅ **Resuelto en la Fase 4A (VET-29).** Las dos rutas de la sección 3 ya están implementadas y
+> desplegadas: `GetPatientAccessController`/`GetVeterinarySummaryController`
+> (`infrastructure/patients/controllers`). El resto de este documento queda como registro del
+> reporte original; la sección "Cómo integrar" de abajo resume el contrato final.
+
+## 0. Cómo integrar (contrato final)
+
+Las dos rutas viven bajo `/internal/**`, igual que el resto de los endpoints de servicio a
+servicio de este backend:
+
+- **Nunca se exponen por el gateway.** Llamalas directo contra la base del servicio
+  (`VETERINARY_SERVICE_URL`, sin pasar por `{{gateway_url}}`).
+- Header obligatorio: `X-Internal-Api-Key: <INTERNAL_API_KEY>` — la misma llave compartida en todos
+  los servicios. Sin ella, o con una incorrecta: `401 UNAUTHENTICATED`.
+
+### `GET /internal/veterinaries/{veterinaryId}/patients/{petId}/access?userId={userId}`
+
+**Nunca responde `404`**, sin importar la combinación: clínica/empleado/mascota inexistentes, o
+cualquiera de ellos sin acceso, dan **siempre `200`** con `hasAccess: false`. Tratá cualquier
+respuesta que no sea `2xx` como una caída real de Veterinary (no como "sin acceso").
+
+```json
+// 200 · Con acceso
+{
+  "hasAccess": true,
+  "veterinaryStatus": "ACTIVE",
+  "employeeId": "22bb33cc-44dd-4ee6-8ff7-889900112233",
+  "role": "VETERINARIAN",
+  "licensed": true,
+  "permissions": ["CLINICAL_READ", "CLINICAL_WRITE", "NURSING_WRITE", "DOCUMENT_UPLOAD"]
+}
+
+// 200 · Sin acceso (mascota no compartida con la clínica) — sigue siendo 200
+{
+  "hasAccess": false,
+  "veterinaryStatus": "ACTIVE",
+  "employeeId": "22bb33cc-44dd-4ee6-8ff7-889900112233",
+  "role": "RECEPTIONIST",
+  "licensed": false,
+  "permissions": ["APPOINTMENT_MANAGE", "PATIENT_REGISTER", "CLINICAL_READ_BASIC"]
+}
+```
+
+`licensed` sale siempre de la base (`ProfessionalProfile.licenseStatus == VERIFIED`), nunca de un
+claim de token. `permissions` es el resultado de la matriz rol+licencia+estado de
+`CONTRATOS_COMPARTIDOS.md` §3.2 — no depende del consentimiento de **esta** mascota puntual;
+`hasAccess` es el gate adicional que sí lo exige (empleado activo + clínica `ACTIVE` + mascota
+compartida). Cacheable 60 s por `(veterinaryId, petId, userId)`, como ya hacías.
+
+### `GET /internal/veterinaries/{veterinaryId}/summary`
+
+A diferencia de `access`, **sí responde `404`** si la clínica no existe (no hay ningún "acceso" que
+degradar a `false` acá).
+
+```json
+// 200 OK
+{
+  "id": "9a1c2f3e-4b5d-6e7f-8a9b-0c1d2e3f4a5b",
+  "name": "Clínica Veterinaria El Bosque",
+  "timezone": "America/Bogota",
+  "status": "ACTIVE",
+  "logoUrl": "https://cdn.example.com/logo.png"
+}
+
+// 404 (clínica inexistente)
+{ "code": "VETERINARY_NOT_FOUND", "message": "Veterinary not found", "status": 404, ... }
+```
+
+`status`/`logoUrl` son extra sobre lo mínimo pedido (`id`/`name`/`timezone`) — gratis en la misma
+fila, por si sirven.
+
+---
+
 ## 1. Resumen
 
 Medical no puede verificar los permisos de una clínica sobre una mascota porque las rutas internas que lo permiten responden **404 `NOT_FOUND`** en el servicio desplegado. Por eso todas las rutas de clínica de Medical fallan con **503** (`EXTERNAL_SERVICE_UNAVAILABLE`, "Servicio interno respondió 404").
