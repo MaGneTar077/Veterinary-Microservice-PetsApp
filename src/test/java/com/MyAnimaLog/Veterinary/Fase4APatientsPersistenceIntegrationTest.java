@@ -105,24 +105,19 @@ class Fase4APatientsPersistenceIntegrationTest {
     }
 
     @Test
-    void link_findLatestLink_shouldReturnTheMostRecentRowOfThePair() {
+    void link_findLatestLink_shouldReturnTheUnlinkedRow_forReactivation() {
+        // NOTA: hay una restricción UNIQUE preexistente en la base ("uq_user_veterinary_link",
+        // sobre user_id+veterinary_id, no documentada en ningún script — distinta del índice
+        // parcial ux_link_active_user_vet que agrega 008_patients.sql) que impide que exista más
+        // de una fila por par, en cualquier estado. Eso hace imposible en la práctica el escenario
+        // de "varias filas UNLINKED del mismo par" que la deduplicación de 008 contempla para
+        // datos viejos — pero no afecta a este caso: una sola fila UNLINKED se encuentra igual.
         UUID veterinaryId = persistClinic();
         UUID userId = UUID.randomUUID();
-        UUID newestId = UUID.randomUUID();
+        UUID linkId = UUID.randomUUID();
 
-        // Dos filas UNLINKED del mismo par: es exactamente lo que deja la deduplicación de
-        // 008_patients.sql en datos viejos, y la razón por la que findLatestLink no puede ser
-        // una consulta que devuelva Optional sobre (user_id, veterinary_id).
         linkRepositoryPort.save(UserVeterinaryLink.builder()
-                .id(UUID.randomUUID())
-                .userId(userId)
-                .veterinaryId(veterinaryId)
-                .status(LinkStatus.UNLINKED)
-                .linkedAt(LocalDateTime.now().minusMonths(6))
-                .unlinkedAt(LocalDateTime.now().minusMonths(5))
-                .build());
-        linkRepositoryPort.save(UserVeterinaryLink.builder()
-                .id(newestId)
+                .id(linkId)
                 .userId(userId)
                 .veterinaryId(veterinaryId)
                 .status(LinkStatus.UNLINKED)
@@ -132,7 +127,7 @@ class Fase4APatientsPersistenceIntegrationTest {
         entityManager.flush();
 
         assertThat(linkRepositoryPort.findLatestLink(userId, veterinaryId).orElseThrow().getId())
-                .isEqualTo(newestId);
+                .isEqualTo(linkId);
     }
 
     @Test
