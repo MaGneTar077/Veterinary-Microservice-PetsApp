@@ -40,4 +40,10 @@ public interface VeterinaryPatientRepositoryPort {
 
     /** Con qué clínicas se comparte una mascota ahora mismo. */
     List<VeterinaryPatient> findGrantedByPetId(UUID petId);
+
+    /** Página de pacientes (mascotas compartidas activamente) de una clínica (`ListVeterinaryPatients`). */
+    PatientsPage findGrantedByVeterinaryId(UUID veterinaryId, int page, int size);
+
+    record PatientsPage(List<VeterinaryPatient> items, long total) {
+    }
 }

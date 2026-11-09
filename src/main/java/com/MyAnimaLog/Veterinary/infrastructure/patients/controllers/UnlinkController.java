@@ -11,6 +11,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
+/**
+ * @deprecated Ruta vieja de la Fase 2. El lado dueño usa
+ * {@code DELETE /api/veterinary/me/linked-veterinaries/{veterinaryId}} y el lado clínica
+ * {@code DELETE /api/veterinary/{veterinaryId}/clients/{userId}} (Fase 4A, bloque d). Misma
+ * lógica por debajo ({@link UnlinkUseCase}), solo cambia la ruta.
+ */
+@Deprecated(since = "Fase 4A", forRemoval = true)
 @RestController
 @RequestMapping("/api/veterinary/link")
 @RequiredArgsConstructor

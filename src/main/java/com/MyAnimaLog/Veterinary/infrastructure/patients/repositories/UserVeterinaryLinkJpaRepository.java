@@ -2,6 +2,8 @@ package com.MyAnimaLog.Veterinary.infrastructure.patients.repositories;
 
 import com.MyAnimaLog.Veterinary.domain.patients.enums.LinkStatus;
 import com.MyAnimaLog.Veterinary.infrastructure.patients.entity.UserVeterinaryLinkEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -23,4 +25,6 @@ public interface UserVeterinaryLinkJpaRepository extends JpaRepository<UserVeter
             UUID userId, UUID veterinaryId);
 
     List<UserVeterinaryLinkEntity> findByUserIdAndStatusOrderByLinkedAtDesc(UUID userId, LinkStatus status);
+
+    Page<UserVeterinaryLinkEntity> findByVeterinaryIdAndStatus(UUID veterinaryId, LinkStatus status, Pageable pageable);
 }

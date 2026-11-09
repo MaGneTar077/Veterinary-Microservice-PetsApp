@@ -6,6 +6,9 @@ import com.MyAnimaLog.Veterinary.domain.patients.model.VeterinaryPatient;
 import com.MyAnimaLog.Veterinary.infrastructure.patients.mapper.VeterinaryPatientMapper;
 import com.MyAnimaLog.Veterinary.infrastructure.patients.repositories.VeterinaryPatientJpaRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -58,5 +61,14 @@ public class VeterinaryPatientRepositoryAdapter implements VeterinaryPatientRepo
         return jpaRepository.findByPetIdAndConsentStatus(petId, ConsentStatus.GRANTED).stream()
                 .map(mapper::toDomain)
                 .toList();
+    }
+
+    @Override
+    public PatientsPage findGrantedByVeterinaryId(UUID veterinaryId, int page, int size) {
+        Page<com.MyAnimaLog.Veterinary.infrastructure.patients.entity.VeterinaryPatientEntity> result =
+                jpaRepository.findByVeterinaryIdAndConsentStatus(veterinaryId, ConsentStatus.GRANTED,
+                        PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "grantedAt")));
+        return new PatientsPage(result.getContent().stream().map(mapper::toDomain).toList(),
+                result.getTotalElements());
     }
 }

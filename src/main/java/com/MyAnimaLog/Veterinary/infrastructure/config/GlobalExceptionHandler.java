@@ -35,6 +35,7 @@ import com.MyAnimaLog.Veterinary.domain.patients.exceptions.InvalidInviteCodeExc
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.InvalidPetShareException;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.LinkCodeNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.NotLinkedToVeterinaryException;
+import com.MyAnimaLog.Veterinary.domain.patients.exceptions.PatientNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.PetNotOwnedException;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.UserAlreadyLinkedException;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.UserNotLinkedException;
@@ -247,6 +248,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleNotLinkedToVeterinary(
             NotLinkedToVeterinaryException ex) {
         return build(HttpStatus.CONFLICT, ex.getMessage(), "NOT_LINKED_TO_VETERINARY");
+    }
+
+    @ExceptionHandler(PatientNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handlePatientNotFound(PatientNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage(), "PATIENT_NOT_FOUND");
     }
 
     @ExceptionHandler(InvalidPetShareException.class)

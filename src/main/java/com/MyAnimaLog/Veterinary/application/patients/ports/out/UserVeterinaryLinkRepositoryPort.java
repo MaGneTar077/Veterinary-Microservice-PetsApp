@@ -31,4 +31,10 @@ public interface UserVeterinaryLinkRepositoryPort {
 
     /** Las clínicas donde el usuario está vinculado activamente (su selector de clínicas). */
     List<UserVeterinaryLink> findActiveByUserId(UUID userId);
+
+    /** Página de clientes activos de una clínica (`ListClients`), para su tenant únicamente. */
+    ClientsPage findActiveByVeterinaryId(UUID veterinaryId, int page, int size);
+
+    record ClientsPage(List<UserVeterinaryLink> items, long total) {
+    }
 }

@@ -6,6 +6,9 @@ import com.MyAnimaLog.Veterinary.domain.patients.model.UserVeterinaryLink;
 import com.MyAnimaLog.Veterinary.infrastructure.patients.mapper.UserVeterinaryLinkMapper;
 import com.MyAnimaLog.Veterinary.infrastructure.patients.repositories.UserVeterinaryLinkJpaRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -41,5 +44,14 @@ public class UserVeterinaryLinkRepositoryAdapter implements UserVeterinaryLinkRe
         return jpaRepository.findByUserIdAndStatusOrderByLinkedAtDesc(userId, LinkStatus.LINKED).stream()
                 .map(mapper::toDomain)
                 .toList();
+    }
+
+    @Override
+    public ClientsPage findActiveByVeterinaryId(UUID veterinaryId, int page, int size) {
+        Page<com.MyAnimaLog.Veterinary.infrastructure.patients.entity.UserVeterinaryLinkEntity> result =
+                jpaRepository.findByVeterinaryIdAndStatus(veterinaryId, LinkStatus.LINKED,
+                        PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "linkedAt")));
+        return new ClientsPage(result.getContent().stream().map(mapper::toDomain).toList(),
+                result.getTotalElements());
     }
 }
