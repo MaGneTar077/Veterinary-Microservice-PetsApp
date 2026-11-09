@@ -32,6 +32,7 @@ import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.ActiveSubscripti
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.NoActiveSubscriptionException;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.SubscriptionNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.InvalidInviteCodeException;
+import com.MyAnimaLog.Veterinary.domain.patients.exceptions.LinkCodeNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.UserAlreadyLinkedException;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.UserNotLinkedException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InvalidVeterinaryNameException;
@@ -218,6 +219,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidInviteCodeException.class)
     public ResponseEntity<Map<String, Object>> handleInvalidInviteCode(InvalidInviteCodeException ex) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "INVALID_INVITE_CODE");
+    }
+
+    /**
+     * Un código que no existe y uno cuya clínica no está {@code ACTIVE} dan el mismo 404 a
+     * propósito: distinguirlos permitiría enumerar clínicas probando códigos.
+     */
+    @ExceptionHandler(LinkCodeNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleLinkCodeNotFound(LinkCodeNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage(), "LINK_CODE_NOT_FOUND");
     }
 
     @ExceptionHandler(UserAlreadyLinkedException.class)

@@ -75,6 +75,11 @@ app:
   base-url: ${APP_BASE_URL}
   invitation:
     base-url: ${INVITATION_BASE_URL:}
+  link:
+    # Pantalla del frontend que recibe el código de vinculación de un dueño de mascotas.
+    # Vacía = el inviteLink que ve la clínica sale como "?code=XXXXXXXX" sin dominio (inservible);
+    # el código en sí sigue funcionando si se escribe a mano en la app.
+    base-url: ${LINK_BASE_URL:}
   events:
     enabled: ${EVENTS_ENABLED:true}
   security:

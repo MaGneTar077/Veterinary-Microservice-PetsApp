@@ -14,6 +14,10 @@ public class UserVeterinaryLinkMapper {
                 .veterinaryId(domain.getVeterinaryId())
                 .status(domain.getStatus())
                 .linkedAt(domain.getLinkedAt())
+                .unlinkedAt(domain.getUnlinkedAt())
+                .ownerName(domain.getOwnerName())
+                .ownerEmail(domain.getOwnerEmail())
+                .ownerPhone(domain.getOwnerPhone())
                 .build();
     }
 
@@ -24,6 +28,10 @@ public class UserVeterinaryLinkMapper {
                 .veterinaryId(entity.getVeterinaryId())
                 .status(entity.getStatus())
                 .linkedAt(entity.getLinkedAt())
+                .unlinkedAt(entity.getUnlinkedAt())
+                .ownerName(entity.getOwnerName())
+                .ownerEmail(entity.getOwnerEmail())
+                .ownerPhone(entity.getOwnerPhone())
                 .build();
     }
 }

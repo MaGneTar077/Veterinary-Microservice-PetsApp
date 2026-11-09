@@ -4,10 +4,15 @@ import com.MyAnimaLog.Veterinary.application.patients.dto.LinkByUrlRequest;
 import com.MyAnimaLog.Veterinary.application.patients.dto.LinkByUrlResponse;
 import com.MyAnimaLog.Veterinary.application.patients.ports.in.LinkByUrlUseCase;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * @deprecated Ruta vieja de la Fase 2. Usar {@code POST /api/veterinary/links} con el código.
+ * Desde la Fase 4A responde {@code 200} y no {@code 201}, por la misma razón que
+ * {@code LinkByCodeController}: la operación es idempotente.
+ */
+@Deprecated(since = "Fase 4A", forRemoval = true)
 @RestController
 @RequestMapping("/api/veterinary/link")
 @RequiredArgsConstructor
@@ -17,6 +22,6 @@ public class LinkByUrlController {
 
     @PostMapping("/url")
     public ResponseEntity<LinkByUrlResponse> linkByUrl(@RequestBody LinkByUrlRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(linkByUrlUseCase.linkByUrl(request));
+        return ResponseEntity.ok(linkByUrlUseCase.linkByUrl(request));
     }
 }

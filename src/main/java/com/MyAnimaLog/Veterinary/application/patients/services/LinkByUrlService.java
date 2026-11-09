@@ -1,69 +1,59 @@
 package com.MyAnimaLog.Veterinary.application.patients.services;
 
+import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.patients.dto.LinkByUrlRequest;
 import com.MyAnimaLog.Veterinary.application.patients.dto.LinkByUrlResponse;
+import com.MyAnimaLog.Veterinary.application.patients.dto.LinkToVeterinaryRequest;
+import com.MyAnimaLog.Veterinary.application.patients.dto.LinkToVeterinaryResponse;
 import com.MyAnimaLog.Veterinary.application.patients.ports.in.LinkByUrlUseCase;
-import com.MyAnimaLog.Veterinary.application.patients.ports.out.UserVeterinaryLinkRepositoryPort;
-import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
+import com.MyAnimaLog.Veterinary.application.patients.ports.in.LinkToVeterinaryUseCase;
 import com.MyAnimaLog.Veterinary.application.shared.ports.out.AuthenticatedUserPort;
-import com.MyAnimaLog.Veterinary.domain.patients.exceptions.InvalidInviteCodeException;
-import com.MyAnimaLog.Veterinary.domain.patients.exceptions.UserAlreadyLinkedException;
-import com.MyAnimaLog.Veterinary.domain.shared.exceptions.VeterinaryNotActiveException;
-import com.MyAnimaLog.Veterinary.domain.patients.model.UserVeterinaryLink;
 import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
+import com.MyAnimaLog.Veterinary.domain.patients.exceptions.InvalidInviteCodeException;
+import com.MyAnimaLog.Veterinary.domain.patients.exceptions.LinkCodeNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
-import java.util.UUID;
-
+/**
+ * Alias de {@link LinkToVeterinaryUseCase} para la ruta vieja {@code POST /api/veterinary/link/url}.
+ *
+ * <p>Resuelve el enlace a su clínica y delega con el código de esa clínica, en vez de parsear el
+ * {@code code=} de la URL: así el enlace sigue teniendo que coincidir con uno realmente emitido, y
+ * todas las reglas (clínica {@code ACTIVE}, idempotencia, snapshot del dueño, evento) salen de un
+ * solo lugar.
+ *
+ * @deprecated Usar {@code POST /api/veterinary/links} con el código. Un enlace completo en el cuerpo
+ * no aporta nada sobre el código que ya contiene, y hereda los mismos cambios de respuesta que
+ * {@link LinkByCodeService} (ya vinculado → {@code 200}; enlace desconocido o clínica no
+ * {@code ACTIVE} → {@code 404 LINK_CODE_NOT_FOUND}).
+ */
+@Deprecated(since = "Fase 4A", forRemoval = true)
 @Service
 @RequiredArgsConstructor
 public class LinkByUrlService implements LinkByUrlUseCase {
 
     private final VeterinaryRepositoryPort veterinaryRepositoryPort;
-    private final UserVeterinaryLinkRepositoryPort linkRepositoryPort;
+    private final LinkToVeterinaryUseCase linkToVeterinaryUseCase;
     private final AuthenticatedUserPort authenticatedUserPort;
-
 
     @Override
     public LinkByUrlResponse linkByUrl(LinkByUrlRequest request) {
-
         if (request.getInviteLink() == null || request.getInviteLink().isBlank()) {
-            throw new InvalidInviteCodeException("Invite link is invalid or does not exist");
+            throw new InvalidInviteCodeException("Invite link is required");
         }
 
-        UUID userId = authenticatedUserPort.current().userId();
+        Veterinary veterinary = veterinaryRepositoryPort.findByInviteLink(request.getInviteLink())
+                .orElseThrow(LinkCodeNotFoundException::new);
 
-        Veterinary veterinary = veterinaryRepositoryPort
-                .findByInviteLink(request.getInviteLink())
-                .orElseThrow(() -> new InvalidInviteCodeException("Invite link is invalid or does not exist"));
-
-        if (!veterinary.getActive()) {
-            throw new VeterinaryNotActiveException();
-        }
-
-        if (linkRepositoryPort.existsByUserIdAndVeterinaryId(
-                userId, veterinary.getId())) {
-            throw new UserAlreadyLinkedException();
-        }
-
-        UserVeterinaryLink link = UserVeterinaryLink.builder()
-                .id(UUID.randomUUID())
-                .userId(userId)
-                .veterinaryId(veterinary.getId())
-                .status("LINKED")
-                .linkedAt(LocalDateTime.now())
-                .build();
-
-        UserVeterinaryLink saved = linkRepositoryPort.save(link);
+        LinkToVeterinaryResponse response = linkToVeterinaryUseCase.link(
+                LinkToVeterinaryRequest.builder().code(veterinary.getInviteCode()).build());
 
         return LinkByUrlResponse.builder()
-                .id(saved.getId())
-                .userId(saved.getUserId())
-                .veterinaryId(saved.getVeterinaryId())
-                .status(saved.getStatus())
-                .linkedAt(saved.getLinkedAt())
+                .id(response.getId())
+                .userId(authenticatedUserPort.current().userId())
+                .veterinaryId(response.getVeterinaryId())
+                .status(response.getStatus() == null ? null : response.getStatus().name())
+                .linkedAt(response.getLinkedAt())
                 .build();
     }
 }

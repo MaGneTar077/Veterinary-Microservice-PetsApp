@@ -43,8 +43,9 @@
 --        pacientes devuelven 503, no datos viejos.
 --      - updated_at: la fila se REACTIVA en vez de insertarse de nuevo al volver a
 --        compartir una mascota revocada, así que created_at no alcanza para saber cuándo
---        cambió por última vez (revocación o reactivación). El servicio que escribe esta
---        tabla debe fijarla explícitamente en cada UPDATE (Hibernate no la actualiza solo).
+--        cambió por última vez (revocación o reactivación). La mantiene Hibernate con
+--        @UpdateTimestamp en VeterinaryPatientEntity: ningún servicio la fija a mano, para
+--        que no pueda quedar sin actualizar en un camino nuevo que alguien agregue después.
 --      - Sin FK a pet_id ni a los user_id: esas entidades viven en las bases de Pets y
 --        User, no en esta.
 --
