@@ -18,4 +18,8 @@ public interface VeterinaryPatientJpaRepository extends JpaRepository<Veterinary
 
     long countByVeterinaryIdAndGrantedByAndConsentStatus(
             UUID veterinaryId, UUID grantedBy, ConsentStatus consentStatus);
+
+    List<VeterinaryPatientEntity> findByVeterinaryIdAndPetIdIn(UUID veterinaryId, List<UUID> petIds);
+
+    List<VeterinaryPatientEntity> findByPetIdAndConsentStatus(UUID petId, ConsentStatus consentStatus);
 }

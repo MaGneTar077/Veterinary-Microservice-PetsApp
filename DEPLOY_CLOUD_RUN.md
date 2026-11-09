@@ -100,6 +100,7 @@ plano en la consola ni en un `.yaml` versionado).
 | `INVITATION_BASE_URL` | Sí para invitar personal | `` (vacío) | No | La app arranca, pero el enlace del correo sale como `?token=...` sin dominio: **inservible**. Es la ruta del frontend que recibe el token (ver `FASE_3_PERSONAL.md §2`). |
 | `LINK_BASE_URL` | Sí para repartir el código de vinculación | `` (vacío) | No | La app arranca y el código sigue sirviendo escrito a mano en la app, pero el `inviteLink` que ve la clínica sale como `?code=XXXXXXXX` sin dominio: **no se puede poner en un QR ni mandar por WhatsApp**. Es la pantalla del frontend que recibe el código de un dueño de mascotas (Fase 4A) — distinta de `INVITATION_BASE_URL`, que es para el personal. |
 | `USER_SERVICE_URL` | Recomendada | `` (vacío) | No | Arranca igual. Sin ella, las llamadas al User service fallan y los campos que dependen de ellas caen a su fallback: `account` → `{ id }` en el detalle del admin, y `name`/`email` → `null` en la lista de empleados. Nada se cae. |
+| `PETS_SERVICE_URL` | Sí para pacientes | `` (vacío) | No | Arranca igual, pero toda llamada a Pets falla con `503 EXTERNAL_SERVICE_UNAVAILABLE`: se rompen compartir mascotas y el listado/detalle de pacientes. Intencional — sin Pets no se puede verificar la propiedad de una mascota. El endpoint interno `access` y revocar un consentimiento **no** dependen de ella (resuelven todo contra la base). |
 | `SUPPORT_EMAIL` | No | `` (vacío) | No | El evento `VERIFICATION_SUBMITTED` sale con `recipient.email` vacío; con `EVENTS_ENABLED=false` da igual. |
 | `AI_VERIFICATION_ENABLED` | No | `false` | No | Dejar en **`false`**. En `false` se registra `NoOpIaVerificationAdapter`, `ai_status` queda `NOT_RUN` y `POST .../rerun-ai` responde `409 AI_VERIFICATION_DISABLED`. |
 | `IA_SERVICE_URL` | Solo si `AI_VERIFICATION_ENABLED=true` | `` | No | Con la IA apagada no se usa. |
@@ -162,6 +163,7 @@ gcloud run deploy veterinary-service \
   --set-env-vars INVITATION_BASE_URL=https://app.myanimalog.com/<RUTA-DEL-FRONT> \
   --set-env-vars LINK_BASE_URL=https://app.myanimalog.com/<RUTA-DEL-FRONT-VINCULACION> \
   --set-env-vars USER_SERVICE_URL=https://user-service-xxxx.run.app \
+  --set-env-vars PETS_SERVICE_URL=https://pets-service-xxxx.run.app \
   --set-env-vars JWT_JWKS_URI=https://user-service-xxxx.run.app/.well-known/jwks.json \
   --set-env-vars SUPPORT_EMAIL=soporte@myanimalog.com \
   --set-secrets DB_URL=vet-db-url:latest \

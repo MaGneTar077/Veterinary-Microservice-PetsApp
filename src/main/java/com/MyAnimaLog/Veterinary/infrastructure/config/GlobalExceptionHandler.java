@@ -32,7 +32,10 @@ import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.ActiveSubscripti
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.NoActiveSubscriptionException;
 import com.MyAnimaLog.Veterinary.domain.subscription.exceptions.SubscriptionNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.InvalidInviteCodeException;
+import com.MyAnimaLog.Veterinary.domain.patients.exceptions.InvalidPetShareException;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.LinkCodeNotFoundException;
+import com.MyAnimaLog.Veterinary.domain.patients.exceptions.NotLinkedToVeterinaryException;
+import com.MyAnimaLog.Veterinary.domain.patients.exceptions.PetNotOwnedException;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.UserAlreadyLinkedException;
 import com.MyAnimaLog.Veterinary.domain.patients.exceptions.UserNotLinkedException;
 import com.MyAnimaLog.Veterinary.domain.shared.exceptions.InvalidVeterinaryNameException;
@@ -228,6 +231,27 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(LinkCodeNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleLinkCodeNotFound(LinkCodeNotFoundException ex) {
         return build(HttpStatus.NOT_FOUND, ex.getMessage(), "LINK_CODE_NOT_FOUND");
+    }
+
+    /**
+     * 403 y no 404 aunque la mascota no exista: un 404 para "no existe" permitiría enumerar
+     * mascotas probando UUIDs.
+     */
+    @ExceptionHandler(PetNotOwnedException.class)
+    public ResponseEntity<Map<String, Object>> handlePetNotOwned(PetNotOwnedException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage(), "PET_NOT_OWNED");
+    }
+
+    /** 409 y no 404: la clínica existe, falta el paso previo de vincularse. */
+    @ExceptionHandler(NotLinkedToVeterinaryException.class)
+    public ResponseEntity<Map<String, Object>> handleNotLinkedToVeterinary(
+            NotLinkedToVeterinaryException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), "NOT_LINKED_TO_VETERINARY");
+    }
+
+    @ExceptionHandler(InvalidPetShareException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidPetShare(InvalidPetShareException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "VALIDATION_ERROR");
     }
 
     @ExceptionHandler(UserAlreadyLinkedException.class)

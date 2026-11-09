@@ -42,4 +42,21 @@ public class VeterinaryPatientRepositoryAdapter implements VeterinaryPatientRepo
         return jpaRepository.countByVeterinaryIdAndGrantedByAndConsentStatus(
                 veterinaryId, grantedBy, ConsentStatus.GRANTED);
     }
+
+    @Override
+    public List<VeterinaryPatient> findByVeterinaryIdAndPetIdIn(UUID veterinaryId, List<UUID> petIds) {
+        if (petIds == null || petIds.isEmpty()) {
+            return List.of();
+        }
+        return jpaRepository.findByVeterinaryIdAndPetIdIn(veterinaryId, petIds).stream()
+                .map(mapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<VeterinaryPatient> findGrantedByPetId(UUID petId) {
+        return jpaRepository.findByPetIdAndConsentStatus(petId, ConsentStatus.GRANTED).stream()
+                .map(mapper::toDomain)
+                .toList();
+    }
 }

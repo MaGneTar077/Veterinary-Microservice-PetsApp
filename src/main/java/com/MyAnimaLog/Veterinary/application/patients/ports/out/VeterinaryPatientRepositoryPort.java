@@ -29,4 +29,15 @@ public interface VeterinaryPatientRepositoryPort {
 
     /** Cuántas mascotas comparte activamente cada dueño con una clínica, para el listado de clientes. */
     long countGrantedByVeterinaryIdAndGrantedBy(UUID veterinaryId, UUID grantedBy);
+
+    /**
+     * Las filas que ya existen para esas mascotas en esa clínica, en cualquier estado de
+     * consentimiento. Compartir las necesita <strong>en una sola consulta</strong> para decidir por
+     * cada mascota si reactiva la fila revocada que ya estaba o inserta una nueva (el índice único
+     * {@code ux_patient_vet_pet} no admite dos filas del mismo par).
+     */
+    List<VeterinaryPatient> findByVeterinaryIdAndPetIdIn(UUID veterinaryId, List<UUID> petIds);
+
+    /** Con qué clínicas se comparte una mascota ahora mismo. */
+    List<VeterinaryPatient> findGrantedByPetId(UUID petId);
 }

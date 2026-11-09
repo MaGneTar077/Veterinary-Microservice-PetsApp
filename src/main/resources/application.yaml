@@ -98,6 +98,12 @@ app:
     terms-version: ${LEGAL_TERMS_VERSION:2026-10-v1}
   user-service:
     base-url: ${USER_SERVICE_URL:}
+  pets-service:
+    # Base URL del servicio de Pets. Vacía = toda llamada a Pets falla con 503
+    # EXTERNAL_SERVICE_UNAVAILABLE, así que compartir mascotas y el listado/detalle de
+    # pacientes dejan de funcionar (a propósito: sin Pets no se puede verificar la
+    # propiedad de una mascota, y dejar pasar sería peor que cortar).
+    base-url: ${PETS_SERVICE_URL:}
   verification:
     rues-url: ${RUES_URL:https://www.rues.org.co/}
     comvezcol-url: ${COMVEZCOL_URL:https://consejoprofesionalmvz.gov.co/consulta-de-profesionales/}
