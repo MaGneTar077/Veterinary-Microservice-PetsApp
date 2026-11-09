@@ -41,6 +41,10 @@
 --        llenan con la misma llamada en lote a Pets que valida la propiedad. NUNCA se
 --        sirven en lugar del dato vivo de Pets: si Pets no responde, los endpoints de
 --        pacientes devuelven 503, no datos viejos.
+--      - updated_at: la fila se REACTIVA en vez de insertarse de nuevo al volver a
+--        compartir una mascota revocada, así que created_at no alcanza para saber cuándo
+--        cambió por última vez (revocación o reactivación). El servicio que escribe esta
+--        tabla debe fijarla explícitamente en cada UPDATE (Hibernate no la actualiza solo).
 --      - Sin FK a pet_id ni a los user_id: esas entidades viven en las bases de Pets y
 --        User, no en esta.
 --
@@ -134,8 +138,11 @@ CREATE TABLE IF NOT EXISTS public.veterinary_patients (
   revoked_at TIMESTAMPTZ,
   pet_name VARCHAR(120),
   species VARCHAR(50),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.veterinary_patients ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
 ALTER TABLE public.veterinary_patients DROP CONSTRAINT IF EXISTS veterinary_patients_origin_check;
 ALTER TABLE public.veterinary_patients ADD CONSTRAINT veterinary_patients_origin_check
