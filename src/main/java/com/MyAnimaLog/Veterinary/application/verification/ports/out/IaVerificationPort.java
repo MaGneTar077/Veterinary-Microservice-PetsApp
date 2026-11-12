@@ -17,10 +17,19 @@ public interface IaVerificationPort {
 
     IaAnalysisResult analyze(IaAnalysisRequest request);
 
-    record IaAnalysisRequest(UUID requestId, SubjectType subjectType, List<IaDocumentRef> documents) {
+    record IaAnalysisRequest(UUID requestId, SubjectType subjectType, List<IaDocumentRef> documents,
+                              Declared declared) {
     }
 
     record IaDocumentRef(String documentType, String signedUrl) {
+    }
+
+    /**
+     * Datos declarados por la clínica al registrarse, solo para {@code subjectType=CLINIC} — permite
+     * que la IA cruce lo declarado contra los documentos subidos. {@code null} en cada campo que la
+     * clínica no tenga. Siempre {@code null} para {@code PROFESSIONAL}.
+     */
+    record Declared(String clinicName, String nit, String legalRepresentativeName, String city) {
     }
 
     /** {@code reportJson} is the raw JSON body returned by the IA service, stored as-is in {@code ai_report}. */

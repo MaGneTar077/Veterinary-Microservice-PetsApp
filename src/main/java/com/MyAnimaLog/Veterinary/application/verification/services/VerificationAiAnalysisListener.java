@@ -1,12 +1,15 @@
 package com.MyAnimaLog.Veterinary.application.verification.services;
 
+import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.shared.ports.out.FileStoragePort;
 import com.MyAnimaLog.Veterinary.application.verification.dto.VerificationSubmittedEvent;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.IaVerificationPort;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationDocumentRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationRequestRepositoryPort;
+import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.AiRiskLevel;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.AiStatus;
+import com.MyAnimaLog.Veterinary.domain.verification.enums.SubjectType;
 import com.MyAnimaLog.Veterinary.domain.verification.model.VerificationDocument;
 import com.MyAnimaLog.Veterinary.domain.verification.model.VerificationRequest;
 import com.MyAnimaLog.Veterinary.infrastructure.storage.StorageProperties;
@@ -42,6 +45,7 @@ public class VerificationAiAnalysisListener {
     private final VerificationDocumentRepositoryPort verificationDocumentRepositoryPort;
     private final FileStoragePort fileStoragePort;
     private final StorageProperties storageProperties;
+    private final VeterinaryRepositoryPort veterinaryRepositoryPort;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -63,7 +67,8 @@ public class VerificationAiAnalysisListener {
                     .toList();
 
             IaVerificationPort.IaAnalysisResult result = iaVerificationPort.analyze(
-                    new IaVerificationPort.IaAnalysisRequest(request.getId(), request.getSubjectType(), documentRefs));
+                    new IaVerificationPort.IaAnalysisRequest(request.getId(), request.getSubjectType(),
+                            documentRefs, declaredFor(request)));
 
             if (result.recommendation() != null && !VALID_RECOMMENDATIONS.contains(result.recommendation())) {
                 log.warn("IA returned an unexpected recommendation for requestId={}", request.getId());
@@ -78,6 +83,21 @@ public class VerificationAiAnalysisListener {
             log.error("IA analysis failed for requestId={}", request.getId());
             verificationRequestRepositoryPort.save(request.toBuilder().aiStatus(AiStatus.FAILED).build());
         }
+    }
+
+    private IaVerificationPort.Declared declaredFor(VerificationRequest request) {
+        if (request.getSubjectType() != SubjectType.CLINIC) {
+            return null;
+        }
+        Veterinary clinic = veterinaryRepositoryPort.findById(request.getSubjectId()).orElse(null);
+        if (clinic == null) {
+            return null;
+        }
+        return new IaVerificationPort.Declared(
+                clinic.getLegalName(),
+                clinic.getNit() == null ? null : clinic.getNit().value(),
+                clinic.getLegalRepName(),
+                clinic.getCity());
     }
 
     private IaVerificationPort.IaDocumentRef toDocumentRef(VerificationDocument document) {

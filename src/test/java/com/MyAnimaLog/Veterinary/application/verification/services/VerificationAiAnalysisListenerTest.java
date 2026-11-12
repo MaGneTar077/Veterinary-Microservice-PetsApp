@@ -1,10 +1,14 @@
 package com.MyAnimaLog.Veterinary.application.verification.services;
 
+import com.MyAnimaLog.Veterinary.application.clinic.ports.out.VeterinaryRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.shared.ports.out.FileStoragePort;
 import com.MyAnimaLog.Veterinary.application.verification.dto.VerificationSubmittedEvent;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.IaVerificationPort;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationDocumentRepositoryPort;
 import com.MyAnimaLog.Veterinary.application.verification.ports.out.VerificationRequestRepositoryPort;
+import com.MyAnimaLog.Veterinary.domain.clinic.enums.VeterinaryStatus;
+import com.MyAnimaLog.Veterinary.domain.clinic.model.Nit;
+import com.MyAnimaLog.Veterinary.domain.clinic.model.Veterinary;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.AiRiskLevel;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.AiStatus;
 import com.MyAnimaLog.Veterinary.domain.verification.enums.SubjectType;
@@ -42,29 +46,38 @@ class VerificationAiAnalysisListenerTest {
     private VerificationDocumentRepositoryPort verificationDocumentRepositoryPort;
     @Mock
     private FileStoragePort fileStoragePort;
+    @Mock
+    private VeterinaryRepositoryPort veterinaryRepositoryPort;
 
     private StorageProperties storageProperties;
 
     private VerificationAiAnalysisListener listener;
 
     private UUID requestId;
+    private UUID subjectId;
     private VerificationRequest request;
 
     @BeforeEach
     void setUp() {
         storageProperties = new StorageProperties();
         listener = new VerificationAiAnalysisListener(iaVerificationPort, verificationRequestRepositoryPort,
-                verificationDocumentRepositoryPort, fileStoragePort, storageProperties);
+                verificationDocumentRepositoryPort, fileStoragePort, storageProperties, veterinaryRepositoryPort);
 
         requestId = UUID.randomUUID();
+        subjectId = UUID.randomUUID();
         request = VerificationRequest.builder()
-                .id(requestId).subjectType(SubjectType.CLINIC).subjectId(UUID.randomUUID())
+                .id(requestId).subjectType(SubjectType.CLINIC).subjectId(subjectId)
                 .status(VerificationRequestStatus.UNDER_REVIEW).attemptNumber(1).aiStatus(AiStatus.NOT_RUN).build();
 
         lenient().when(verificationRequestRepositoryPort.findById(requestId)).thenReturn(Optional.of(request));
         lenient().when(verificationRequestRepositoryPort.save(any(VerificationRequest.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         lenient().when(verificationDocumentRepositoryPort.findByRequestId(requestId)).thenReturn(List.of());
+        lenient().when(veterinaryRepositoryPort.findById(subjectId)).thenReturn(Optional.of(
+                Veterinary.builder().id(subjectId).name("El Bosque").city("Cartagena")
+                        .legalName("El Bosque SAS").legalRepName("Ana Pérez")
+                        .nit(Nit.fromPersisted("900123456-1")).tenantId(UUID.randomUUID().toString())
+                        .status(VeterinaryStatus.ACTIVE).active(true).build()));
     }
 
     @Test
@@ -115,6 +128,37 @@ class VerificationAiAnalysisListenerTest {
         listener.onVerificationSubmitted(new VerificationSubmittedEvent(requestId));
 
         verify(verificationRequestRepositoryPort).save(ArgumentMatchers.argThat(r -> r.getAiStatus() == AiStatus.FAILED));
+    }
+
+    @Test
+    void onVerificationSubmitted_shouldSendDeclaredClinicData_forClinicSubjects() {
+        when(iaVerificationPort.isEnabled()).thenReturn(true);
+        when(iaVerificationPort.analyze(any())).thenReturn(
+                new IaVerificationPort.IaAnalysisResult("READY_FOR_HUMAN_REVIEW", "LOW", "{}"));
+
+        listener.onVerificationSubmitted(new VerificationSubmittedEvent(requestId));
+
+        verify(iaVerificationPort).analyze(ArgumentMatchers.argThat(r ->
+                r.declared() != null
+                        && "El Bosque SAS".equals(r.declared().clinicName())
+                        && "900123456-1".equals(r.declared().nit())
+                        && "Ana Pérez".equals(r.declared().legalRepresentativeName())
+                        && "Cartagena".equals(r.declared().city())));
+    }
+
+    @Test
+    void onVerificationSubmitted_shouldNotSendDeclaredData_forProfessionalSubjects() {
+        VerificationRequest professionalRequest = request.toBuilder()
+                .subjectType(SubjectType.PROFESSIONAL).build();
+        when(verificationRequestRepositoryPort.findById(requestId)).thenReturn(Optional.of(professionalRequest));
+        when(iaVerificationPort.isEnabled()).thenReturn(true);
+        when(iaVerificationPort.analyze(any())).thenReturn(
+                new IaVerificationPort.IaAnalysisResult("READY_FOR_HUMAN_REVIEW", "LOW", "{}"));
+
+        listener.onVerificationSubmitted(new VerificationSubmittedEvent(requestId));
+
+        verify(iaVerificationPort).analyze(ArgumentMatchers.argThat(r -> r.declared() == null));
+        verify(veterinaryRepositoryPort, never()).findById(any());
     }
 
     @Test
