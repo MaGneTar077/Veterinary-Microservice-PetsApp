@@ -140,7 +140,7 @@ class VerificationAiAnalysisListenerTest {
 
         verify(iaVerificationPort).analyze(ArgumentMatchers.argThat(r ->
                 r.declared() != null
-                        && "El Bosque SAS".equals(r.declared().clinicName())
+                        && "El Bosque SAS".equals(r.declared().legalName())
                         && "900123456-1".equals(r.declared().nit())
                         && "Ana Pérez".equals(r.declared().legalRepresentativeName())
                         && "Cartagena".equals(r.declared().city())));

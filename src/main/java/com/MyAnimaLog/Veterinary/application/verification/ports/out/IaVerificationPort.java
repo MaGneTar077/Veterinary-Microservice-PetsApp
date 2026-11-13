@@ -29,7 +29,7 @@ public interface IaVerificationPort {
      * que la IA cruce lo declarado contra los documentos subidos. {@code null} en cada campo que la
      * clínica no tenga. Siempre {@code null} para {@code PROFESSIONAL}.
      */
-    record Declared(String clinicName, String nit, String legalRepresentativeName, String city) {
+    record Declared(String legalName, String nit, String legalRepresentativeName, String city) {
     }
 
     /** {@code reportJson} is the raw JSON body returned by the IA service, stored as-is in {@code ai_report}. */

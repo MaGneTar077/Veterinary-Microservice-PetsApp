@@ -84,7 +84,7 @@ public class IaHttpVerificationAdapter implements IaVerificationPort {
                 .map(doc -> new DocumentRefBody(doc.documentType(), doc.signedUrl()))
                 .toList();
         DeclaredBody declared = request.declared() == null ? null : new DeclaredBody(
-                request.declared().clinicName(), request.declared().nit(),
+                request.declared().legalName(), request.declared().nit(),
                 request.declared().legalRepresentativeName(), request.declared().city());
         return new AnalyzeRequestBody(request.requestId(), request.subjectType().name(), documents, declared);
     }
@@ -96,6 +96,6 @@ public class IaHttpVerificationAdapter implements IaVerificationPort {
     private record DocumentRefBody(String documentType, String signedUrl) {
     }
 
-    private record DeclaredBody(String clinicName, String nit, String legalRepresentativeName, String city) {
+    private record DeclaredBody(String legalName, String nit, String legalRepresentativeName, String city) {
     }
 }
