@@ -56,6 +56,15 @@ public interface VeterinaryEmployeeRepositoryPort {
     boolean claimRoleTransition(UUID employeeId, EmployeeRole expectedRole, EmployeeRole newRole);
 
     /**
+     * Empleados activos de una clínica con su rol y si están licenciados (mismo dato que resuelve
+     * {@code GetPatientAccessService.toResponse}: {@code professional_profiles.license_status ==
+     * VERIFIED} por {@code user_id}, nunca el claim {@code vet_licensed} del token), en una sola
+     * consulta. Usado para calcular {@code employeeIds} elegibles de un servicio del catálogo
+     * ({@code ClinicServiceEligibility}) sin copiar esa lógica de autorización.
+     */
+    List<EmployeeLicense> findActiveWithLicense(UUID veterinaryId);
+
+    /**
      * @param employeeId id del registro de empleado (lo que el token llama {@code employee_id})
      * @param role rol actual en la base, no el del claim
      * @param active {@code false} si el empleado fue retirado
@@ -63,5 +72,8 @@ public interface VeterinaryEmployeeRepositoryPort {
      */
     record ClinicMembership(UUID employeeId, EmployeeRole role, boolean active,
                              VeterinaryStatus veterinaryStatus) {
+    }
+
+    record EmployeeLicense(UUID employeeId, EmployeeRole role, boolean licensed) {
     }
 }

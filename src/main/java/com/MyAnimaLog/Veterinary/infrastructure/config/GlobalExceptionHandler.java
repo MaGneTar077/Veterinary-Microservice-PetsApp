@@ -73,6 +73,9 @@ import com.MyAnimaLog.Veterinary.domain.verification.exceptions.AiVerificationDi
 import com.MyAnimaLog.Veterinary.domain.professional.exceptions.ProfessionalProfileNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.professional.exceptions.LicenseNumberAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.professional.exceptions.InvalidProfessionalProfileException;
+import com.MyAnimaLog.Veterinary.domain.catalog.exceptions.InvalidClinicServiceException;
+import com.MyAnimaLog.Veterinary.domain.catalog.exceptions.ClinicServiceNameAlreadyExistsException;
+import com.MyAnimaLog.Veterinary.domain.catalog.exceptions.ClinicServiceNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -258,6 +261,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidPetShareException.class)
     public ResponseEntity<Map<String, Object>> handleInvalidPetShare(InvalidPetShareException ex) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "VALIDATION_ERROR");
+    }
+
+    @ExceptionHandler(InvalidClinicServiceException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidClinicService(InvalidClinicServiceException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "VALIDATION_ERROR");
+    }
+
+    @ExceptionHandler(ClinicServiceNameAlreadyExistsException.class)
+    public ResponseEntity<Map<String, Object>> handleClinicServiceNameAlreadyExists(ClinicServiceNameAlreadyExistsException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), "CLINIC_SERVICE_NAME_TAKEN");
+    }
+
+    @ExceptionHandler(ClinicServiceNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleClinicServiceNotFound(ClinicServiceNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage(), "CLINIC_SERVICE_NOT_FOUND");
     }
 
     @ExceptionHandler(UserAlreadyLinkedException.class)

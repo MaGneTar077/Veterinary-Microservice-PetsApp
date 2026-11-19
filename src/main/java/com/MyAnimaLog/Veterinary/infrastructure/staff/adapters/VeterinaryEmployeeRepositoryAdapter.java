@@ -76,6 +76,16 @@ public class VeterinaryEmployeeRepositoryAdapter implements VeterinaryEmployeeRe
     }
 
     @Override
+    public List<EmployeeLicense> findActiveWithLicense(UUID veterinaryId) {
+        return jpaRepository.findActiveWithLicense(veterinaryId).stream()
+                .map(projection -> new EmployeeLicense(
+                        projection.getEmployeeId(),
+                        projection.getRole(),
+                        Boolean.TRUE.equals(projection.getLicensed())))
+                .toList();
+    }
+
+    @Override
     public Optional<ClinicMembership> findClinicMembership(UUID veterinaryId, UUID userId) {
         return jpaRepository.findClinicMembership(veterinaryId, userId)
                 .map(projection -> new ClinicMembership(
