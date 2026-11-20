@@ -21,10 +21,19 @@ public class GetInternalClinicServicesService implements GetInternalClinicServic
     private final VeterinaryEmployeeRepositoryPort employeeRepositoryPort;
 
     @Override
-    public List<InternalClinicServiceResponse> list(UUID veterinaryId, boolean activeOnly) {
+    public List<InternalClinicServiceResponse> list(UUID veterinaryId, boolean activeOnly,
+                                                      String bookableOnlineFilter) {
+        Boolean bookableOnline = ClinicServiceValidation.validateBookableOnlineFilter(bookableOnlineFilter);
+
         List<ClinicService> services = activeOnly
                 ? repositoryPort.findByVeterinaryIdAndActiveTrue(veterinaryId)
                 : repositoryPort.findByVeterinaryId(veterinaryId);
+
+        if (bookableOnline != null) {
+            services = services.stream()
+                    .filter(service -> bookableOnline.equals(service.getBookableOnline()))
+                    .toList();
+        }
 
         List<EmployeeLicense> activeEmployees = employeeRepositoryPort.findActiveWithLicense(veterinaryId);
 

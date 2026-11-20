@@ -76,4 +76,22 @@ public final class ClinicServiceValidation {
             throw new InvalidClinicServiceException("Invalid employee role in allowedRoles: " + role);
         }
     }
+
+    /**
+     * Filtro opcional {@code ?bookableOnline=} del listado interno. {@code null} (parámetro
+     * ausente) significa "no filtrar por esto" — distinto de {@code false}, que sí filtra. Cualquier
+     * valor que no sea exactamente {@code "true"} o {@code "false"} es inválido.
+     */
+    public static Boolean validateBookableOnlineFilter(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        if ("true".equals(raw)) {
+            return Boolean.TRUE;
+        }
+        if ("false".equals(raw)) {
+            return Boolean.FALSE;
+        }
+        throw new InvalidClinicServiceException("bookableOnline must be 'true' or 'false', got: " + raw);
+    }
 }

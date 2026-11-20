@@ -19,7 +19,8 @@ public class GetInternalClinicServicesController {
     @GetMapping("/{veterinaryId}/services")
     public ResponseEntity<List<InternalClinicServiceResponse>> list(
             @PathVariable UUID veterinaryId,
-            @RequestParam(required = false, defaultValue = "false") boolean activeOnly) {
-        return ResponseEntity.ok(getInternalClinicServicesUseCase.list(veterinaryId, activeOnly));
+            @RequestParam(required = false, defaultValue = "false") boolean activeOnly,
+            @RequestParam(required = false) String bookableOnline) {
+        return ResponseEntity.ok(getInternalClinicServicesUseCase.list(veterinaryId, activeOnly, bookableOnline));
     }
 }

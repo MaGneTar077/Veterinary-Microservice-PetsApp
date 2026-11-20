@@ -2,6 +2,7 @@ package com.MyAnimaLog.Veterinary.infrastructure.catalog.controllers;
 
 import com.MyAnimaLog.Veterinary.application.catalog.dto.InternalClinicServiceResponse;
 import com.MyAnimaLog.Veterinary.application.catalog.ports.in.GetInternalClinicServicesUseCase;
+import com.MyAnimaLog.Veterinary.domain.catalog.exceptions.InvalidClinicServiceException;
 import com.MyAnimaLog.Veterinary.infrastructure.config.GlobalExceptionHandler;
 import com.MyAnimaLog.Veterinary.infrastructure.security.ImportSecurityConfig;
 import org.junit.jupiter.api.Test;
@@ -47,7 +48,7 @@ class GetInternalClinicServicesControllerTest {
     void list_shouldReturn200_withEmployeeIdsAndPriceAsNumber() throws Exception {
         UUID veterinaryId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
-        when(getInternalClinicServicesUseCase.list(any(), anyBoolean())).thenReturn(List.of(
+        when(getInternalClinicServicesUseCase.list(any(), anyBoolean(), any())).thenReturn(List.of(
                 InternalClinicServiceResponse.builder()
                         .id(UUID.randomUUID())
                         .name("Consulta general")
@@ -65,5 +66,16 @@ class GetInternalClinicServicesControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].employeeIds[0]").value(employeeId.toString()))
                 .andExpect(jsonPath("$[0].price").value(40000));
+    }
+
+    @Test
+    void list_shouldReturn400_whenBookableOnlineIsNotTrueOrFalse() throws Exception {
+        when(getInternalClinicServicesUseCase.list(any(), anyBoolean(), any()))
+                .thenThrow(new InvalidClinicServiceException("bookableOnline must be 'true' or 'false', got: yes"));
+
+        mockMvc.perform(get("/internal/veterinaries/" + UUID.randomUUID() + "/services?bookableOnline=yes")
+                        .header("X-Internal-Api-Key", internalApiKey))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 }
