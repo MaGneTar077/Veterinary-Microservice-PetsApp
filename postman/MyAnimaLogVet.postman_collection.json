@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "b7e1c3a4-5d6f-4a8b-9c0d-1e2f3a4b5c6d",
     "name": "MyAnimaLog · Veterinary Service",
-    "description": "# MyAnimaLog · Veterinary Service\n\nColección completa del `veterinary-service` (**75 endpoints**, todos los del código, incluidos\nlos `/internal/**` y los deprecados). Generada desde los controladores con\n`postman/build-collection.js` y verificada con `postman/check-coverage.js`.\n\n## Cómo empezar\n\n1. Importá la colección y **uno** de los dos environments (`Local` o `CloudRun`).\n2. Llená en el environment: `owner_email`, `owner_password` y (para las carpetas 05/06/07)\n   `admin_email`/`admin_password`. En `CloudRun`, además las URLs.\n3. **00 · Autenticación** → `POST Login` guarda `access_token`.\n4. **01 · Registro de clínica** (o **02 · GET Mis clínicas** si ya tenés una) para tener\n   `veterinaryId`.\n5. **00 · POST Token de clínica** guarda `clinic_token`. Desde acá funcionan 02, 03, 08, 10.\n6. El resto en orden: 03 verificación → 05 el admin aprueba → 08 invitás → 09 el invitado\n   acepta → 10 equipo.\n\n## Qué token usa cada carpeta\n\n| Carpeta | Token |\n|---|---|\n| 00 Autenticación | ninguno (son del User service) |\n| 01 Registro | `access_token` (normal) |\n| 02 Mis clínicas y perfil | `clinic_token`, salvo `GET /me` que usa `access_token` |\n| 03 Verificación | `access_token` del OWNER (verificado contra la base) |\n| 04 Perfil profesional | `access_token`, salvo el perfil de un colega que usa `clinic_token` |\n| 05 · 06 · 07 Admin | `admin_token` (usuario `PLATFORM_ADMIN`) |\n| 08 Invitaciones (clínica) | `clinic_token` |\n| 09 Invitaciones (invitado) | `access_token` del invitado |\n| 10 Equipo | `clinic_token` |\n| 11 Vinculación y mascotas (dueño) | `access_token` del dueño |\n| 14 Clientes y pacientes (clínica) | `clinic_token` |\n| 12 · 13 Internos y jobs | ninguno; header `X-Internal-Api-Key` |\n| 99 Deprecados | `clinic_token` |\n\nLa autenticación por defecto de la colección es `Bearer {{access_token}}`; cada carpeta la\nsobrescribe donde hace falta.\n\n## El rol se lee de la base, no del token\n\nDesde la Fase 3, el rol y el estado de la clínica se resuelven **contra la base en cada\npetición**. Si te cambian el rol o te retiran, tu token de clínica deja de servir para lo que ya\nno te corresponde **en la petición siguiente**, sin esperar los ~60 min que dura. En Postman eso\nse ve como un `403 NOT_CLINIC_MEMBER` o `403 INSUFFICIENT_PERMISSION` con un token que funcionaba\nhace un momento: hay que volver a **00 · POST Token de clínica**.\n\n## Probar invitaciones en local sin correos\n\nCon `EVENTS_ENABLED=false` (lo normal en local y en el piloto) **no sale ningún evento, así que\nno se envía ningún correo** — incluido el de invitación. El token en claro solo existe dentro de\nese evento, así que no hay forma de leerlo desde la API.\n\nPara probar las carpetas 09 en local, fijá un token conocido con SQL después de crear la\ninvitación en 08:\n\n```sql\nUPDATE public.employee_invitations\nSET token_hash = encode(sha256(convert_to('token-prueba-1','UTF8')),'hex')\nWHERE id = '<invitationId>';\n```\n\nY poné `invitation_token = token-prueba-1` en el environment.\n\n**Verificado en el código**: `Sha256.hex()` usa `MessageDigest(\"SHA-256\")` y formatea cada byte\ncon `%02x`, o sea **hex en minúsculas**, sobre `token.getBytes(UTF_8)` — exactamente lo que\nproduce `encode(sha256(convert_to(...,'UTF8')),'hex')`. Y `ResendInvitationService` **sí**\nreemplaza `token_hash` por el hash de un token nuevo, así que reenviar invalida el token que\nfijaste y hay que volver a correr el `UPDATE`.\n\nPara que la invitación siga siendo usable: `status = PENDING`, `expires_at` en el futuro, y el\ncorreo del JWT igual al `email` de la fila y verificado.\n\n## Variables de URL\n\n`{{vet_url}}` es la **base del servicio sin** `/api/veterinary` (ej. `http://localhost:8082`);\ncada request lleva la ruta completa. Así la misma variable sirve para `/api/veterinary/**` y\npara `/internal/**`. `{{gateway_url}}` está en el environment local por si querés probar a\ntravés del gateway: cambiá `vet_url` por ese valor.",
+    "description": "# MyAnimaLog · Veterinary Service\n\nColección completa del `veterinary-service` (**92 endpoints**, todos los del código, incluidos\nlos `/internal/**` y los deprecados). Generada desde los controladores con\n`postman/build-collection.js` y verificada con `postman/check-coverage.js`.\n\n## Cómo empezar\n\n1. Importá la colección y **uno** de los dos environments (`Local` o `CloudRun`).\n2. Llená en el environment: `owner_email`, `owner_password` y (para las carpetas 05/06/07)\n   `admin_email`/`admin_password`. En `CloudRun`, además las URLs.\n3. **00 · Autenticación** → `POST Login` guarda `access_token`.\n4. **01 · Registro de clínica** (o **02 · GET Mis clínicas** si ya tenés una) para tener\n   `veterinaryId`.\n5. **00 · POST Token de clínica** guarda `clinic_token`. Desde acá funcionan 02, 03, 08, 10.\n6. El resto en orden: 03 verificación → 05 el admin aprueba → 08 invitás → 09 el invitado\n   acepta → 10 equipo.\n\n## Qué token usa cada carpeta\n\n| Carpeta | Token |\n|---|---|\n| 00 Autenticación | ninguno (son del User service) |\n| 01 Registro | `access_token` (normal) |\n| 02 Mis clínicas y perfil | `clinic_token`, salvo `GET /me` que usa `access_token` |\n| 03 Verificación | `access_token` del OWNER (verificado contra la base) |\n| 04 Perfil profesional | `access_token`, salvo el perfil de un colega que usa `clinic_token` |\n| 05 · 06 · 07 Admin | `admin_token` (usuario `PLATFORM_ADMIN`) |\n| 08 Invitaciones (clínica) | `clinic_token` |\n| 09 Invitaciones (invitado) | `access_token` del invitado |\n| 10 Equipo | `clinic_token` |\n| 11 Vinculación y mascotas (dueño) | `access_token` del dueño |\n| 14 Clientes y pacientes (clínica) | `clinic_token` |\n| 15 · 16 · 17 · 18 Catálogo, horarios y bloqueos (Fase 5) | `clinic_token` |\n| 12 · 13 · 19 Internos y jobs | ninguno; header `X-Internal-Api-Key` |\n| 99 Deprecados | `clinic_token` |\n\nLa autenticación por defecto de la colección es `Bearer {{access_token}}`; cada carpeta la\nsobrescribe donde hace falta.\n\n## El rol se lee de la base, no del token\n\nDesde la Fase 3, el rol y el estado de la clínica se resuelven **contra la base en cada\npetición**. Si te cambian el rol o te retiran, tu token de clínica deja de servir para lo que ya\nno te corresponde **en la petición siguiente**, sin esperar los ~60 min que dura. En Postman eso\nse ve como un `403 NOT_CLINIC_MEMBER` o `403 INSUFFICIENT_PERMISSION` con un token que funcionaba\nhace un momento: hay que volver a **00 · POST Token de clínica**.\n\n## Probar invitaciones en local sin correos\n\nCon `EVENTS_ENABLED=false` (lo normal en local y en el piloto) **no sale ningún evento, así que\nno se envía ningún correo** — incluido el de invitación. El token en claro solo existe dentro de\nese evento, así que no hay forma de leerlo desde la API.\n\nPara probar las carpetas 09 en local, fijá un token conocido con SQL después de crear la\ninvitación en 08:\n\n```sql\nUPDATE public.employee_invitations\nSET token_hash = encode(sha256(convert_to('token-prueba-1','UTF8')),'hex')\nWHERE id = '<invitationId>';\n```\n\nY poné `invitation_token = token-prueba-1` en el environment.\n\n**Verificado en el código**: `Sha256.hex()` usa `MessageDigest(\"SHA-256\")` y formatea cada byte\ncon `%02x`, o sea **hex en minúsculas**, sobre `token.getBytes(UTF_8)` — exactamente lo que\nproduce `encode(sha256(convert_to(...,'UTF8')),'hex')`. Y `ResendInvitationService` **sí**\nreemplaza `token_hash` por el hash de un token nuevo, así que reenviar invalida el token que\nfijaste y hay que volver a correr el `UPDATE`.\n\nPara que la invitación siga siendo usable: `status = PENDING`, `expires_at` en el futuro, y el\ncorreo del JWT igual al `email` de la fila y verificado.\n\n## Variables de URL\n\n`{{vet_url}}` es la **base del servicio sin** `/api/veterinary` (ej. `http://localhost:8082`);\ncada request lleva la ruta completa. Así la misma variable sirve para `/api/veterinary/**` y\npara `/internal/**`. `{{gateway_url}}` está en el environment local por si querés probar a\ntravés del gateway: cambiá `vet_url` por ese valor.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -6798,6 +6798,1558 @@
       }
     },
     {
+      "name": "14 · Clientes y pacientes (clínica)",
+      "description": "Fase 4A. Lado de la clínica sobre dueños vinculados y mascotas compartidas. Token: **de\nclínica**.",
+      "item": [
+        {
+          "name": "GET Clientes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/clients?page=0&size=20",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "api",
+                "veterinary",
+                "{{veterinaryId}}",
+                "clients"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Permiso: `CLINICAL_READ_BASIC` (todos los roles). Dueños vinculados, paginado. Nombre/correo\nprefieren el dato vivo del User service y caen al snapshot del vínculo si no responde."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Página de clientes",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/clients?page=0&size=20",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "clients"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "Permiso: `CLINICAL_READ_BASIC` (todos los roles). Dueños vinculados, paginado. Nombre/correo\nprefieren el dato vivo del User service y caen al snapshot del vínculo si no responde."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"items\": [\n    {\n      \"userId\": \"aa11bb22-cc33-4dd4-8ee5-ff6677889900\",\n      \"name\": \"Carlos Pérez\",\n      \"email\": \"carlos@correo.com\",\n      \"linkedAt\": \"2026-10-01T09:00:00\",\n      \"sharedPetsCount\": 2\n    }\n  ],\n  \"page\": 0,\n  \"size\": 20,\n  \"total\": 1\n}"
+            }
+          ]
+        },
+        {
+          "name": "DELETE Quitar cliente",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/clients/{{clientUserId}}",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "api",
+                "veterinary",
+                "{{veterinaryId}}",
+                "clients",
+                "{{clientUserId}}"
+              ]
+            },
+            "description": "Permiso: `CLINIC_CONFIGURE`. Misma lógica que \"Desvincularme\" (carpeta 11): revoca todas las\nmascotas compartidas y limpia el snapshot.\n\n- `404 USER_NOT_LINKED`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Cliente desvinculado",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/clients/{{clientUserId}}",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "clients",
+                    "{{clientUserId}}"
+                  ]
+                },
+                "description": "Permiso: `CLINIC_CONFIGURE`. Misma lógica que \"Desvincularme\" (carpeta 11): revoca todas las\nmascotas compartidas y limpia el snapshot.\n\n- `404 USER_NOT_LINKED`."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"userId\": \"aa11bb22-cc33-4dd4-8ee5-ff6677889900\",\n  \"veterinaryId\": \"9a1c2f3e-4b5d-6e7f-8a9b-0c1d2e3f4a5b\",\n  \"revokedPetsCount\": 2,\n  \"message\": \"User unlinked successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET Pacientes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/patients?page=0&size=20",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "api",
+                "veterinary",
+                "{{veterinaryId}}",
+                "patients"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Permiso: `CLINICAL_READ_BASIC`. Mascotas compartidas activamente, datos de Pets **en vivo**,\nuna sola llamada en lote por página.\n\n- `503 EXTERNAL_SERVICE_UNAVAILABLE` — Pets no respondió."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Página de pacientes",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/patients?page=0&size=20",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "patients"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "Permiso: `CLINICAL_READ_BASIC`. Mascotas compartidas activamente, datos de Pets **en vivo**,\nuna sola llamada en lote por página.\n\n- `503 EXTERNAL_SERVICE_UNAVAILABLE` — Pets no respondió."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"items\": [\n    {\n      \"petId\": \"bb22cc33-dd44-4ee5-8ff6-778899001122\",\n      \"name\": \"Max\",\n      \"species\": \"DOG\",\n      \"breed\": \"Criollo\",\n      \"photoUrl\": \"https://cdn.example.com/max.png\",\n      \"ownerUserId\": \"aa11bb22-cc33-4dd4-8ee5-ff6677889900\",\n      \"grantedAt\": \"2026-11-08T14:10:00\"\n    }\n  ],\n  \"page\": 0,\n  \"size\": 20,\n  \"total\": 1\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET Detalle de un paciente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/patients/{{petId}}",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "api",
+                "veterinary",
+                "{{veterinaryId}}",
+                "patients",
+                "{{petId}}"
+              ]
+            },
+            "description": "Permiso: `CLINICAL_READ_BASIC`. Solo si está compartido **activamente**.\n\n- `404 PATIENT_NOT_FOUND` — nunca se compartió, o se revocó."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Detalle",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/patients/{{petId}}",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "patients",
+                    "{{petId}}"
+                  ]
+                },
+                "description": "Permiso: `CLINICAL_READ_BASIC`. Solo si está compartido **activamente**.\n\n- `404 PATIENT_NOT_FOUND` — nunca se compartió, o se revocó."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"petId\": \"bb22cc33-dd44-4ee5-8ff6-778899001122\",\n  \"name\": \"Max\",\n  \"species\": \"DOG\",\n  \"breed\": \"Criollo\",\n  \"sex\": \"MALE\",\n  \"birthDate\": \"2021-05-10\",\n  \"photoUrl\": \"https://cdn.example.com/max.png\",\n  \"ownerUserId\": \"aa11bb22-cc33-4dd4-8ee5-ff6677889900\",\n  \"grantedAt\": \"2026-11-08T14:10:00\"\n}"
+            },
+            {
+              "name": "404 · Revocado o nunca compartido",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/patients/{{petId}}",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "patients",
+                    "{{petId}}"
+                  ]
+                },
+                "description": "Permiso: `CLINICAL_READ_BASIC`. Solo si está compartido **activamente**.\n\n- `404 PATIENT_NOT_FOUND` — nunca se compartió, o se revocó."
+              },
+              "status": "OK",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"code\": \"PATIENT_NOT_FOUND\"\n}"
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{clinic_token}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "15 · Catálogo de servicios (clínica)",
+      "description": "Fase 5. CRUD de `clinic_services`. Nunca se borran, solo se desactivan (puede haber citas en\nCalendar que los referencian por id).",
+      "item": [
+        {
+          "name": "GET Catálogo de la clínica",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/services",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "api",
+                "veterinary",
+                "{{veterinaryId}}",
+                "services"
+              ]
+            },
+            "description": "Cualquier miembro activo (`requireActiveMember`, sin permiso específico). Devuelve activos e\ninactivos."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Catálogo",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/services",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "services"
+                  ]
+                },
+                "description": "Cualquier miembro activo (`requireActiveMember`, sin permiso específico). Devuelve activos e\ninactivos."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"items\": [\n    {\n      \"id\": \"c1a1b1c1-0000-0000-0000-000000000001\",\n      \"name\": \"Consulta general\",\n      \"category\": \"CONSULTATION\",\n      \"durationMinutes\": 30,\n      \"price\": 40000,\n      \"bookableOnline\": true,\n      \"active\": true,\n      \"requiresLicense\": false,\n      \"allowedRoles\": [\n        \"OWNER\",\n        \"ADMIN\",\n        \"VETERINARIAN\"\n      ]\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST Crear servicio",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/services",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "api",
+                "veterinary",
+                "{{veterinaryId}}",
+                "services"
+              ]
+            },
+            "description": "Permiso `CLINIC_CONFIGURE`. `allowedRoles` default `[OWNER,ADMIN,VETERINARIAN]` si se omite\n(nunca vacía). `category`: `CONSULTATION`/`VACCINATION`/`SURGERY`/`GROOMING`/`LAB`/`OTHER`.\n`durationMinutes` 5-600, `price >= 0` con hasta 2 decimales.\n\n- `400 VALIDATION_ERROR` — campo inválido.\n- `409 CLINIC_SERVICE_NAME_TAKEN` — ya hay un servicio **activo** con ese nombre.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Consulta general\",\n  \"category\": \"CONSULTATION\",\n  \"durationMinutes\": 30,\n  \"price\": 40000,\n  \"bookableOnline\": true,\n  \"requiresLicense\": false,\n  \"allowedRoles\": [\n    \"OWNER\",\n    \"ADMIN\",\n    \"VETERINARIAN\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    if (body.id) {",
+                  "        pm.environment.set(\"serviceId\", body.id);",
+                  "        console.log(\"serviceId =\", body.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "201 · Creado",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/services",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "services"
+                  ]
+                },
+                "description": "Permiso `CLINIC_CONFIGURE`. `allowedRoles` default `[OWNER,ADMIN,VETERINARIAN]` si se omite\n(nunca vacía). `category`: `CONSULTATION`/`VACCINATION`/`SURGERY`/`GROOMING`/`LAB`/`OTHER`.\n`durationMinutes` 5-600, `price >= 0` con hasta 2 decimales.\n\n- `400 VALIDATION_ERROR` — campo inválido.\n- `409 CLINIC_SERVICE_NAME_TAKEN` — ya hay un servicio **activo** con ese nombre.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Consulta general\",\n  \"category\": \"CONSULTATION\",\n  \"durationMinutes\": 30,\n  \"price\": 40000,\n  \"bookableOnline\": true,\n  \"requiresLicense\": false,\n  \"allowedRoles\": [\n    \"OWNER\",\n    \"ADMIN\",\n    \"VETERINARIAN\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"id\": \"c1a1b1c1-0000-0000-0000-000000000001\",\n  \"veterinaryId\": \"9a1c2f3e-4b5d-6e7f-8a9b-0c1d2e3f4a5b\",\n  \"name\": \"Consulta general\",\n  \"category\": \"CONSULTATION\",\n  \"durationMinutes\": 30,\n  \"price\": 40000,\n  \"bookableOnline\": true,\n  \"active\": true,\n  \"requiresLicense\": false,\n  \"allowedRoles\": [\n    \"OWNER\",\n    \"ADMIN\",\n    \"VETERINARIAN\"\n  ],\n  \"createdAt\": \"2026-11-19T10:00:00\",\n  \"updatedAt\": \"2026-11-19T10:00:00\"\n}"
+            },
+            {
+              "name": "409 · Nombre repetido",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/services",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "services"
+                  ]
+                },
+                "description": "Permiso `CLINIC_CONFIGURE`. `allowedRoles` default `[OWNER,ADMIN,VETERINARIAN]` si se omite\n(nunca vacía). `category`: `CONSULTATION`/`VACCINATION`/`SURGERY`/`GROOMING`/`LAB`/`OTHER`.\n`durationMinutes` 5-600, `price >= 0` con hasta 2 decimales.\n\n- `400 VALIDATION_ERROR` — campo inválido.\n- `409 CLINIC_SERVICE_NAME_TAKEN` — ya hay un servicio **activo** con ese nombre.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Consulta general\",\n  \"category\": \"CONSULTATION\",\n  \"durationMinutes\": 30,\n  \"price\": 40000,\n  \"bookableOnline\": true,\n  \"requiresLicense\": false,\n  \"allowedRoles\": [\n    \"OWNER\",\n    \"ADMIN\",\n    \"VETERINARIAN\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 409,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"code\": \"CLINIC_SERVICE_NAME_TAKEN\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "PATCH Editar servicio",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/services/{{serviceId}}",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "api",
+                "veterinary",
+                "{{veterinaryId}}",
+                "services",
+                "{{serviceId}}"
+              ]
+            },
+            "description": "Permiso `CLINIC_CONFIGURE`. Edición parcial: campo ausente = sin cambios. Reenviar el mismo\nnombre sin cambios nunca da `409`.\n\n- `404 CLINIC_SERVICE_NOT_FOUND` — no existe o es de otra clínica.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 50000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Editado",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/services/{{serviceId}}",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "services",
+                    "{{serviceId}}"
+                  ]
+                },
+                "description": "Permiso `CLINIC_CONFIGURE`. Edición parcial: campo ausente = sin cambios. Reenviar el mismo\nnombre sin cambios nunca da `409`.\n\n- `404 CLINIC_SERVICE_NOT_FOUND` — no existe o es de otra clínica.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"price\": 50000\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"id\": \"c1a1b1c1-0000-0000-0000-000000000001\",\n  \"veterinaryId\": \"9a1c2f3e-4b5d-6e7f-8a9b-0c1d2e3f4a5b\",\n  \"name\": \"Consulta general\",\n  \"category\": \"CONSULTATION\",\n  \"durationMinutes\": 30,\n  \"price\": 50000,\n  \"bookableOnline\": true,\n  \"active\": true,\n  \"requiresLicense\": false,\n  \"allowedRoles\": [\n    \"OWNER\",\n    \"ADMIN\",\n    \"VETERINARIAN\"\n  ],\n  \"createdAt\": \"2026-11-19T10:00:00\",\n  \"updatedAt\": \"2026-11-19T10:05:00\"\n}"
+            },
+            {
+              "name": "404 · No existe o es de otra clínica",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/services/{{serviceId}}",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "services",
+                    "{{serviceId}}"
+                  ]
+                },
+                "description": "Permiso `CLINIC_CONFIGURE`. Edición parcial: campo ausente = sin cambios. Reenviar el mismo\nnombre sin cambios nunca da `409`.\n\n- `404 CLINIC_SERVICE_NOT_FOUND` — no existe o es de otra clínica.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"price\": 50000\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"code\": \"CLINIC_SERVICE_NOT_FOUND\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "PATCH Desactivar servicio",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/services/{{serviceId}}/deactivate",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "api",
+                "veterinary",
+                "{{veterinaryId}}",
+                "services",
+                "{{serviceId}}",
+                "deactivate"
+              ]
+            },
+            "description": "Permiso `CLINIC_CONFIGURE`. Nunca borra la fila: puede haber citas en Calendar que la\nreferencian."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Desactivado",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/services/{{serviceId}}/deactivate",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "services",
+                    "{{serviceId}}",
+                    "deactivate"
+                  ]
+                },
+                "description": "Permiso `CLINIC_CONFIGURE`. Nunca borra la fila: puede haber citas en Calendar que la\nreferencian."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"id\": \"c1a1b1c1-0000-0000-0000-000000000001\",\n  \"veterinaryId\": \"9a1c2f3e-4b5d-6e7f-8a9b-0c1d2e3f4a5b\",\n  \"name\": \"Consulta general\",\n  \"category\": \"CONSULTATION\",\n  \"durationMinutes\": 30,\n  \"price\": 50000,\n  \"bookableOnline\": true,\n  \"active\": false,\n  \"requiresLicense\": false,\n  \"allowedRoles\": [\n    \"OWNER\",\n    \"ADMIN\",\n    \"VETERINARIAN\"\n  ],\n  \"createdAt\": \"2026-11-19T10:00:00\",\n  \"updatedAt\": \"2026-11-19T10:10:00\"\n}"
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{clinic_token}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "16 · Horarios del negocio (clínica)",
+      "description": "Fase 5. Horario semanal de la clínica. Horas `\"HH:mm\"` **locales** a la zona de la clínica;\n`dayOfWeek` ISO (1 = lunes … 7 = domingo).",
+      "item": [
+        {
+          "name": "GET Horario de la clínica",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/business-hours",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "api",
+                "veterinary",
+                "{{veterinaryId}}",
+                "business-hours"
+              ]
+            },
+            "description": "Cualquier miembro activo."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Horario",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/business-hours",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "business-hours"
+                  ]
+                },
+                "description": "Cualquier miembro activo."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"timezone\": \"America/Bogota\",\n  \"items\": [\n    {\n      \"dayOfWeek\": 1,\n      \"opensAt\": \"08:00\",\n      \"closesAt\": \"12:00\"\n    },\n    {\n      \"dayOfWeek\": 1,\n      \"opensAt\": \"14:00\",\n      \"closesAt\": \"18:00\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "PUT Reemplazar horario de la clínica",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/business-hours",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "api",
+                "veterinary",
+                "{{veterinaryId}}",
+                "business-hours"
+              ]
+            },
+            "description": "Permiso `CLINIC_CONFIGURE`. El body es un **arreglo simple** (no un objeto envoltorio):\nreemplaza la semana **completa** en una transacción — si falla el insert, la semana anterior\nqueda intacta. `[]` es válido y deja la clínica sin horario configurado.\n\n- `400 INVALID_BUSINESS_HOURS` — `closesAt <= opensAt`, franjas solapadas, más de 4 por día,\n  `dayOfWeek` fuera de 1-7, hora que no es `\"HH:mm\"` exacto.",
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"dayOfWeek\": 1,\n    \"opensAt\": \"08:00\",\n    \"closesAt\": \"12:00\"\n  },\n  {\n    \"dayOfWeek\": 1,\n    \"opensAt\": \"14:00\",\n    \"closesAt\": \"18:00\"\n  }\n]",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Reemplazado",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/business-hours",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "business-hours"
+                  ]
+                },
+                "description": "Permiso `CLINIC_CONFIGURE`. El body es un **arreglo simple** (no un objeto envoltorio):\nreemplaza la semana **completa** en una transacción — si falla el insert, la semana anterior\nqueda intacta. `[]` es válido y deja la clínica sin horario configurado.\n\n- `400 INVALID_BUSINESS_HOURS` — `closesAt <= opensAt`, franjas solapadas, más de 4 por día,\n  `dayOfWeek` fuera de 1-7, hora que no es `\"HH:mm\"` exacto.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "[\n  {\n    \"dayOfWeek\": 1,\n    \"opensAt\": \"08:00\",\n    \"closesAt\": \"12:00\"\n  },\n  {\n    \"dayOfWeek\": 1,\n    \"opensAt\": \"14:00\",\n    \"closesAt\": \"18:00\"\n  }\n]",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"timezone\": \"America/Bogota\",\n  \"items\": [\n    {\n      \"dayOfWeek\": 1,\n      \"opensAt\": \"08:00\",\n      \"closesAt\": \"12:00\"\n    },\n    {\n      \"dayOfWeek\": 1,\n      \"opensAt\": \"14:00\",\n      \"closesAt\": \"18:00\"\n    }\n  ]\n}"
+            },
+            {
+              "name": "400 · Franjas solapadas",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/business-hours",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "business-hours"
+                  ]
+                },
+                "description": "Permiso `CLINIC_CONFIGURE`. El body es un **arreglo simple** (no un objeto envoltorio):\nreemplaza la semana **completa** en una transacción — si falla el insert, la semana anterior\nqueda intacta. `[]` es válido y deja la clínica sin horario configurado.\n\n- `400 INVALID_BUSINESS_HOURS` — `closesAt <= opensAt`, franjas solapadas, más de 4 por día,\n  `dayOfWeek` fuera de 1-7, hora que no es `\"HH:mm\"` exacto.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "[\n  {\n    \"dayOfWeek\": 1,\n    \"opensAt\": \"08:00\",\n    \"closesAt\": \"12:00\"\n  },\n  {\n    \"dayOfWeek\": 1,\n    \"opensAt\": \"14:00\",\n    \"closesAt\": \"18:00\"\n  }\n]",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"code\": \"INVALID_BUSINESS_HOURS\"\n}"
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{clinic_token}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "17 · Horario de empleado",
+      "description": "Fase 5. Horario propio de un empleado. Cero filas significa \"usa el horario de la clínica\", no\n\"no atiende\". No se exige que caiga dentro del horario de la clínica — Calendar hace la\nintersección.",
+      "item": [
+        {
+          "name": "GET Horario de un empleado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/employees/{{employeeId}}/schedule",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "api",
+                "veterinary",
+                "{{veterinaryId}}",
+                "employees",
+                "{{employeeId}}",
+                "schedule"
+              ]
+            },
+            "description": "Cualquier miembro activo.\n\n- `404 EMPLOYEE_NOT_FOUND` — no existe, no es de esta clínica, o no está activo."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Con horario propio",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/employees/{{employeeId}}/schedule",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "employees",
+                    "{{employeeId}}",
+                    "schedule"
+                  ]
+                },
+                "description": "Cualquier miembro activo.\n\n- `404 EMPLOYEE_NOT_FOUND` — no existe, no es de esta clínica, o no está activo."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"employeeId\": \"22bb33cc-44dd-4ee6-8ff7-889900112233\",\n  \"timezone\": \"America/Bogota\",\n  \"usesClinicHours\": false,\n  \"items\": [\n    {\n      \"dayOfWeek\": 1,\n      \"opensAt\": \"09:00\",\n      \"closesAt\": \"13:00\"\n    }\n  ]\n}"
+            },
+            {
+              "name": "200 · Sin filas propias (usa el de la clínica)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/employees/{{employeeId}}/schedule",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "employees",
+                    "{{employeeId}}",
+                    "schedule"
+                  ]
+                },
+                "description": "Cualquier miembro activo.\n\n- `404 EMPLOYEE_NOT_FOUND` — no existe, no es de esta clínica, o no está activo."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"employeeId\": \"22bb33cc-44dd-4ee6-8ff7-889900112233\",\n  \"timezone\": \"America/Bogota\",\n  \"usesClinicHours\": true,\n  \"items\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "PUT Reemplazar horario de un empleado",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/employees/{{employeeId}}/schedule",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "api",
+                "veterinary",
+                "{{veterinaryId}}",
+                "employees",
+                "{{employeeId}}",
+                "schedule"
+              ]
+            },
+            "description": "Permiso `CLINIC_CONFIGURE`. Mismo formato/validaciones que el horario de la clínica,\nreemplazo transaccional. **`[]` borra las filas del empleado y lo vuelve al horario de la\nclínica** (`usesClinicHours: true`) — no lo deja sin atender.\n\n- `400 INVALID_EMPLOYEE_SCHEDULE`.\n- `404 EMPLOYEE_NOT_FOUND`.",
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"dayOfWeek\": 1,\n    \"opensAt\": \"09:00\",\n    \"closesAt\": \"13:00\"\n  }\n]",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Reemplazado",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/employees/{{employeeId}}/schedule",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "employees",
+                    "{{employeeId}}",
+                    "schedule"
+                  ]
+                },
+                "description": "Permiso `CLINIC_CONFIGURE`. Mismo formato/validaciones que el horario de la clínica,\nreemplazo transaccional. **`[]` borra las filas del empleado y lo vuelve al horario de la\nclínica** (`usesClinicHours: true`) — no lo deja sin atender.\n\n- `400 INVALID_EMPLOYEE_SCHEDULE`.\n- `404 EMPLOYEE_NOT_FOUND`.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "[\n  {\n    \"dayOfWeek\": 1,\n    \"opensAt\": \"09:00\",\n    \"closesAt\": \"13:00\"\n  }\n]",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"employeeId\": \"22bb33cc-44dd-4ee6-8ff7-889900112233\",\n  \"timezone\": \"America/Bogota\",\n  \"usesClinicHours\": false,\n  \"items\": [\n    {\n      \"dayOfWeek\": 1,\n      \"opensAt\": \"09:00\",\n      \"closesAt\": \"13:00\"\n    }\n  ]\n}"
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{clinic_token}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "18 · Bloqueos de agenda",
+      "description": "Fase 5. `employeeId: null` = bloqueo de toda la clínica. Se borran de verdad: configuración, no\ndato clínico.",
+      "item": [
+        {
+          "name": "GET Bloqueos en un rango",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/schedule-blocks?from=2026-03-01T00:00:00-05:00&to=2026-03-15T00:00:00-05:00",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "api",
+                "veterinary",
+                "{{veterinaryId}}",
+                "schedule-blocks"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-03-01T00:00:00-05:00"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-03-15T00:00:00-05:00"
+                }
+              ]
+            },
+            "description": "Cualquier miembro activo. `from`/`to` obligatorios (ISO con offset), `to > from`, máximo 92\ndías. Devuelve los que se solapan con `[from, to)`.\n\n- `400 INVALID_SCHEDULE_RANGE`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Bloqueos",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/schedule-blocks?from=2026-03-01T00:00:00-05:00&to=2026-03-15T00:00:00-05:00",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "schedule-blocks"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "2026-03-01T00:00:00-05:00"
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-03-15T00:00:00-05:00"
+                    }
+                  ]
+                },
+                "description": "Cualquier miembro activo. `from`/`to` obligatorios (ISO con offset), `to > from`, máximo 92\ndías. Devuelve los que se solapan con `[from, to)`.\n\n- `400 INVALID_SCHEDULE_RANGE`."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"items\": [\n    {\n      \"id\": \"d1e1f1a1-0000-0000-0000-000000000001\",\n      \"employeeId\": null,\n      \"startsAt\": \"2026-03-02T00:00:00-05:00\",\n      \"endsAt\": \"2026-03-03T00:00:00-05:00\",\n      \"reason\": \"Festivo\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST Crear bloqueo (toda la clínica)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/schedule-blocks",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "api",
+                "veterinary",
+                "{{veterinaryId}}",
+                "schedule-blocks"
+              ]
+            },
+            "description": "Un bloqueo de toda la clínica (`employeeId: null`) **siempre** exige `CLINIC_CONFIGURE`. Un\nempleado activo sin ese permiso solo puede bloquear **su propio** `employeeId` (la identidad\nsale de su membresía en base, no del body ni del claim).\n\n- `400 INVALID_SCHEDULE_BLOCK` — `endsAt <= startsAt`, `reason` > 200 caracteres.\n- `403 INSUFFICIENT_PERMISSION` — empleado bloqueando a otro, o toda la clínica sin el permiso.\n- `404 EMPLOYEE_NOT_FOUND` — `employeeId` no es activo de esta clínica.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": null,\n  \"startsAt\": \"2026-03-02T00:00:00-05:00\",\n  \"endsAt\": \"2026-03-03T00:00:00-05:00\",\n  \"reason\": \"Festivo\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    if (body.id) {",
+                  "        pm.environment.set(\"blockId\", body.id);",
+                  "        console.log(\"blockId =\", body.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "201 · Creado",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/schedule-blocks",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "schedule-blocks"
+                  ]
+                },
+                "description": "Un bloqueo de toda la clínica (`employeeId: null`) **siempre** exige `CLINIC_CONFIGURE`. Un\nempleado activo sin ese permiso solo puede bloquear **su propio** `employeeId` (la identidad\nsale de su membresía en base, no del body ni del claim).\n\n- `400 INVALID_SCHEDULE_BLOCK` — `endsAt <= startsAt`, `reason` > 200 caracteres.\n- `403 INSUFFICIENT_PERMISSION` — empleado bloqueando a otro, o toda la clínica sin el permiso.\n- `404 EMPLOYEE_NOT_FOUND` — `employeeId` no es activo de esta clínica.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"employeeId\": null,\n  \"startsAt\": \"2026-03-02T00:00:00-05:00\",\n  \"endsAt\": \"2026-03-03T00:00:00-05:00\",\n  \"reason\": \"Festivo\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"id\": \"d1e1f1a1-0000-0000-0000-000000000001\",\n  \"employeeId\": null,\n  \"startsAt\": \"2026-03-02T00:00:00-05:00\",\n  \"endsAt\": \"2026-03-03T00:00:00-05:00\",\n  \"reason\": \"Festivo\"\n}"
+            },
+            {
+              "name": "403 · Sin permiso para bloquear a otro/toda la clínica",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/schedule-blocks",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "schedule-blocks"
+                  ]
+                },
+                "description": "Un bloqueo de toda la clínica (`employeeId: null`) **siempre** exige `CLINIC_CONFIGURE`. Un\nempleado activo sin ese permiso solo puede bloquear **su propio** `employeeId` (la identidad\nsale de su membresía en base, no del body ni del claim).\n\n- `400 INVALID_SCHEDULE_BLOCK` — `endsAt <= startsAt`, `reason` > 200 caracteres.\n- `403 INSUFFICIENT_PERMISSION` — empleado bloqueando a otro, o toda la clínica sin el permiso.\n- `404 EMPLOYEE_NOT_FOUND` — `employeeId` no es activo de esta clínica.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"employeeId\": null,\n  \"startsAt\": \"2026-03-02T00:00:00-05:00\",\n  \"endsAt\": \"2026-03-03T00:00:00-05:00\",\n  \"reason\": \"Festivo\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"code\": \"INSUFFICIENT_PERMISSION\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "DELETE Borrar bloqueo",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/schedule-blocks/{{blockId}}",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "api",
+                "veterinary",
+                "{{veterinaryId}}",
+                "schedule-blocks",
+                "{{blockId}}"
+              ]
+            },
+            "description": "`CLINIC_CONFIGURE`, o el empleado dueño del bloqueo.\n\n- `404 SCHEDULE_BLOCK_NOT_FOUND` — no existe o es de otra clínica."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 204\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "204 · Borrado",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/schedule-blocks/{{blockId}}",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "veterinary",
+                    "{{veterinaryId}}",
+                    "schedule-blocks",
+                    "{{blockId}}"
+                  ]
+                },
+                "description": "`CLINIC_CONFIGURE`, o el empleado dueño del bloqueo.\n\n- `404 SCHEDULE_BLOCK_NOT_FOUND` — no existe o es de otra clínica."
+              },
+              "status": "No Content",
+              "code": 204,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{}"
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{clinic_token}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
       "name": "12 · Internos (servicio a servicio)",
       "description": "🚫 **Nunca expuestos por el gateway.** Son rutas de servicio a servicio: se autentican con el\nheader `X-Internal-Api-Key` y **no** con un JWT de usuario. Si el gateway las publicara,\ncualquiera podría hablarle directo al núcleo del servicio.\n\nSin bearer: la carpeta tiene la autenticación en `noauth` y el header va en cada request.\n\nLa llave es la misma `INTERNAL_API_KEY` en todos los servicios; se compara en tiempo constante\n(`MessageDigest.isEqual`). Si no coincide: `401 UNAUTHENTICATED`.",
       "item": [
@@ -7170,6 +8722,771 @@
       }
     },
     {
+      "name": "19 · Internos (Fase 5 — Calendar)",
+      "description": "🚫 **Nunca expuestos por el gateway.** `X-Internal-Api-Key` en cada request, igual que la\ncarpeta 12. Lo consume Calendar — ver `docs/FASE_5_AGENDA.md` y\n`docs/integracion/CALENDAR_REQUESTS_TO_VETERINARY.md`.",
+      "item": [
+        {
+          "name": "GET Catálogo interno (sin filtros)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Internal-Api-Key",
+                "value": "{{internal_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{vet_url}}/internal/veterinaries/{{veterinaryId}}/services",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "internal",
+                "veterinaries",
+                "{{veterinaryId}}",
+                "services"
+              ]
+            },
+            "description": "`activeOnly` y `bookableOnline` son opcionales y se combinan con AND; sin ellos, no filtra.\n`employeeIds` lo calcula Veterinary (activos + `allowedRoles` + licencia si `requiresLicense`),\nuna sola consulta de empleados por petición. `employeeIds: []` = no reservable."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Todos los servicios",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Internal-Api-Key",
+                    "value": "{{internal_api_key}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{vet_url}}/internal/veterinaries/{{veterinaryId}}/services",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "internal",
+                    "veterinaries",
+                    "{{veterinaryId}}",
+                    "services"
+                  ]
+                },
+                "description": "`activeOnly` y `bookableOnline` son opcionales y se combinan con AND; sin ellos, no filtra.\n`employeeIds` lo calcula Veterinary (activos + `allowedRoles` + licencia si `requiresLicense`),\nuna sola consulta de empleados por petición. `employeeIds: []` = no reservable."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "[\n  {\n    \"id\": \"c1a1b1c1-0000-0000-0000-000000000001\",\n    \"name\": \"Consulta general\",\n    \"category\": \"CONSULTATION\",\n    \"durationMinutes\": 30,\n    \"price\": 40000,\n    \"active\": true,\n    \"bookableOnline\": true,\n    \"requiresLicense\": false,\n    \"employeeIds\": [\n      \"22bb33cc-44dd-4ee6-8ff7-889900112233\"\n    ]\n  }\n]"
+            }
+          ]
+        },
+        {
+          "name": "GET Catálogo interno (activeOnly=true)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Internal-Api-Key",
+                "value": "{{internal_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{vet_url}}/internal/veterinaries/{{veterinaryId}}/services?activeOnly=true",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "internal",
+                "veterinaries",
+                "{{veterinaryId}}",
+                "services"
+              ],
+              "query": [
+                {
+                  "key": "activeOnly",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Solo servicios activos."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Solo activos",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Internal-Api-Key",
+                    "value": "{{internal_api_key}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{vet_url}}/internal/veterinaries/{{veterinaryId}}/services?activeOnly=true",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "internal",
+                    "veterinaries",
+                    "{{veterinaryId}}",
+                    "services"
+                  ],
+                  "query": [
+                    {
+                      "key": "activeOnly",
+                      "value": "true"
+                    }
+                  ]
+                },
+                "description": "Solo servicios activos."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "[\n  {\n    \"id\": \"c1a1b1c1-0000-0000-0000-000000000001\",\n    \"active\": true\n  }\n]"
+            }
+          ]
+        },
+        {
+          "name": "GET Catálogo interno (activeOnly y bookableOnline, combinados con AND)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Internal-Api-Key",
+                "value": "{{internal_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{vet_url}}/internal/veterinaries/{{veterinaryId}}/services?activeOnly=true&bookableOnline=true",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "internal",
+                "veterinaries",
+                "{{veterinaryId}}",
+                "services"
+              ],
+              "query": [
+                {
+                  "key": "activeOnly",
+                  "value": "true"
+                },
+                {
+                  "key": "bookableOnline",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "La misma forma que usa Calendar para el catálogo del dueño (Veterinary no expone un endpoint\npúblico para eso) — ver `docs/FASE_5_AGENDA.md` §6.\n\n- `400 VALIDATION_ERROR` — `bookableOnline` con un valor que no es `\"true\"`/`\"false\"`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Activos y reservables en línea",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Internal-Api-Key",
+                    "value": "{{internal_api_key}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{vet_url}}/internal/veterinaries/{{veterinaryId}}/services?activeOnly=true&bookableOnline=true",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "internal",
+                    "veterinaries",
+                    "{{veterinaryId}}",
+                    "services"
+                  ],
+                  "query": [
+                    {
+                      "key": "activeOnly",
+                      "value": "true"
+                    },
+                    {
+                      "key": "bookableOnline",
+                      "value": "true"
+                    }
+                  ]
+                },
+                "description": "La misma forma que usa Calendar para el catálogo del dueño (Veterinary no expone un endpoint\npúblico para eso) — ver `docs/FASE_5_AGENDA.md` §6.\n\n- `400 VALIDATION_ERROR` — `bookableOnline` con un valor que no es `\"true\"`/`\"false\"`."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "[\n  {\n    \"id\": \"c1a1b1c1-0000-0000-0000-000000000001\",\n    \"active\": true,\n    \"bookableOnline\": true\n  }\n]"
+            },
+            {
+              "name": "400 · bookableOnline inválido",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Internal-Api-Key",
+                    "value": "{{internal_api_key}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{vet_url}}/internal/veterinaries/{{veterinaryId}}/services?activeOnly=true&bookableOnline=true",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "internal",
+                    "veterinaries",
+                    "{{veterinaryId}}",
+                    "services"
+                  ],
+                  "query": [
+                    {
+                      "key": "activeOnly",
+                      "value": "true"
+                    },
+                    {
+                      "key": "bookableOnline",
+                      "value": "true"
+                    }
+                  ]
+                },
+                "description": "La misma forma que usa Calendar para el catálogo del dueño (Veterinary no expone un endpoint\npúblico para eso) — ver `docs/FASE_5_AGENDA.md` §6.\n\n- `400 VALIDATION_ERROR` — `bookableOnline` con un valor que no es `\"true\"`/`\"false\"`."
+              },
+              "status": "OK",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"code\": \"VALIDATION_ERROR\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET Detalle de un servicio (interno)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Internal-Api-Key",
+                "value": "{{internal_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{vet_url}}/internal/veterinaries/{{veterinaryId}}/services/{{serviceId}}",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "internal",
+                "veterinaries",
+                "{{veterinaryId}}",
+                "services",
+                "{{serviceId}}"
+              ]
+            },
+            "description": "Incluye inactivos (Calendar los necesita para citas ya creadas sobre ellos).\n\n- `404 CLINIC_SERVICE_NOT_FOUND`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Detalle",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Internal-Api-Key",
+                    "value": "{{internal_api_key}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{vet_url}}/internal/veterinaries/{{veterinaryId}}/services/{{serviceId}}",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "internal",
+                    "veterinaries",
+                    "{{veterinaryId}}",
+                    "services",
+                    "{{serviceId}}"
+                  ]
+                },
+                "description": "Incluye inactivos (Calendar los necesita para citas ya creadas sobre ellos).\n\n- `404 CLINIC_SERVICE_NOT_FOUND`."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"id\": \"c1a1b1c1-0000-0000-0000-000000000001\",\n  \"name\": \"Consulta general\",\n  \"category\": \"CONSULTATION\",\n  \"durationMinutes\": 30,\n  \"price\": 40000,\n  \"active\": true,\n  \"bookableOnline\": true,\n  \"requiresLicense\": false,\n  \"employeeIds\": [\n    \"22bb33cc-44dd-4ee6-8ff7-889900112233\"\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET Datos de la clínica (interno)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Internal-Api-Key",
+                "value": "{{internal_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{vet_url}}/internal/veterinaries/{{veterinaryId}}",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "internal",
+                "veterinaries",
+                "{{veterinaryId}}"
+              ]
+            },
+            "description": "`status` trae los 6 valores reales. Nunca NIT, razón social, representante legal ni email.\nNo confundir con `GET .../summary` (de Medical, sin cambios).\n\n- `404 VETERINARY_NOT_FOUND`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Datos de la clínica",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Internal-Api-Key",
+                    "value": "{{internal_api_key}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{vet_url}}/internal/veterinaries/{{veterinaryId}}",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "internal",
+                    "veterinaries",
+                    "{{veterinaryId}}"
+                  ]
+                },
+                "description": "`status` trae los 6 valores reales. Nunca NIT, razón social, representante legal ni email.\nNo confundir con `GET .../summary` (de Medical, sin cambios).\n\n- `404 VETERINARY_NOT_FOUND`."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"id\": \"9a1c2f3e-4b5d-6e7f-8a9b-0c1d2e3f4a5b\",\n  \"name\": \"Clínica El Bosque\",\n  \"status\": \"ACTIVE\",\n  \"allowOnlineBooking\": true,\n  \"bookingRequiresConfirmation\": true,\n  \"cancellationMinHours\": 4,\n  \"timezone\": \"America/Bogota\",\n  \"address\": \"Calle 1 #2-3\",\n  \"phone\": \"3001234567\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET Miembros de la clínica (interno)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Internal-Api-Key",
+                "value": "{{internal_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{vet_url}}/internal/veterinaries/{{veterinaryId}}/members",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "internal",
+                "veterinaries",
+                "{{veterinaryId}}",
+                "members"
+              ]
+            },
+            "description": "Por defecto solo activos; con `includeInactive=true` también los retirados (`active: false`).\n`name` es best-effort (`UserServicePort`, resuelto en paralelo con presupuesto total de\n1500 ms — `null` si no llega a tiempo), sin email ni teléfono. `licensed` sale del mismo\norigen que `access`. `permissions` = `RolePermissions.resolve`; un retirado siempre tiene `[]`.\n\n- `404 VETERINARY_NOT_FOUND`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    if (body[0] && body[0].employeeId) {",
+                  "        pm.environment.set(\"employeeId\", body[0] && body[0].employeeId);",
+                  "        console.log(\"employeeId =\", body[0] && body[0].employeeId);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Miembros activos",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Internal-Api-Key",
+                    "value": "{{internal_api_key}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{vet_url}}/internal/veterinaries/{{veterinaryId}}/members",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "internal",
+                    "veterinaries",
+                    "{{veterinaryId}}",
+                    "members"
+                  ]
+                },
+                "description": "Por defecto solo activos; con `includeInactive=true` también los retirados (`active: false`).\n`name` es best-effort (`UserServicePort`, resuelto en paralelo con presupuesto total de\n1500 ms — `null` si no llega a tiempo), sin email ni teléfono. `licensed` sale del mismo\norigen que `access`. `permissions` = `RolePermissions.resolve`; un retirado siempre tiene `[]`.\n\n- `404 VETERINARY_NOT_FOUND`."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "[\n  {\n    \"employeeId\": \"22bb33cc-44dd-4ee6-8ff7-889900112233\",\n    \"userId\": \"aa11bb22-cc33-4dd4-8ee5-ff6677889900\",\n    \"name\": \"Ana Pérez\",\n    \"role\": \"VETERINARIAN\",\n    \"active\": true,\n    \"licensed\": true,\n    \"permissions\": [\n      \"APPOINTMENT_MANAGE\",\n      \"PATIENT_REGISTER\",\n      \"CLINICAL_READ\",\n      \"CLINICAL_READ_BASIC\",\n      \"NURSING_WRITE\",\n      \"DOCUMENT_UPLOAD\",\n      \"CLINICAL_WRITE\"\n    ]\n  }\n]"
+            }
+          ]
+        },
+        {
+          "name": "GET Reglas de horario para el rango (schedule-rules)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Internal-Api-Key",
+                "value": "{{internal_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{vet_url}}/internal/veterinaries/{{veterinaryId}}/schedule-rules?from=2026-03-01T00:00:00-05:00&to=2026-03-15T00:00:00-05:00",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "internal",
+                "veterinaries",
+                "{{veterinaryId}}",
+                "schedule-rules"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-03-01T00:00:00-05:00"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-03-15T00:00:00-05:00"
+                }
+              ]
+            },
+            "description": "Lo usa Calendar para calcular franjas libres. `opensAt`/`closesAt` en `\"HH:mm\"` locales a\n`timezone`; `startsAt`/`endsAt` de `blocks` como instantes normalizados en UTC.\n\nRegla de horas efectivas: empleado con filas propias → solo esas (un día sin fila = no\natiende); sin filas → hereda `businessHours`; clínica sin horario y sin filas → sin horas.\nLos bloqueos de toda la clínica siempre se incluyen. Con `?employeeId=`, la misma regla solo\npara esa persona (`404 EMPLOYEE_NOT_FOUND` si no es activo de esta clínica).\n\n- `400 INVALID_SCHEDULE_RANGE`, `404 VETERINARY_NOT_FOUND`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Reglas",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Internal-Api-Key",
+                    "value": "{{internal_api_key}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{vet_url}}/internal/veterinaries/{{veterinaryId}}/schedule-rules?from=2026-03-01T00:00:00-05:00&to=2026-03-15T00:00:00-05:00",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "internal",
+                    "veterinaries",
+                    "{{veterinaryId}}",
+                    "schedule-rules"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "2026-03-01T00:00:00-05:00"
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-03-15T00:00:00-05:00"
+                    }
+                  ]
+                },
+                "description": "Lo usa Calendar para calcular franjas libres. `opensAt`/`closesAt` en `\"HH:mm\"` locales a\n`timezone`; `startsAt`/`endsAt` de `blocks` como instantes normalizados en UTC.\n\nRegla de horas efectivas: empleado con filas propias → solo esas (un día sin fila = no\natiende); sin filas → hereda `businessHours`; clínica sin horario y sin filas → sin horas.\nLos bloqueos de toda la clínica siempre se incluyen. Con `?employeeId=`, la misma regla solo\npara esa persona (`404 EMPLOYEE_NOT_FOUND` si no es activo de esta clínica).\n\n- `400 INVALID_SCHEDULE_RANGE`, `404 VETERINARY_NOT_FOUND`."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"timezone\": \"America/Bogota\",\n  \"businessHours\": [\n    {\n      \"dayOfWeek\": 1,\n      \"opensAt\": \"08:00\",\n      \"closesAt\": \"17:00\"\n    }\n  ],\n  \"employeeHours\": [\n    {\n      \"employeeId\": \"22bb33cc-44dd-4ee6-8ff7-889900112233\",\n      \"dayOfWeek\": 1,\n      \"opensAt\": \"09:00\",\n      \"closesAt\": \"13:00\"\n    }\n  ],\n  \"blocks\": [\n    {\n      \"employeeId\": null,\n      \"startsAt\": \"2026-03-02T00:00:00Z\",\n      \"endsAt\": \"2026-03-03T00:00:00Z\",\n      \"reason\": \"Festivo\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET Mascota compartida con la clínica (interno)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Internal-Api-Key",
+                "value": "{{internal_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{vet_url}}/internal/veterinaries/{{veterinaryId}}/patients/{{petId}}/shared",
+              "host": [
+                "{{vet_url}}"
+              ],
+              "path": [
+                "internal",
+                "veterinaries",
+                "{{veterinaryId}}",
+                "patients",
+                "{{petId}}",
+                "shared"
+              ]
+            },
+            "description": "**Siempre `200`**, nunca `404`. `shared: true` exige consentimiento `GRANTED` Y que el dueño\nsiga vinculado (`LINKED`), sin depender de empleados ni del estado de la clínica. No expone\nel id del dueño."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 · Compartida",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Internal-Api-Key",
+                    "value": "{{internal_api_key}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{vet_url}}/internal/veterinaries/{{veterinaryId}}/patients/{{petId}}/shared",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "internal",
+                    "veterinaries",
+                    "{{veterinaryId}}",
+                    "patients",
+                    "{{petId}}",
+                    "shared"
+                  ]
+                },
+                "description": "**Siempre `200`**, nunca `404`. `shared: true` exige consentimiento `GRANTED` Y que el dueño\nsiga vinculado (`LINKED`), sin depender de empleados ni del estado de la clínica. No expone\nel id del dueño."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"shared\": true\n}"
+            },
+            {
+              "name": "200 · No compartida (nunca 404)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Internal-Api-Key",
+                    "value": "{{internal_api_key}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{vet_url}}/internal/veterinaries/{{veterinaryId}}/patients/{{petId}}/shared",
+                  "host": [
+                    "{{vet_url}}"
+                  ],
+                  "path": [
+                    "internal",
+                    "veterinaries",
+                    "{{veterinaryId}}",
+                    "patients",
+                    "{{petId}}",
+                    "shared"
+                  ]
+                },
+                "description": "**Siempre `200`**, nunca `404`. `shared: true` exige consentimiento `GRANTED` Y que el dueño\nsiga vinculado (`LINKED`), sin depender de empleados ni del estado de la clínica. No expone\nel id del dueño."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"shared\": false\n}"
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "noauth"
+      }
+    },
+    {
       "name": "13 · Jobs (servicio a servicio)",
       "description": "🚫 **Nunca expuestos por el gateway**, igual que la carpeta 12. Header `X-Internal-Api-Key`.\n\nPensados para un Cloud Scheduler que los invoque con la llave interna.",
       "item": [
@@ -7252,362 +9569,6 @@
       ],
       "auth": {
         "type": "noauth"
-      }
-    },
-    {
-      "name": "14 · Clientes y pacientes (clínica)",
-      "description": "Fase 4A. Lado de la clínica sobre dueños vinculados y mascotas compartidas. Token: **de\nclínica**.",
-      "item": [
-        {
-          "name": "GET Clientes",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/clients?page=0&size=20",
-              "host": [
-                "{{vet_url}}"
-              ],
-              "path": [
-                "api",
-                "veterinary",
-                "{{veterinaryId}}",
-                "clients"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "0"
-                },
-                {
-                  "key": "size",
-                  "value": "20"
-                }
-              ]
-            },
-            "description": "Permiso: `CLINICAL_READ_BASIC` (todos los roles). Dueños vinculados, paginado. Nombre/correo\nprefieren el dato vivo del User service y caen al snapshot del vínculo si no responde."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"status 200\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "response": [
-            {
-              "name": "200 · Página de clientes",
-              "originalRequest": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/clients?page=0&size=20",
-                  "host": [
-                    "{{vet_url}}"
-                  ],
-                  "path": [
-                    "api",
-                    "veterinary",
-                    "{{veterinaryId}}",
-                    "clients"
-                  ],
-                  "query": [
-                    {
-                      "key": "page",
-                      "value": "0"
-                    },
-                    {
-                      "key": "size",
-                      "value": "20"
-                    }
-                  ]
-                },
-                "description": "Permiso: `CLINICAL_READ_BASIC` (todos los roles). Dueños vinculados, paginado. Nombre/correo\nprefieren el dato vivo del User service y caen al snapshot del vínculo si no responde."
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"items\": [\n    {\n      \"userId\": \"aa11bb22-cc33-4dd4-8ee5-ff6677889900\",\n      \"name\": \"Carlos Pérez\",\n      \"email\": \"carlos@correo.com\",\n      \"linkedAt\": \"2026-10-01T09:00:00\",\n      \"sharedPetsCount\": 2\n    }\n  ],\n  \"page\": 0,\n  \"size\": 20,\n  \"total\": 1\n}"
-            }
-          ]
-        },
-        {
-          "name": "DELETE Quitar cliente",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/clients/{{clientUserId}}",
-              "host": [
-                "{{vet_url}}"
-              ],
-              "path": [
-                "api",
-                "veterinary",
-                "{{veterinaryId}}",
-                "clients",
-                "{{clientUserId}}"
-              ]
-            },
-            "description": "Permiso: `CLINIC_CONFIGURE`. Misma lógica que \"Desvincularme\" (carpeta 11): revoca todas las\nmascotas compartidas y limpia el snapshot.\n\n- `404 USER_NOT_LINKED`."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"status 200\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "response": [
-            {
-              "name": "200 · Cliente desvinculado",
-              "originalRequest": {
-                "method": "DELETE",
-                "header": [],
-                "url": {
-                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/clients/{{clientUserId}}",
-                  "host": [
-                    "{{vet_url}}"
-                  ],
-                  "path": [
-                    "api",
-                    "veterinary",
-                    "{{veterinaryId}}",
-                    "clients",
-                    "{{clientUserId}}"
-                  ]
-                },
-                "description": "Permiso: `CLINIC_CONFIGURE`. Misma lógica que \"Desvincularme\" (carpeta 11): revoca todas las\nmascotas compartidas y limpia el snapshot.\n\n- `404 USER_NOT_LINKED`."
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"userId\": \"aa11bb22-cc33-4dd4-8ee5-ff6677889900\",\n  \"veterinaryId\": \"9a1c2f3e-4b5d-6e7f-8a9b-0c1d2e3f4a5b\",\n  \"revokedPetsCount\": 2,\n  \"message\": \"User unlinked successfully\"\n}"
-            }
-          ]
-        },
-        {
-          "name": "GET Pacientes",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/patients?page=0&size=20",
-              "host": [
-                "{{vet_url}}"
-              ],
-              "path": [
-                "api",
-                "veterinary",
-                "{{veterinaryId}}",
-                "patients"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "0"
-                },
-                {
-                  "key": "size",
-                  "value": "20"
-                }
-              ]
-            },
-            "description": "Permiso: `CLINICAL_READ_BASIC`. Mascotas compartidas activamente, datos de Pets **en vivo**,\nuna sola llamada en lote por página.\n\n- `503 EXTERNAL_SERVICE_UNAVAILABLE` — Pets no respondió."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"status 200\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "response": [
-            {
-              "name": "200 · Página de pacientes",
-              "originalRequest": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/patients?page=0&size=20",
-                  "host": [
-                    "{{vet_url}}"
-                  ],
-                  "path": [
-                    "api",
-                    "veterinary",
-                    "{{veterinaryId}}",
-                    "patients"
-                  ],
-                  "query": [
-                    {
-                      "key": "page",
-                      "value": "0"
-                    },
-                    {
-                      "key": "size",
-                      "value": "20"
-                    }
-                  ]
-                },
-                "description": "Permiso: `CLINICAL_READ_BASIC`. Mascotas compartidas activamente, datos de Pets **en vivo**,\nuna sola llamada en lote por página.\n\n- `503 EXTERNAL_SERVICE_UNAVAILABLE` — Pets no respondió."
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"items\": [\n    {\n      \"petId\": \"bb22cc33-dd44-4ee5-8ff6-778899001122\",\n      \"name\": \"Max\",\n      \"species\": \"DOG\",\n      \"breed\": \"Criollo\",\n      \"photoUrl\": \"https://cdn.example.com/max.png\",\n      \"ownerUserId\": \"aa11bb22-cc33-4dd4-8ee5-ff6677889900\",\n      \"grantedAt\": \"2026-11-08T14:10:00\"\n    }\n  ],\n  \"page\": 0,\n  \"size\": 20,\n  \"total\": 1\n}"
-            }
-          ]
-        },
-        {
-          "name": "GET Detalle de un paciente",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/patients/{{petId}}",
-              "host": [
-                "{{vet_url}}"
-              ],
-              "path": [
-                "api",
-                "veterinary",
-                "{{veterinaryId}}",
-                "patients",
-                "{{petId}}"
-              ]
-            },
-            "description": "Permiso: `CLINICAL_READ_BASIC`. Solo si está compartido **activamente**.\n\n- `404 PATIENT_NOT_FOUND` — nunca se compartió, o se revocó."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"status 200\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "response": [
-            {
-              "name": "200 · Detalle",
-              "originalRequest": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/patients/{{petId}}",
-                  "host": [
-                    "{{vet_url}}"
-                  ],
-                  "path": [
-                    "api",
-                    "veterinary",
-                    "{{veterinaryId}}",
-                    "patients",
-                    "{{petId}}"
-                  ]
-                },
-                "description": "Permiso: `CLINICAL_READ_BASIC`. Solo si está compartido **activamente**.\n\n- `404 PATIENT_NOT_FOUND` — nunca se compartió, o se revocó."
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"petId\": \"bb22cc33-dd44-4ee5-8ff6-778899001122\",\n  \"name\": \"Max\",\n  \"species\": \"DOG\",\n  \"breed\": \"Criollo\",\n  \"sex\": \"MALE\",\n  \"birthDate\": \"2021-05-10\",\n  \"photoUrl\": \"https://cdn.example.com/max.png\",\n  \"ownerUserId\": \"aa11bb22-cc33-4dd4-8ee5-ff6677889900\",\n  \"grantedAt\": \"2026-11-08T14:10:00\"\n}"
-            },
-            {
-              "name": "404 · Revocado o nunca compartido",
-              "originalRequest": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{vet_url}}/api/veterinary/{{veterinaryId}}/patients/{{petId}}",
-                  "host": [
-                    "{{vet_url}}"
-                  ],
-                  "path": [
-                    "api",
-                    "veterinary",
-                    "{{veterinaryId}}",
-                    "patients",
-                    "{{petId}}"
-                  ]
-                },
-                "description": "Permiso: `CLINICAL_READ_BASIC`. Solo si está compartido **activamente**.\n\n- `404 PATIENT_NOT_FOUND` — nunca se compartió, o se revocó."
-              },
-              "status": "OK",
-              "code": 404,
-              "_postman_previewlanguage": "json",
-              "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "cookie": [],
-              "body": "{\n  \"code\": \"PATIENT_NOT_FOUND\"\n}"
-            }
-          ]
-        }
-      ],
-      "auth": {
-        "type": "bearer",
-        "bearer": [
-          {
-            "key": "token",
-            "value": "{{clinic_token}}",
-            "type": "string"
-          }
-        ]
       }
     },
     {

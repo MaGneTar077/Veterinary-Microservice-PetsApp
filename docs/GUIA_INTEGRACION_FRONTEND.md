@@ -12,6 +12,9 @@ backend — no inventados.
 **Vinculación de dueños, mascotas compartidas y clientes/pacientes de la clínica (Fase 4A)** no
 están en esta guía: ver [`docs/FASE_4A_VINCULACION.md`](./FASE_4A_VINCULACION.md).
 
+**Catálogo de servicios, horarios de clínica/empleados y bloqueos de agenda (Fase 5)** tampoco:
+ver [`docs/FASE_5_AGENDA.md`](./FASE_5_AGENDA.md).
+
 ## Índice
 
 - [0. Cómo usar esta guía + glosario](#0-cómo-usar-esta-guía--glosario)
@@ -26,6 +29,7 @@ están en esta guía: ver [`docs/FASE_4A_VINCULACION.md`](./FASE_4A_VINCULACION.
   - [g. Panel admin](#2g-panel-admin)
   - [h. Equipo](#2h-equipo)
   - i. Vinculación, mascotas compartidas y clientes/pacientes (Fase 4A) → [`docs/FASE_4A_VINCULACION.md`](./FASE_4A_VINCULACION.md)
+  - j. Catálogo de servicios, horarios y bloqueos de agenda (Fase 5) → [`docs/FASE_5_AGENDA.md`](./FASE_5_AGENDA.md)
 - [3. Mapa estado → pantalla](#3-mapa-estado--pantalla)
 - [4. Interfaces TypeScript](#4-interfaces-typescript)
 - [5. Ejemplos Angular](#5-ejemplos-angular)

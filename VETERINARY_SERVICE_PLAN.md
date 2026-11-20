@@ -876,14 +876,16 @@ Contrato para el frontend y Notifications: **`FASE_3_PERSONAL.md`**. Suite 919/9
 
 - ☐ **VET-28** `ListVeterinaryPatients`/`GetVeterinaryPatient` ya existen desde la 4A; falta `RegisterWalkInPatient` (con compensación si falla el guardado después de crear la mascota en Pets) y `SendPetClaimInvitation`.
 
-### Fase 5 — Catálogo, horarios y agenda
+### Fase 5 — Catálogo, horarios y agenda *(completa, VET-30/31/32/33)*
 
-- ☐ **VET-30** Decidir opción A o B de §10.
-- ☐ **VET-31** Script 008. Servicios de la clínica (CRUD + público).
-- ☐ **VET-32** Horario de clínica, horario por empleado, bloqueos.
-- ☐ **VET-33** Endpoint interno `schedule-rules`. *Desbloquea CAL-03.*
-- ☐ **VET-34** Directorio público con búsqueda por ciudad y distancia (fórmula de Haversine en SQL; PostGIS no es necesario para el volumen del proyecto).
-- ☐ **VET-35** (Solo opción B) módulo `appointments`.
+- ☑ **VET-30** Opción A (Calendar ya existe): Veterinary no guarda citas, expone `schedule-rules` y `access`.
+- ☑ **VET-31** Script `009_catalog_schedule.sql` (no `008`, ya ocupado por Fase 4A). Catálogo de servicios: CRUD público bajo `/api/veterinary/{id}/services` + interno con filtros `activeOnly`/`bookableOnline` (AND) y `employeeIds` calculado server-side; nunca se borran, solo se desactivan.
+- ☑ **VET-32** `business-hours` y `employees/{id}/schedule` (GET miembro / PUT `CLINIC_CONFIGURE`, reemplazo transaccional de la semana completa) y `schedule-blocks` (bloqueo propio sin permiso, toda la clínica solo con `CLINIC_CONFIGURE`).
+- ☑ **VET-33** `GET /internal/veterinaries/{id}/schedule-rules` — la forma de la respuesta (`{timezone, businessHours[], employeeHours[], blocks[]}`) sigue `docs/integracion/CALENDAR_REQUESTS_TO_VETERINARY.md`, no la propuesta original de este documento (§8, desactualizada). Rutas públicas reales bajo `/api/veterinary/{id}/...` (no `/veterinaries/{id}/...` como decía el borrador de §8). *Desbloqueó CAL-03.*
+- Además (no numerado originalmente, pedido por Calendar): `GET /internal/veterinaries/{id}` (datos de clínica), `GET /internal/veterinaries/{id}/members` (listado, antes solo existía por `userId`), `GET /internal/veterinaries/{id}/patients/{petId}/shared`.
+- ☐ **VET-34** Directorio público con búsqueda por ciudad y distancia (fórmula de Haversine en SQL; PostGIS no es necesario para el volumen del proyecto) — pendiente, no era parte de los pedidos de Calendar.
+- ☐ Limpieza pendiente: mover el §8 de este documento a la forma real documentada en `docs/FASE_5_AGENDA.md` (hoy describe un contrato que no se implementó).
+- ~~**VET-35**~~ No aplica: era el módulo `appointments` de la opción B, descartada por VET-30.
 
 ### Fase 6 — Suscripción
 
