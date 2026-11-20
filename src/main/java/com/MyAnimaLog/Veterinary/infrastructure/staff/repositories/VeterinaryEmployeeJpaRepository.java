@@ -47,4 +47,35 @@ public interface VeterinaryEmployeeJpaRepository extends JpaRepository<Veterinar
     int updateRoleIfCurrentlyIs(@Param("id") UUID id,
                                  @Param("expectedRole") EmployeeRole expectedRole,
                                  @Param("newRole") EmployeeRole newRole);
+
+    /**
+     * Mismo dato de licencia que usa {@code PatientAccessJpaRepository.findAccess}
+     * ({@code professional_profiles.license_status} por {@code user_id}), para los empleados
+     * activos de una clínica completa en una sola consulta.
+     */
+    @Query("""
+            SELECT e.id AS employeeId, e.role AS role,
+                   CASE WHEN pp.licenseStatus = com.MyAnimaLog.Veterinary.domain.professional.enums.LicenseStatus.VERIFIED
+                        THEN true ELSE false END AS licensed
+            FROM VeterinaryEmployeeEntity e
+            LEFT JOIN ProfessionalProfileEntity pp ON pp.userId = e.userId
+            WHERE e.veterinaryId = :veterinaryId AND e.active = true
+            """)
+    List<EmployeeLicenseProjection> findActiveWithLicense(@Param("veterinaryId") UUID veterinaryId);
+
+    /**
+     * Igual que {@link #findActiveWithLicense}, pero sin filtrar por {@code active} — el caller
+     * (listado interno de miembros) decide en memoria si incluye a los retirados, para no pagar dos
+     * consultas distintas.
+     */
+    @Query("""
+            SELECT e.id AS employeeId, e.userId AS userId, e.role AS role, e.active AS active,
+                   CASE WHEN pp.licenseStatus = com.MyAnimaLog.Veterinary.domain.professional.enums.LicenseStatus.VERIFIED
+                        THEN true ELSE false END AS licensed
+            FROM VeterinaryEmployeeEntity e
+            LEFT JOIN ProfessionalProfileEntity pp ON pp.userId = e.userId
+            WHERE e.veterinaryId = :veterinaryId
+            ORDER BY e.role, e.createdAt
+            """)
+    List<EmployeeWithLicenseProjection> findAllWithLicense(@Param("veterinaryId") UUID veterinaryId);
 }

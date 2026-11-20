@@ -73,6 +73,14 @@ import com.MyAnimaLog.Veterinary.domain.verification.exceptions.AiVerificationDi
 import com.MyAnimaLog.Veterinary.domain.professional.exceptions.ProfessionalProfileNotFoundException;
 import com.MyAnimaLog.Veterinary.domain.professional.exceptions.LicenseNumberAlreadyExistsException;
 import com.MyAnimaLog.Veterinary.domain.professional.exceptions.InvalidProfessionalProfileException;
+import com.MyAnimaLog.Veterinary.domain.catalog.exceptions.InvalidClinicServiceException;
+import com.MyAnimaLog.Veterinary.domain.catalog.exceptions.ClinicServiceNameAlreadyExistsException;
+import com.MyAnimaLog.Veterinary.domain.catalog.exceptions.ClinicServiceNotFoundException;
+import com.MyAnimaLog.Veterinary.domain.schedule.exceptions.InvalidBusinessHoursException;
+import com.MyAnimaLog.Veterinary.domain.schedule.exceptions.InvalidEmployeeScheduleException;
+import com.MyAnimaLog.Veterinary.domain.schedule.exceptions.InvalidScheduleBlockException;
+import com.MyAnimaLog.Veterinary.domain.schedule.exceptions.InvalidScheduleRangeException;
+import com.MyAnimaLog.Veterinary.domain.schedule.exceptions.ScheduleBlockNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -258,6 +266,46 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidPetShareException.class)
     public ResponseEntity<Map<String, Object>> handleInvalidPetShare(InvalidPetShareException ex) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "VALIDATION_ERROR");
+    }
+
+    @ExceptionHandler(InvalidClinicServiceException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidClinicService(InvalidClinicServiceException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "VALIDATION_ERROR");
+    }
+
+    @ExceptionHandler(ClinicServiceNameAlreadyExistsException.class)
+    public ResponseEntity<Map<String, Object>> handleClinicServiceNameAlreadyExists(ClinicServiceNameAlreadyExistsException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), "CLINIC_SERVICE_NAME_TAKEN");
+    }
+
+    @ExceptionHandler(ClinicServiceNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleClinicServiceNotFound(ClinicServiceNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage(), "CLINIC_SERVICE_NOT_FOUND");
+    }
+
+    @ExceptionHandler(InvalidBusinessHoursException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidBusinessHours(InvalidBusinessHoursException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "INVALID_BUSINESS_HOURS");
+    }
+
+    @ExceptionHandler(InvalidEmployeeScheduleException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidEmployeeSchedule(InvalidEmployeeScheduleException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "INVALID_EMPLOYEE_SCHEDULE");
+    }
+
+    @ExceptionHandler(InvalidScheduleBlockException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidScheduleBlock(InvalidScheduleBlockException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "INVALID_SCHEDULE_BLOCK");
+    }
+
+    @ExceptionHandler(InvalidScheduleRangeException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidScheduleRange(InvalidScheduleRangeException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), "INVALID_SCHEDULE_RANGE");
+    }
+
+    @ExceptionHandler(ScheduleBlockNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleScheduleBlockNotFound(ScheduleBlockNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage(), "SCHEDULE_BLOCK_NOT_FOUND");
     }
 
     @ExceptionHandler(UserAlreadyLinkedException.class)

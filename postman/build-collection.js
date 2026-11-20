@@ -3198,6 +3198,593 @@ const f99 = folder({
   ],
 });
 
+// ---------- 15 · Catálogo de servicios (clínica) ----------
+
+const f15 = folder({
+  name: '15 · Catálogo de servicios (clínica)',
+  auth: bearer('clinic_token'),
+  description: [
+    'Fase 5. CRUD de `clinic_services`. Nunca se borran, solo se desactivan (puede haber citas en',
+    'Calendar que los referencian por id).',
+  ].join('\n'),
+  items: [
+    request({
+      name: 'GET Catálogo de la clínica',
+      method: 'GET',
+      raw: '{{vet_url}}/api/veterinary/{{veterinaryId}}/services',
+      description: [
+        'Cualquier miembro activo (`requireActiveMember`, sin permiso específico). Devuelve activos e',
+        'inactivos.',
+      ].join('\n'),
+      tests: expectStatus(200),
+      examples: [
+        {
+          name: '200 · Catálogo',
+          status: 200,
+          body: {
+            items: [
+              {
+                id: 'c1a1b1c1-0000-0000-0000-000000000001',
+                name: 'Consulta general',
+                category: 'CONSULTATION',
+                durationMinutes: 30,
+                price: 40000,
+                bookableOnline: true,
+                active: true,
+                requiresLicense: false,
+                allowedRoles: ['OWNER', 'ADMIN', 'VETERINARIAN'],
+              },
+            ],
+          },
+        },
+      ],
+    }),
+    request({
+      name: 'POST Crear servicio',
+      method: 'POST',
+      raw: '{{vet_url}}/api/veterinary/{{veterinaryId}}/services',
+      description: [
+        'Permiso `CLINIC_CONFIGURE`. `allowedRoles` default `[OWNER,ADMIN,VETERINARIAN]` si se omite',
+        '(nunca vacía). `category`: `CONSULTATION`/`VACCINATION`/`SURGERY`/`GROOMING`/`LAB`/`OTHER`.',
+        '`durationMinutes` 5-600, `price >= 0` con hasta 2 decimales.',
+        '',
+        '- `400 VALIDATION_ERROR` — campo inválido.',
+        '- `409 CLINIC_SERVICE_NAME_TAKEN` — ya hay un servicio **activo** con ese nombre.',
+      ].join('\n'),
+      body: jsonBody({
+        name: 'Consulta general',
+        category: 'CONSULTATION',
+        durationMinutes: 30,
+        price: 40000,
+        bookableOnline: true,
+        requiresLicense: false,
+        allowedRoles: ['OWNER', 'ADMIN', 'VETERINARIAN'],
+      }),
+      tests: expectStatus(201, [{ path: 'body.id', variable: 'serviceId' }]),
+      examples: [
+        {
+          name: '201 · Creado',
+          status: 201,
+          body: {
+            id: 'c1a1b1c1-0000-0000-0000-000000000001',
+            veterinaryId: '9a1c2f3e-4b5d-6e7f-8a9b-0c1d2e3f4a5b',
+            name: 'Consulta general',
+            category: 'CONSULTATION',
+            durationMinutes: 30,
+            price: 40000,
+            bookableOnline: true,
+            active: true,
+            requiresLicense: false,
+            allowedRoles: ['OWNER', 'ADMIN', 'VETERINARIAN'],
+            createdAt: '2026-11-19T10:00:00',
+            updatedAt: '2026-11-19T10:00:00',
+          },
+        },
+        { name: '409 · Nombre repetido', status: 409, body: { code: 'CLINIC_SERVICE_NAME_TAKEN' } },
+      ],
+    }),
+    request({
+      name: 'PATCH Editar servicio',
+      method: 'PATCH',
+      raw: '{{vet_url}}/api/veterinary/{{veterinaryId}}/services/{{serviceId}}',
+      description: [
+        'Permiso `CLINIC_CONFIGURE`. Edición parcial: campo ausente = sin cambios. Reenviar el mismo',
+        'nombre sin cambios nunca da `409`.',
+        '',
+        '- `404 CLINIC_SERVICE_NOT_FOUND` — no existe o es de otra clínica.',
+      ].join('\n'),
+      body: jsonBody({ price: 50000 }),
+      tests: expectStatus(200),
+      examples: [
+        {
+          name: '200 · Editado',
+          status: 200,
+          body: {
+            id: 'c1a1b1c1-0000-0000-0000-000000000001',
+            veterinaryId: '9a1c2f3e-4b5d-6e7f-8a9b-0c1d2e3f4a5b',
+            name: 'Consulta general',
+            category: 'CONSULTATION',
+            durationMinutes: 30,
+            price: 50000,
+            bookableOnline: true,
+            active: true,
+            requiresLicense: false,
+            allowedRoles: ['OWNER', 'ADMIN', 'VETERINARIAN'],
+            createdAt: '2026-11-19T10:00:00',
+            updatedAt: '2026-11-19T10:05:00',
+          },
+        },
+        { name: '404 · No existe o es de otra clínica', status: 404, body: { code: 'CLINIC_SERVICE_NOT_FOUND' } },
+      ],
+    }),
+    request({
+      name: 'PATCH Desactivar servicio',
+      method: 'PATCH',
+      raw: '{{vet_url}}/api/veterinary/{{veterinaryId}}/services/{{serviceId}}/deactivate',
+      description: [
+        'Permiso `CLINIC_CONFIGURE`. Nunca borra la fila: puede haber citas en Calendar que la',
+        'referencian.',
+      ].join('\n'),
+      tests: expectStatus(200),
+      examples: [
+        {
+          name: '200 · Desactivado',
+          status: 200,
+          body: {
+            id: 'c1a1b1c1-0000-0000-0000-000000000001',
+            veterinaryId: '9a1c2f3e-4b5d-6e7f-8a9b-0c1d2e3f4a5b',
+            name: 'Consulta general',
+            category: 'CONSULTATION',
+            durationMinutes: 30,
+            price: 50000,
+            bookableOnline: true,
+            active: false,
+            requiresLicense: false,
+            allowedRoles: ['OWNER', 'ADMIN', 'VETERINARIAN'],
+            createdAt: '2026-11-19T10:00:00',
+            updatedAt: '2026-11-19T10:10:00',
+          },
+        },
+      ],
+    }),
+  ],
+});
+
+// ---------- 16 · Horarios del negocio (clínica) ----------
+
+const f16 = folder({
+  name: '16 · Horarios del negocio (clínica)',
+  auth: bearer('clinic_token'),
+  description: [
+    'Fase 5. Horario semanal de la clínica. Horas `"HH:mm"` **locales** a la zona de la clínica;',
+    '`dayOfWeek` ISO (1 = lunes … 7 = domingo).',
+  ].join('\n'),
+  items: [
+    request({
+      name: 'GET Horario de la clínica',
+      method: 'GET',
+      raw: '{{vet_url}}/api/veterinary/{{veterinaryId}}/business-hours',
+      description: 'Cualquier miembro activo.',
+      tests: expectStatus(200),
+      examples: [
+        {
+          name: '200 · Horario',
+          status: 200,
+          body: {
+            timezone: 'America/Bogota',
+            items: [
+              { dayOfWeek: 1, opensAt: '08:00', closesAt: '12:00' },
+              { dayOfWeek: 1, opensAt: '14:00', closesAt: '18:00' },
+            ],
+          },
+        },
+      ],
+    }),
+    request({
+      name: 'PUT Reemplazar horario de la clínica',
+      method: 'PUT',
+      raw: '{{vet_url}}/api/veterinary/{{veterinaryId}}/business-hours',
+      description: [
+        'Permiso `CLINIC_CONFIGURE`. El body es un **arreglo simple** (no un objeto envoltorio):',
+        'reemplaza la semana **completa** en una transacción — si falla el insert, la semana anterior',
+        'queda intacta. `[]` es válido y deja la clínica sin horario configurado.',
+        '',
+        '- `400 INVALID_BUSINESS_HOURS` — `closesAt <= opensAt`, franjas solapadas, más de 4 por día,',
+        '  `dayOfWeek` fuera de 1-7, hora que no es `"HH:mm"` exacto.',
+      ].join('\n'),
+      body: jsonBody([
+        { dayOfWeek: 1, opensAt: '08:00', closesAt: '12:00' },
+        { dayOfWeek: 1, opensAt: '14:00', closesAt: '18:00' },
+      ]),
+      tests: expectStatus(200),
+      examples: [
+        {
+          name: '200 · Reemplazado',
+          status: 200,
+          body: {
+            timezone: 'America/Bogota',
+            items: [
+              { dayOfWeek: 1, opensAt: '08:00', closesAt: '12:00' },
+              { dayOfWeek: 1, opensAt: '14:00', closesAt: '18:00' },
+            ],
+          },
+        },
+        { name: '400 · Franjas solapadas', status: 400, body: { code: 'INVALID_BUSINESS_HOURS' } },
+      ],
+    }),
+  ],
+});
+
+// ---------- 17 · Horario de empleado ----------
+
+const f17 = folder({
+  name: '17 · Horario de empleado',
+  auth: bearer('clinic_token'),
+  description: [
+    'Fase 5. Horario propio de un empleado. Cero filas significa "usa el horario de la clínica", no',
+    '"no atiende". No se exige que caiga dentro del horario de la clínica — Calendar hace la',
+    'intersección.',
+  ].join('\n'),
+  items: [
+    request({
+      name: 'GET Horario de un empleado',
+      method: 'GET',
+      raw: '{{vet_url}}/api/veterinary/{{veterinaryId}}/employees/{{employeeId}}/schedule',
+      description: [
+        'Cualquier miembro activo.',
+        '',
+        '- `404 EMPLOYEE_NOT_FOUND` — no existe, no es de esta clínica, o no está activo.',
+      ].join('\n'),
+      tests: expectStatus(200),
+      examples: [
+        {
+          name: '200 · Con horario propio',
+          status: 200,
+          body: {
+            employeeId: '22bb33cc-44dd-4ee6-8ff7-889900112233',
+            timezone: 'America/Bogota',
+            usesClinicHours: false,
+            items: [{ dayOfWeek: 1, opensAt: '09:00', closesAt: '13:00' }],
+          },
+        },
+        {
+          name: '200 · Sin filas propias (usa el de la clínica)',
+          status: 200,
+          body: { employeeId: '22bb33cc-44dd-4ee6-8ff7-889900112233', timezone: 'America/Bogota', usesClinicHours: true, items: [] },
+        },
+      ],
+    }),
+    request({
+      name: 'PUT Reemplazar horario de un empleado',
+      method: 'PUT',
+      raw: '{{vet_url}}/api/veterinary/{{veterinaryId}}/employees/{{employeeId}}/schedule',
+      description: [
+        'Permiso `CLINIC_CONFIGURE`. Mismo formato/validaciones que el horario de la clínica,',
+        'reemplazo transaccional. **`[]` borra las filas del empleado y lo vuelve al horario de la',
+        'clínica** (`usesClinicHours: true`) — no lo deja sin atender.',
+        '',
+        '- `400 INVALID_EMPLOYEE_SCHEDULE`.',
+        '- `404 EMPLOYEE_NOT_FOUND`.',
+      ].join('\n'),
+      body: jsonBody([{ dayOfWeek: 1, opensAt: '09:00', closesAt: '13:00' }]),
+      tests: expectStatus(200),
+      examples: [
+        {
+          name: '200 · Reemplazado',
+          status: 200,
+          body: {
+            employeeId: '22bb33cc-44dd-4ee6-8ff7-889900112233',
+            timezone: 'America/Bogota',
+            usesClinicHours: false,
+            items: [{ dayOfWeek: 1, opensAt: '09:00', closesAt: '13:00' }],
+          },
+        },
+      ],
+    }),
+  ],
+});
+
+// ---------- 18 · Bloqueos de agenda ----------
+
+const f18 = folder({
+  name: '18 · Bloqueos de agenda',
+  auth: bearer('clinic_token'),
+  description: [
+    'Fase 5. `employeeId: null` = bloqueo de toda la clínica. Se borran de verdad: configuración, no',
+    'dato clínico.',
+  ].join('\n'),
+  items: [
+    request({
+      name: 'GET Bloqueos en un rango',
+      method: 'GET',
+      raw: '{{vet_url}}/api/veterinary/{{veterinaryId}}/schedule-blocks?from=2026-03-01T00:00:00-05:00&to=2026-03-15T00:00:00-05:00',
+      description: [
+        'Cualquier miembro activo. `from`/`to` obligatorios (ISO con offset), `to > from`, máximo 92',
+        'días. Devuelve los que se solapan con `[from, to)`.',
+        '',
+        '- `400 INVALID_SCHEDULE_RANGE`.',
+      ].join('\n'),
+      tests: expectStatus(200),
+      examples: [
+        {
+          name: '200 · Bloqueos',
+          status: 200,
+          body: {
+            items: [
+              {
+                id: 'd1e1f1a1-0000-0000-0000-000000000001',
+                employeeId: null,
+                startsAt: '2026-03-02T00:00:00-05:00',
+                endsAt: '2026-03-03T00:00:00-05:00',
+                reason: 'Festivo',
+              },
+            ],
+          },
+        },
+      ],
+    }),
+    request({
+      name: 'POST Crear bloqueo (toda la clínica)',
+      method: 'POST',
+      raw: '{{vet_url}}/api/veterinary/{{veterinaryId}}/schedule-blocks',
+      description: [
+        'Un bloqueo de toda la clínica (`employeeId: null`) **siempre** exige `CLINIC_CONFIGURE`. Un',
+        'empleado activo sin ese permiso solo puede bloquear **su propio** `employeeId` (la identidad',
+        'sale de su membresía en base, no del body ni del claim).',
+        '',
+        '- `400 INVALID_SCHEDULE_BLOCK` — `endsAt <= startsAt`, `reason` > 200 caracteres.',
+        '- `403 INSUFFICIENT_PERMISSION` — empleado bloqueando a otro, o toda la clínica sin el permiso.',
+        '- `404 EMPLOYEE_NOT_FOUND` — `employeeId` no es activo de esta clínica.',
+      ].join('\n'),
+      body: jsonBody({
+        employeeId: null,
+        startsAt: '2026-03-02T00:00:00-05:00',
+        endsAt: '2026-03-03T00:00:00-05:00',
+        reason: 'Festivo',
+      }),
+      tests: expectStatus(201, [{ path: 'body.id', variable: 'blockId' }]),
+      examples: [
+        {
+          name: '201 · Creado',
+          status: 201,
+          body: {
+            id: 'd1e1f1a1-0000-0000-0000-000000000001',
+            employeeId: null,
+            startsAt: '2026-03-02T00:00:00-05:00',
+            endsAt: '2026-03-03T00:00:00-05:00',
+            reason: 'Festivo',
+          },
+        },
+        { name: '403 · Sin permiso para bloquear a otro/toda la clínica', status: 403, body: { code: 'INSUFFICIENT_PERMISSION' } },
+      ],
+    }),
+    request({
+      name: 'DELETE Borrar bloqueo',
+      method: 'DELETE',
+      raw: '{{vet_url}}/api/veterinary/{{veterinaryId}}/schedule-blocks/{{blockId}}',
+      description: [
+        '`CLINIC_CONFIGURE`, o el empleado dueño del bloqueo.',
+        '',
+        '- `404 SCHEDULE_BLOCK_NOT_FOUND` — no existe o es de otra clínica.',
+      ].join('\n'),
+      tests: expectStatus(204),
+      examples: [{ name: '204 · Borrado', status: 204, code: 'No Content', body: {} }],
+    }),
+  ],
+});
+
+// ---------- 19 · Internos (Fase 5 — Calendar) ----------
+
+const f19 = folder({
+  name: '19 · Internos (Fase 5 — Calendar)',
+  auth: noAuth,
+  description: [
+    '🚫 **Nunca expuestos por el gateway.** `X-Internal-Api-Key` en cada request, igual que la',
+    'carpeta 12. Lo consume Calendar — ver `docs/FASE_5_AGENDA.md` y',
+    '`docs/integracion/CALENDAR_REQUESTS_TO_VETERINARY.md`.',
+  ].join('\n'),
+  items: [
+    request({
+      name: 'GET Catálogo interno (sin filtros)',
+      method: 'GET',
+      raw: '{{vet_url}}/internal/veterinaries/{{veterinaryId}}/services',
+      description: [
+        '`activeOnly` y `bookableOnline` son opcionales y se combinan con AND; sin ellos, no filtra.',
+        '`employeeIds` lo calcula Veterinary (activos + `allowedRoles` + licencia si `requiresLicense`),',
+        'una sola consulta de empleados por petición. `employeeIds: []` = no reservable.',
+      ].join('\n'),
+      headers: [{ key: 'X-Internal-Api-Key', value: '{{internal_api_key}}' }],
+      tests: expectStatus(200),
+      examples: [
+        {
+          name: '200 · Todos los servicios',
+          status: 200,
+          body: [
+            {
+              id: 'c1a1b1c1-0000-0000-0000-000000000001',
+              name: 'Consulta general',
+              category: 'CONSULTATION',
+              durationMinutes: 30,
+              price: 40000,
+              active: true,
+              bookableOnline: true,
+              requiresLicense: false,
+              employeeIds: ['22bb33cc-44dd-4ee6-8ff7-889900112233'],
+            },
+          ],
+        },
+      ],
+    }),
+    request({
+      name: 'GET Catálogo interno (activeOnly=true)',
+      method: 'GET',
+      raw: '{{vet_url}}/internal/veterinaries/{{veterinaryId}}/services?activeOnly=true',
+      description: 'Solo servicios activos.',
+      headers: [{ key: 'X-Internal-Api-Key', value: '{{internal_api_key}}' }],
+      tests: expectStatus(200),
+      examples: [{ name: '200 · Solo activos', status: 200, body: [{ id: 'c1a1b1c1-0000-0000-0000-000000000001', active: true }] }],
+    }),
+    request({
+      name: 'GET Catálogo interno (activeOnly y bookableOnline, combinados con AND)',
+      method: 'GET',
+      raw: '{{vet_url}}/internal/veterinaries/{{veterinaryId}}/services?activeOnly=true&bookableOnline=true',
+      description: [
+        'La misma forma que usa Calendar para el catálogo del dueño (Veterinary no expone un endpoint',
+        'público para eso) — ver `docs/FASE_5_AGENDA.md` §6.',
+        '',
+        '- `400 VALIDATION_ERROR` — `bookableOnline` con un valor que no es `"true"`/`"false"`.',
+      ].join('\n'),
+      headers: [{ key: 'X-Internal-Api-Key', value: '{{internal_api_key}}' }],
+      tests: expectStatus(200),
+      examples: [
+        {
+          name: '200 · Activos y reservables en línea',
+          status: 200,
+          body: [{ id: 'c1a1b1c1-0000-0000-0000-000000000001', active: true, bookableOnline: true }],
+        },
+        { name: '400 · bookableOnline inválido', status: 400, body: { code: 'VALIDATION_ERROR' } },
+      ],
+    }),
+    request({
+      name: 'GET Detalle de un servicio (interno)',
+      method: 'GET',
+      raw: '{{vet_url}}/internal/veterinaries/{{veterinaryId}}/services/{{serviceId}}',
+      description: [
+        'Incluye inactivos (Calendar los necesita para citas ya creadas sobre ellos).',
+        '',
+        '- `404 CLINIC_SERVICE_NOT_FOUND`.',
+      ].join('\n'),
+      headers: [{ key: 'X-Internal-Api-Key', value: '{{internal_api_key}}' }],
+      tests: expectStatus(200),
+      examples: [
+        {
+          name: '200 · Detalle',
+          status: 200,
+          body: {
+            id: 'c1a1b1c1-0000-0000-0000-000000000001',
+            name: 'Consulta general',
+            category: 'CONSULTATION',
+            durationMinutes: 30,
+            price: 40000,
+            active: true,
+            bookableOnline: true,
+            requiresLicense: false,
+            employeeIds: ['22bb33cc-44dd-4ee6-8ff7-889900112233'],
+          },
+        },
+      ],
+    }),
+    request({
+      name: 'GET Datos de la clínica (interno)',
+      method: 'GET',
+      raw: '{{vet_url}}/internal/veterinaries/{{veterinaryId}}',
+      description: [
+        '`status` trae los 6 valores reales. Nunca NIT, razón social, representante legal ni email.',
+        'No confundir con `GET .../summary` (de Medical, sin cambios).',
+        '',
+        '- `404 VETERINARY_NOT_FOUND`.',
+      ].join('\n'),
+      headers: [{ key: 'X-Internal-Api-Key', value: '{{internal_api_key}}' }],
+      tests: expectStatus(200),
+      examples: [
+        {
+          name: '200 · Datos de la clínica',
+          status: 200,
+          body: {
+            id: '9a1c2f3e-4b5d-6e7f-8a9b-0c1d2e3f4a5b',
+            name: 'Clínica El Bosque',
+            status: 'ACTIVE',
+            allowOnlineBooking: true,
+            bookingRequiresConfirmation: true,
+            cancellationMinHours: 4,
+            timezone: 'America/Bogota',
+            address: 'Calle 1 #2-3',
+            phone: '3001234567',
+          },
+        },
+      ],
+    }),
+    request({
+      name: 'GET Miembros de la clínica (interno)',
+      method: 'GET',
+      raw: '{{vet_url}}/internal/veterinaries/{{veterinaryId}}/members',
+      description: [
+        'Por defecto solo activos; con `includeInactive=true` también los retirados (`active: false`).',
+        '`name` es best-effort (`UserServicePort`, resuelto en paralelo con presupuesto total de',
+        '1500 ms — `null` si no llega a tiempo), sin email ni teléfono. `licensed` sale del mismo',
+        'origen que `access`. `permissions` = `RolePermissions.resolve`; un retirado siempre tiene `[]`.',
+        '',
+        '- `404 VETERINARY_NOT_FOUND`.',
+      ].join('\n'),
+      headers: [{ key: 'X-Internal-Api-Key', value: '{{internal_api_key}}' }],
+      tests: expectStatus(200, [{ path: 'body[0] && body[0].employeeId', variable: 'employeeId' }]),
+      examples: [
+        {
+          name: '200 · Miembros activos',
+          status: 200,
+          body: [
+            {
+              employeeId: '22bb33cc-44dd-4ee6-8ff7-889900112233',
+              userId: 'aa11bb22-cc33-4dd4-8ee5-ff6677889900',
+              name: 'Ana Pérez',
+              role: 'VETERINARIAN',
+              active: true,
+              licensed: true,
+              permissions: ['APPOINTMENT_MANAGE', 'PATIENT_REGISTER', 'CLINICAL_READ', 'CLINICAL_READ_BASIC', 'NURSING_WRITE', 'DOCUMENT_UPLOAD', 'CLINICAL_WRITE'],
+            },
+          ],
+        },
+      ],
+    }),
+    request({
+      name: 'GET Reglas de horario para el rango (schedule-rules)',
+      method: 'GET',
+      raw: '{{vet_url}}/internal/veterinaries/{{veterinaryId}}/schedule-rules?from=2026-03-01T00:00:00-05:00&to=2026-03-15T00:00:00-05:00',
+      description: [
+        'Lo usa Calendar para calcular franjas libres. `opensAt`/`closesAt` en `"HH:mm"` locales a',
+        '`timezone`; `startsAt`/`endsAt` de `blocks` como instantes normalizados en UTC.',
+        '',
+        'Regla de horas efectivas: empleado con filas propias → solo esas (un día sin fila = no',
+        'atiende); sin filas → hereda `businessHours`; clínica sin horario y sin filas → sin horas.',
+        'Los bloqueos de toda la clínica siempre se incluyen. Con `?employeeId=`, la misma regla solo',
+        'para esa persona (`404 EMPLOYEE_NOT_FOUND` si no es activo de esta clínica).',
+        '',
+        '- `400 INVALID_SCHEDULE_RANGE`, `404 VETERINARY_NOT_FOUND`.',
+      ].join('\n'),
+      headers: [{ key: 'X-Internal-Api-Key', value: '{{internal_api_key}}' }],
+      tests: expectStatus(200),
+      examples: [
+        {
+          name: '200 · Reglas',
+          status: 200,
+          body: {
+            timezone: 'America/Bogota',
+            businessHours: [{ dayOfWeek: 1, opensAt: '08:00', closesAt: '17:00' }],
+            employeeHours: [{ employeeId: '22bb33cc-44dd-4ee6-8ff7-889900112233', dayOfWeek: 1, opensAt: '09:00', closesAt: '13:00' }],
+            blocks: [{ employeeId: null, startsAt: '2026-03-02T00:00:00Z', endsAt: '2026-03-03T00:00:00Z', reason: 'Festivo' }],
+          },
+        },
+      ],
+    }),
+    request({
+      name: 'GET Mascota compartida con la clínica (interno)',
+      method: 'GET',
+      raw: '{{vet_url}}/internal/veterinaries/{{veterinaryId}}/patients/{{petId}}/shared',
+      description: [
+        '**Siempre `200`**, nunca `404`. `shared: true` exige consentimiento `GRANTED` Y que el dueño',
+        'siga vinculado (`LINKED`), sin depender de empleados ni del estado de la clínica. No expone',
+        'el id del dueño.',
+      ].join('\n'),
+      headers: [{ key: 'X-Internal-Api-Key', value: '{{internal_api_key}}' }],
+      tests: expectStatus(200),
+      examples: [
+        { name: '200 · Compartida', status: 200, body: { shared: true } },
+        { name: '200 · No compartida (nunca 404)', status: 200, body: { shared: false } },
+      ],
+    }),
+  ],
+});
+
 // ---------- Colección ----------
 
 const collection = {
@@ -3207,7 +3794,7 @@ const collection = {
     description: [
       '# MyAnimaLog · Veterinary Service',
       '',
-      'Colección completa del `veterinary-service` (**75 endpoints**, todos los del código, incluidos',
+      'Colección completa del `veterinary-service` (**92 endpoints**, todos los del código, incluidos',
       'los `/internal/**` y los deprecados). Generada desde los controladores con',
       '`postman/build-collection.js` y verificada con `postman/check-coverage.js`.',
       '',
@@ -3238,7 +3825,8 @@ const collection = {
       '| 10 Equipo | `clinic_token` |',
       '| 11 Vinculación y mascotas (dueño) | `access_token` del dueño |',
       '| 14 Clientes y pacientes (clínica) | `clinic_token` |',
-      '| 12 · 13 Internos y jobs | ninguno; header `X-Internal-Api-Key` |',
+      '| 15 · 16 · 17 · 18 Catálogo, horarios y bloqueos (Fase 5) | `clinic_token` |',
+      '| 12 · 13 · 19 Internos y jobs | ninguno; header `X-Internal-Api-Key` |',
       '| 99 Deprecados | `clinic_token` |',
       '',
       'La autenticación por defecto de la colección es `Bearer {{access_token}}`; cada carpeta la',
@@ -3288,7 +3876,7 @@ const collection = {
     schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
   },
   auth: bearer('access_token'),
-  item: [auth00, f01, f02, f03, f04, f05, f06, f07, f08, f09, f10, f11, f12, f13, f14, f99],
+  item: [auth00, f01, f02, f03, f04, f05, f06, f07, f08, f09, f10, f11, f14, f15, f16, f17, f18, f12, f19, f13, f99],
   variable: [
     { key: 'legal_data_policy_version', value: '2026-10-v1', type: 'string' },
     { key: 'legal_terms_version', value: '2026-10-v1', type: 'string' },

@@ -25,7 +25,15 @@ final class TestClinics {
     }
 
     static UUID persist(VeterinaryRepositoryPort veterinaryRepositoryPort) {
-        return veterinaryRepositoryPort.save(Veterinary.builder()
+        return veterinaryRepositoryPort.save(build()).getId();
+    }
+
+    /**
+     * La clínica sin guardar, para el test de rollback, que necesita el id antes de decidir cómo la
+     * guarda y la borra (no es {@code @Transactional}, así que se limpia a mano).
+     */
+    static Veterinary build() {
+        return Veterinary.builder()
                 .id(UUID.randomUUID())
                 .name("Clínica de prueba " + UUID.randomUUID())
                 .city("Bogotá")
@@ -40,6 +48,6 @@ final class TestClinics {
                 .cancellationMinHours(4)
                 .directoryVisible(true)
                 .createdAt(LocalDateTime.now())
-                .build()).getId();
+                .build();
     }
 }
